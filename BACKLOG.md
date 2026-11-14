@@ -1,0 +1,42 @@
+# Backlog (ordered; take the highest unblocked item)
+
+Status: `[ ]` open · `[x]` done · `[B]` blocked (reason given)
+
+## P0 — crashes, saves, duplication, controls
+- [x] **P0-01 Save backups.** Before migrating a legacy save or loading/overwriting a JSON save at startup, copy it to `save_backups/` (keep newest 5 per kind). *AC:* test shows backup created on migrate; rotation keeps ≤5.
+- [x] **P0-02 Corrupt save safety.** If `hollowbrook_save.json` exists but fails to parse, do not start a new game over it: rename to `.corrupt-<time>` and fall back to legacy/new. *AC:* unit test with garbage JSON; original bytes preserved.
+- [B] **P0-03 Physical keyboard verification.** Needs the user at the keyboard (desktop-wide synthetic input is not permitted). *AC:* user walks, presses E at home door, opens I, exits.
+
+## P1 — finish current milestone (rendered verification)
+- [x] **P1-01 Fishing rendered.** Autotest phase 3 equips rod, casts, waits for bite, catches; screenshot of shadow/bobber. *AC:* fish in pockets; screenshot inspected.
+- [x] **P1-02 Digging rendered.** Buy shovel, dig a dig site and a plain hole, fill one. *AC:* treasure obtained, hole visible in screenshot.
+- [x] **P1-03 Bug catching rendered.** Net swing catches a bug. *AC:* bug in pockets or documented absence of spawn.
+- [x] **P1-04 Resident interior visit.** During a resident's home hours enter their home and talk. *AC:* screenshot shows themed room + resident.
+- [x] **P1-05 Night + lamp.** Dev clock at night: lit windows outdoors; lamp on/off indoors changes lighting. *AC:* two screenshots inspected.
+
+## P2 — presentation and readability
+- [ ] **P2-01 Occlusion fade.** Buildings/trees between camera and player are drawn translucent/cut so the player stays visible. *AC:* behind-house screenshot shows player.
+- [ ] **P2-02 Tool feedback.** Swing animation + small effect (splash ring, dirt puff) for each tool. *AC:* screenshot during use.
+- [ ] **P2-03 Running tramples flowers.** Running over a flower tile can flatten it (persisted, regrows next day). *AC:* unit test.
+
+## P3 — collections and museum
+- [ ] **P3-01 Museum building + donations.** New building on free grass (town otherwise unchanged; saves remap safely). Curator interaction donates any undonated fish/bug/treasure; donation log persisted. *AC:* tests: donate once, no duplicate donation, item leaves pockets.
+- [ ] **P3-02 Visible exhibits.** Museum interior shows donated species (fish tank models, bug cases, treasure pedestals). *AC:* screenshot inspected.
+- [ ] **P3-03 Completion records.** Journal shows donated/total per category. *AC:* test + screenshot.
+
+## P4 — civic systems
+- [B] **P4-01** Requires an original civic design approved by the user (see DESIGN_SPEC §14).
+
+## P5 — housing, clothing, catalog, shop growth
+- [ ] **P5-01 Home expansion.** Pay at the shop counter to enlarge the home room (4×4 → 5×5 → 6×5); furniture keeps positions. *AC:* tests for cost, persistence, room dims; rendered check.
+- [ ] **P5-02 Clothing.** Shop sells 4 shirts; equipping changes outfit colour; persisted. *AC:* test + screenshot.
+- [ ] **P5-03 Catalog reorder.** Furniture ever owned can be re-ordered at the counter at full price. *AC:* test.
+
+## P6 — residents
+- [ ] **P6-01 Mailbox and letters.** Letters are stored (not just toasts) in a mailbox by the home; read/claim attached gifts once. *AC:* tests: claim once, persists.
+- [ ] **P6-02 Idle activities & rain.** Residents sometimes stop to look at flowers / stretch; carry umbrellas in rain. *AC:* rendered.
+- [ ] **P6-03 Gifts.** Give a resident an item from pockets; reaction depends on preference. *AC:* test.
+
+## P7 — seasons, weather, events
+- [ ] **P7-01 Snow in winter** (ground tint + falling snow instead of rain). *AC:* rendered with dev clock.
+- [ ] **P7-02 One recurring seasonal event** (provisional date and rules). *AC:* test for date window.

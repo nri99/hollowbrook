@@ -37,8 +37,12 @@ impl Sounds {
 }
 
 fn load_game() -> Option<Game> {
-    if let Some(w) = save::load(SAVE) { return Some(Game::from_world(w, town())) }
-    let map = town(); let w = save::migrate(save::LEGACY, &map)?;
+    match save::load_checked(SAVE) {
+        save::Loaded::Ok(w) => { save::backup(SAVE, save::BACKUPS); return Some(Game::from_world(w, town())) }
+        save::Loaded::Corrupt(p) => eprintln!("[save] {SAVE} could not be read; moved aside to {p}"),
+        save::Loaded::Missing => {}
+    }
+    let map = town(); save::backup(save::LEGACY, save::BACKUPS); let w = save::migrate(save::LEGACY, &map)?;
     eprintln!("[save] migrated legacy save {} -> {SAVE} (legacy file kept)", save::LEGACY); save::save(&w, SAVE); Some(Game::from_world(w, map))
 }
 
@@ -75,7 +79,7 @@ async fn main() {
         if g.update(&inp, dt, now) { save::save(&g.persist(), SAVE) } // persist a refresh immediately
         render::draw(&g, now, dbg.then(|| clock.source()));
         sounds.play(&mut g.snd);
-        if dbg && is_key_pressed(KeyCode::F12) { shots += 1; get_screen_data().export_png(&format!("shot_{shots}.png")); eprintln!("[shot] shot_{shots}.png") }
+        if dbg && is_key_pressed(KeyCode::F12) { shots += 1; screenshot(&format!("shot_{shots}.png")); eprintln!("[shot] shot_{shots}.png") }
         st += dt; if st > 15. { save::save(&g.persist(), SAVE); st = 0. }
         if is_quit_requested() { save::save(&g.persist(), SAVE); break }
         next_frame().await
@@ -104,7 +108,7 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
     let phase = std::env::var("HOLLOWBROOK_AUTOTEST_PHASE").unwrap_or("1".into());
     let mut rep = String::new();
     macro_rules! log { ($($a:tt)*) => {{ let s = format!($($a)*); eprintln!("[auto] {s}"); rep += &s; rep.push('\n'); }} }
-    macro_rules! shot { ($n:expr) => {{ wait(g, c, 2).await; render::draw(g, c.now(), Some(c.source())); get_screen_data().export_png(&format!("{dir}/{}.png", $n)); next_frame().await; log!("shot {}", $n); }} }
+    macro_rules! shot { ($n:expr) => {{ wait(g, c, 2).await; render::draw(g, c.now(), Some(c.source())); screenshot(&format!("{dir}/{}.png", $n)); next_frame().await; log!("shot {}", $n); }} }
     let state = |g: &Game| format!("money={} inv={:?} stock={:?} room={:?} tools={:?}", g.w.money, g.w.inv.iter().map(|s| (def(s.def).name, s.qty, s.uid)).collect::<Vec<_>>(),
         g.w.stock.iter().map(|s| (def(s.def).name, s.sold)).collect::<Vec<_>>(), g.w.room.iter().map(|f| (def(f.def).name, f.uid, f.x, f.z, f.rot, f.on)).collect::<Vec<_>>(), g.w.tools);
     log!("phase {phase} start {} | {}", c.now(), state(g));
@@ -146,6 +150,38 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
                 if g.ui != Ui::Play { press(g, c, KeyCode::Escape).await } if g.pose != Pose::Stand { step(g, c, &[KeyCode::S], &[]).await } log!("stood up: pose={:?}", g.pose); go(g, c, vec2(3.4, 3.3), 0.15).await; face(g, c, vec2(3.4, 4.)).await; shot!("10_furnished_home"); }
         }
         log!("phase 1 end | {}", state(g));
+    } else if phase == "0" {
+        log!("load-only check");
+    } else if phase == "3" && c.now().hour() < 18 {
+        // P1-01..04: shovel purchase, digging, fishing, bugs, resident interior
+        go(g, c, door_stand(SHOP), 0.12).await; face(g, c, door_face(SHOP)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
+        approach(g, c, tc(DISPLAYS[5])).await; press(g, c, KeyCode::E).await; press(g, c, KeyCode::Enter).await; log!("shovel bought: tools={:?} money={}", g.w.tools, g.w.money);
+        go(g, c, vec2(3.5, 4.5), 0.12).await; for _ in 0..30 { if g.scene == Scene::Town { break } step(g, c, &[KeyCode::S], &[]).await } wait(g, c, 40).await;
+        for _ in 0..4 { if g.w.equip == Some(62) { break } press(g, c, KeyCode::Tab).await }
+        if let Some(site) = g.w.digs.first().copied() { approach(g, c, tc(site)).await; press(g, c, KeyCode::Space).await; log!("dig site {:?}: hole={} inv={:?}", site, g.w.holes.contains(&site), g.w.inv); shot!("p3_dig_site");
+            press(g, c, KeyCode::Space).await; log!("filled again: hole={}", g.w.holes.contains(&site)); }
+        for _ in 0..4 { if g.w.equip == Some(61) { break } press(g, c, KeyCode::Tab).await }
+        go(g, c, vec2(23.5, 5.5), 0.12).await; face(g, c, vec2(25., 5.5)).await;
+        'fish: for attempt in 0..8 { press(g, c, KeyCode::Space).await; log!("cast {attempt}: fishing={} target_fish={:?} shadows={}", g.fish.is_some(), g.fish.as_ref().and_then(|f| f.fish), g.shadows.len());
+            for _ in 0..600 { if g.fish.is_none() { break } if g.fish.as_ref().is_some_and(|f| f.bite) { shot!("p3_fish_bite"); press(g, c, KeyCode::Space).await; log!("reeled at bite: inv={:?}", g.w.inv); break 'fish } step(g, c, &[], &[]).await }
+            wait(g, c, 60).await }
+        for _ in 0..4 { if g.w.equip == Some(60) { break } press(g, c, KeyCode::Tab).await }
+        for _ in 0..3 { let mut b = None; for _ in 0..900 { if let Some(x) = g.bugs.iter().map(|b| b.1).min_by(|a, b| a.distance(g.pos).total_cmp(&b.distance(g.pos))) { b = Some(x); break } step(g, c, &[], &[]).await }
+            let Some(bp) = b else { log!("no bug spawned within 15 s"); break }; approach(g, c, bp).await; let bp2 = g.bugs.iter().map(|b| b.1).min_by(|a, b| a.distance(g.pos).total_cmp(&b.distance(g.pos))); if let Some(x) = bp2 { face(g, c, x).await } press(g, c, KeyCode::Space).await;
+            log!("net swing: inv={:?}", g.w.inv); if g.w.inv.iter().any(|s| def(s.def).k == K::Bug) { shot!("p3_bug_caught"); break } }
+        if let Some(r) = (0..4).find(|&r| where_(r, g.hr) == Loc::Home) { let b = RES[r].bld; go(g, c, door_stand(b), 0.12).await; face(g, c, door_face(b)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
+            log!("resident {r} home: scene={:?}", g.scene); shot!("p3_resident_home"); approach(g, c, res_spot()).await; press(g, c, KeyCode::E).await; log!("talk ui={:?}", g.ui); shot!("p3_resident_talk"); for _ in 0..4 { if g.ui == Ui::Play { break } press(g, c, KeyCode::E).await } }
+        log!("phase 3A end | {}", state(g));
+    } else if phase == "3" {
+        // P1-05: night lighting outdoors, lamp on/off indoors (lamp granted as a logged test fixture)
+        go(g, c, vec2(13.5, 17.5), 0.15).await; face(g, c, vec2(13.5, 10.)).await; shot!("p3_night_town");
+        go(g, c, door_stand(HOME), 0.12).await; face(g, c, door_face(HOME)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
+        if !g.w.room.iter().any(|f| f.def == 54) { g.add_furn(54); log!("FIXTURE: lamp added to pockets for lighting check");
+            let idx = g.w.inv.iter().position(|s| s.def == 54).unwrap(); go(g, c, vec2(2.5, 3.5), 0.1).await; face(g, c, vec2(2.5, 1.)).await;
+            press(g, c, KeyCode::I).await; for _ in 0..idx { press(g, c, KeyCode::S).await } press(g, c, KeyCode::Enter).await; press(g, c, KeyCode::D).await; press(g, c, KeyCode::Enter).await; log!("lamp placed: {:?}", g.w.room) }
+        let lamp = g.w.room.iter().find(|f| f.def == 54).copied().unwrap(); approach(g, c, fcenter(&lamp)).await; go(g, c, vec2(1.5, 3.4), 0.12).await; face(g, c, vec2(1.5, 0.)).await; shot!("p3_lamp_off");
+        approach(g, c, fcenter(&lamp)).await; press(g, c, KeyCode::E).await; log!("lamp on={:?}", g.w.room.iter().find(|f| f.def == 54).map(|f| f.on)); go(g, c, vec2(1.5, 3.4), 0.12).await; face(g, c, vec2(1.5, 0.)).await; shot!("p3_lamp_on");
+        log!("phase 3B end | {}", state(g));
     } else {
         shot!("11_relaunch_outdoor");
         go(g, c, door_stand(HOME), 0.12).await; face(g, c, door_face(HOME)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await; log!("home: scene={:?}", g.scene); shot!("12_relaunch_home");
@@ -156,3 +192,6 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
     log!("end time {} hr {}", c.now(), c.now().hour());
     let _ = std::fs::write(format!("{dir}/autotest_phase{phase}.txt"), rep);
 }
+
+/// Save the current frame; alpha forced opaque (shadow blending lowers framebuffer alpha, which PNG viewers would show as transparency).
+fn screenshot(path: &str) { let mut img = get_screen_data(); for px in img.bytes.chunks_mut(4) { px[3] = 255 } img.export_png(path) }

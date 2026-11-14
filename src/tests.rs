@@ -113,3 +113,14 @@ fn home(g: &mut Game) { g.swap(Scene::Room(HOME)) }
     assert_eq!(w.npcs[1].friend, 12); assert_eq!(w.room, vec![Furn { uid: 1, def: 55, x: 0, z: 0, rot: 0, on: false }, Furn { uid: 2, def: 51, x: 2, z: 1, rot: 1, on: false }]); assert_eq!(w.uid, 3);
     let g = Game::from_world(w, map); assert_eq!(g.w.stock.len(), 5);
 }
+
+// ---- save safety ----
+#[test] fn backups_rotate() {
+    let d = std::env::temp_dir().join("hb3_bk"); let _ = std::fs::remove_dir_all(&d); let f = std::env::temp_dir().join("hb3_bk_save.json"); std::fs::write(&f, "x").unwrap();
+    for _ in 0..8 { assert!(save::backup(f.to_str().unwrap(), d.to_str().unwrap()).is_some()); std::thread::sleep(std::time::Duration::from_millis(5)) }
+    assert_eq!(std::fs::read_dir(&d).unwrap().count(), save::KEEP_BACKUPS);
+}
+#[test] fn corrupt_save_moved_aside() {
+    let f = std::env::temp_dir().join("hb3_corrupt.json"); std::fs::write(&f, "{not json").unwrap();
+    match save::load_checked(f.to_str().unwrap()) { save::Loaded::Corrupt(p) => { assert!(!f.exists()); assert_eq!(std::fs::read_to_string(&p).unwrap(), "{not json"); let _ = std::fs::remove_file(p); } _ => panic!("expected corrupt") }
+}
