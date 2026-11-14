@@ -31,3 +31,8 @@ Expected: all of the above works without stuck keys.
 1. With two pads, the first pad pressing Start becomes Player 2, the second becomes an extra pad for Player 1.
 
 Record results (pass/fail + notes) at the bottom of this file.
+
+## Items 3/4/7 (2026-11-14)
+- Notice board as P1: start a funded project, walk the green/red preview, place; donate from both players; check it appears the next morning.
+- Town Hall door: desk opens; enact Dawn/Lantern/Tidy as P1 (P2 cannot); check store hours sign and residents' hours.
+- Gullrock board: play Crab Corral, Beacon Dash, Ring Swim solo and with both players on the islet; check thresholds feel fair with real controllers (provisional values).

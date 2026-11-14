@@ -243,6 +243,16 @@ fn islet_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(Vec3, String, 
     for it in &g.w.iground { let c = rgb(def(it.def).col); match it.def { 82 => r.with(Mat4::from_translation(vec3(it.x, 0.06, it.z)) * Mat4::from_rotation_y(it.x * 3.), |r| r.cube(Vec3::ZERO, vec3(0.28, 0.05, 0.05), c)), 75 => { r.sphere(vec3(it.x, 0.08, it.z), vec3(0.14, 0.07, 0.11), c); for s in [-1f32, 1.] { r.sphere(vec3(it.x + s * 0.15, 0.08, it.z + 0.08), Vec3::splat(0.05), c) } } _ => { r.sphere(vec3(it.x, 0.05, it.z), vec3(0.12, 0.06, 0.12), c); r.cone(vec3(it.x, 0.05, it.z), 0.07, 0.12, sh(c, 0.9)) } } }
     for b in &g.ibubbles { for k in 0..3 { let ph = (t * 1.5 + k as f32 * 2.1) % 1.; r.sphere(vec3(b.0.x + (k as f32 - 1.) * 0.12, -0.18 + ph * 0.05, b.0.y + ph * 0.1), Vec3::splat(0.04 + ph * 0.03), Color::new(0.95, 0.98, 1., 1.)) } }
     for &(p, a, k) in &g.fx { if k == 0 { let sz = a / 0.8; for i in 0..10 { let an = i as f32 / 10. * 2. * PI; let rr = 0.15 + sz * 0.6; r.sphere(p + vec3(an.cos() * rr, 0.02, an.sin() * rr), vec3(0.05, 0.015, 0.05), Color::new(0.92, 0.97, 1., 1. - sz)) } } }
+    { let bp = tc(ACT_BOARD); r.cube(vec3(bp.x, 0.45, bp.y), vec3(0.05, 0.45, 0.05), WOOD); r.cube(vec3(bp.x, 0.95, bp.y), vec3(0.4, 0.25, 0.04), Color::new(0.3, 0.6, 0.75, 1.));
+      if g.me.ipos.distance(bp) < 3. { labels.push((vec3(bp.x, 1.5, bp.y), "Tidekeeper's board".into(), Color::new(0.7, 1., 0.95, 1.))) } }
+    if let Some(a) = &g.act { match a.kind {
+        0 => { for k in 0..12 { let an = k as f32 / 12. * 2. * PI; r.sphere(vec3(PEN.0 + an.cos() * PEN.2, 0.08, PEN.1 + an.sin() * PEN.2), vec3(0.14, 0.1, 0.12), Color::new(0.6, 0.58, 0.55, 1.)) }
+            for c in &a.ents { r.sphere(vec3(c.x, 0.1, c.y), vec3(0.18, 0.09, 0.14), Color::new(0.9, 0.3, 0.2, 1.)); for s in [-1f32, 1.] { r.sphere(vec3(c.x + s * 0.2, 0.12, c.y - 0.08), Vec3::splat(0.06), Color::new(0.95, 0.4, 0.25, 1.)) } } }
+        1 => { let b = a.ents[0]; let pulse = (t * 6.).sin() * 0.5 + 0.5; r.cyl(vec3(b.x, 0., b.y), 0.12, 0.9, Color::new(1., 0.85, 0.3, 1.)); r.sphere(vec3(b.x, 1.0, b.y), Vec3::splat(0.16 + pulse * 0.06), Color::new(1., 0.95, 0.5 + pulse * 0.4, 1.)) }
+        _ => for (k, p) in a.ents.iter().enumerate() { if k < a.next { continue } let c = if k == a.next { Color::new(1., 0.8, 0.2, 1.) } else { Color::new(0.95, 0.95, 0.95, 1.) };
+            for j in 0..14 { let an = j as f32 / 14. * 2. * PI; r.sphere(vec3(p.x + an.cos() * 0.55, 0.15 + an.sin() * 0.55, p.y), Vec3::splat(0.07), c) }
+            if k == a.next || g.me.ipos.distance(*p) < 6. { labels.push((vec3(p.x, 1.1, p.y), format!("{}", k + 1), c)) } },
+    } }
     let swim = g.swimming(); let sy = if swim { -0.55 } else { 0. }; if !swim { r.disc(vec3(g.me.ipos.x, 0.02, g.me.ipos.y), vec2(0.32, 0.26), shc) }
     human(r, g.me.id, (g.w.p.shirt, g.w.p.hat, g.w.p.hair), vec3(g.me.ipos.x, sy, g.me.ipos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, 0, None, t, g.me.swing);
     others(r, g, t);
@@ -486,6 +496,11 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
     if g.me.fish.as_ref().is_some_and(|f| f.bite) { txt("!", sw / 2. - 10., sh / 2. - 80., 90., Color::new(1., 0.3, 0.2, 1.)) }
     let narrow = sw < 900.;
     if narrow { draw_rectangle(sw - 62., 14., 50., 30., if g.me.id == 0 { Color::new(0.2, 0.45, 0.9, 0.9) } else { Color::new(0.9, 0.35, 0.3, 0.9) }); txt(&format!("P{}", g.me.id + 1), sw - 52., 38., 26., WHITE) }
+    if let Some(a) = &g.act { if g.me.scene == Scene::Islet && a.players.contains(&g.me.id) { let (n, obj, _, th) = ACTS[a.kind]; let bw = 600f32.min(sw - 20.); let (x0, y0) = (sw / 2. - bw / 2., sh - 134.);
+        draw_rectangle(x0, y0, bw, 92., Color::new(0., 0.15, 0.25, 0.75)); let mine = a.mine.iter().find(|m| m.0 == g.me.id).map_or(0, |m| m.1);
+        txt(&format!("{n}   {:.0}s left   team score {}{}", a.left.ceil(), a.score, if a.done { "   - finished!" } else { "" }), x0 + 12., y0 + 26., 24., WHITE);
+        txt(obj, x0 + 12., y0 + 52., 17., Color::new(0.8, 0.95, 1., 1.));
+        txt(&format!("Bronze {} / Silver {} / Gold {}  ->  {} / {} / {} Sea Glass   you: {mine}{}", th[0], th[1], th[2], ACT_REWARD[0], ACT_REWARD[1], ACT_REWARD[2], if a.players.len() > 1 { "   (team)" } else { "" }), x0 + 12., y0 + 78., 17., GOLD) } }
     let hint = if g.me.mplace.is_some() { "Placing project: walk/face a spot  Enter place  Esc cancel" } else if g.swimming() { if g.me.pad { "Swimming:  X dive  stick swim" } else { "Swimming:  Space dive  WASD swim" } } else if g.me.pad { if g.me.placing.is_some() { "Stick move  RB rotate  A place  B cancel" } else { if narrow { "Stick move  A act  X tool  RB tool  Y bag  B back" } else { "Stick move  RT run  A act  X tool  RB next tool  Y bag  Start journal  B cancel" } } } else if narrow { if g.me.placing.is_some() { "Move  R rotate  Enter place  Esc cancel" } else { "Move  E act  Space tool  Tab tool  I bag  J journal" } } else if g.me.placing.is_some() { "Placing:  WASD/Arrows move   R rotate   Enter place   Esc cancel" } else { "WASD move  Shift run  E interact  Space use tool  Tab tool  I inventory  J journal  F/G move/pick up furniture  Esc cancel" };
     txt(hint, 12., sh - 14., 19., WHITE);
     match &g.me.ui {
@@ -518,6 +533,12 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         Ui::PolicyOk(sel) => { panel(sw / 2. - 330., sh / 2. - 110., 660., 210.); let (t, fee, e) = POLICIES.get(*sel).map_or(("Repeal current policy", 0, "Return to normal hours and maintenance."), |p| (p.name, p.fee, p.effect));
             txt(&format!("{t}  -  fee {fee} coins (you have {})", g.w.p.money), sw / 2. - 310., sh / 2. - 75., 22., BLACK); for (k, l) in wrap(e, 70).iter().enumerate() { txt(l, sw / 2. - 310., sh / 2. - 40. + k as f32 * 22., 18., DARKGRAY) }
             txt(if g.me.pad { "[A] Confirm   [B] Back" } else { "[Enter] Confirm   [Esc] Back" }, sw / 2. - 310., sh / 2. + 70., 22., Color::new(0.45, 0.3, 0.2, 1.)) }
+        Ui::Act(sel) => { panel(sw / 2. - 320., 90., 640., 370.); txt("Tidekeeper's board - timed activities", sw / 2. - 300., 125., 24., Color::new(0.45, 0.3, 0.2, 1.));
+            let items: Vec<String> = ACTS.iter().map(|a| format!("{}  -  {:.0} seconds", a.0, a.2)).collect(); list(&items, Some(*sel), sw / 2. - 290., 160.);
+            let a = ACTS[*sel]; for (k, l) in wrap(a.1, 66).iter().enumerate() { txt(l, sw / 2. - 300., 290. + k as f32 * 22., 18., BLACK) }
+            txt(&format!("Team score {} / {} / {} earns {} / {} / {} Sea Glass each (once per activity per day).", a.3[0], a.3[1], a.3[2], ACT_REWARD[0], ACT_REWARD[1], ACT_REWARD[2]), sw / 2. - 300., 345., 17., DARKGRAY);
+            txt("Everyone on Gullrock joins and shares the score; a player in town is unaffected.", sw / 2. - 300., 370., 17., DARKGRAY);
+            txt(if g.me.pad { "[A] Start   [B] Close" } else { "[Enter] Start   [Esc] Close" }, sw / 2. - 300., 430., 22., Color::new(0.45, 0.3, 0.2, 1.)) }
         Ui::Fund => { if let Some(m) = &g.w.mproject { panel(sw / 2. - 260., sh / 2. - 80., 520., 150.); txt(&format!("{}: {} / {} coins", MPROJECTS[m.idx].0, m.funded, MPROJECTS[m.idx].1), sw / 2. - 240., sh / 2. - 40., 24., BLACK);
             txt(&format!("You have {} coins. Each press donates up to {}.", g.w.p.money, DONATE_STEP), sw / 2. - 240., sh / 2. - 6., 20., DARKGRAY); txt(if g.me.pad { "[A] Donate   [B] Close" } else { "[Enter] Donate   [Esc] Close" }, sw / 2. - 240., sh / 2. + 36., 22., Color::new(0.45, 0.3, 0.2, 1.)) } }
         Ui::ConfirmExpand => { let lv = g.w.p.home as usize; let (a, b) = (HOME_DIMS[lv], HOME_DIMS[(lv + 1).min(HOME_DIMS.len() - 1)]); panel(sw / 2. - 270., sh / 2. - 90., 540., 170.);

@@ -181,6 +181,18 @@ pub fn dock_stand() -> Vec2 { vec2(20.5, 24.5) }
 pub const ISLET_SPAWN: (f32, f32) = (7.5, 10.5);
 pub const PELL_I: (f32, f32) = (6.5, 11.5);
 pub const ISTALL: (i32, i32) = (10, 9);
+/// Gullrock timed activities (original, provisional): name, objective, seconds, bronze/silver/gold team-score thresholds.
+pub const ACTS: [(&str, &str, f32, [u32; 3]); 3] = [
+    ("Crab Corral", "Walk into the crabs to nudge them inside the ring of stones.", 60., [2, 4, 6]),
+    ("Beacon Dash", "Touch each glowing beacon before it fades (it moves every few seconds).", 45., [7, 12, 18]),
+    ("Ring Swim", "Swim through the floating rings in numbered order.", 75., [2, 4, 6]),
+];
+/// Sea Glass paid to each participant per tier (bronze, silver, gold); once per activity per player per day.
+pub const ACT_REWARD: [u16; 3] = [1, 2, 4];
+pub const BEACON_LIFE: f32 = 4.5;
+pub const PEN: (f32, f32, f32) = (3.5, 6.5, 1.1);
+pub const ACT_BOARD: (i32, i32) = (9, 11);
+pub fn rings() -> Vec<Vec2> { [0f32, -45., -90., -135., 180., 135.].iter().map(|a| { let r = a.to_radians(); vec2(7.5 + 6.8 * 1.18 * r.cos(), 6.5 + 5.6 * 1.18 * r.sin()) }).collect() }
 pub const ISTALL_ITEMS: [(u16, u16); 2] = [(58, 4), (59, 6)];
 pub fn islet_task(day: i64) -> (u16, u16, &'static str) { if day % 2 == 0 { (82, 5, "Gather 5 Driftwood") } else { (84, 3, "Find 3 Moon Shells") } }
 pub fn islet() -> Vec<u8> {

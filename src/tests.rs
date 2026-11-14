@@ -332,3 +332,23 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     g.w.p.money = 20000; g.enact(Some(2)).unwrap(); g.w.weeds.clear(); assert!(g.catch_up(at(12, 6, 0, 1))); assert!(g.w.weeds.is_empty());
     g.enact(None).unwrap(); assert_eq!(g.w.policy, None); assert_eq!(g.shop_hours(), (8, 22));
 }
+
+#[test] fn gullrock_activities_coop_and_separate() {
+    let mut g = two(at(11, 12, 0, 0)); let day = g.w.day; let glass = |g: &Game| g.w.p.inv.iter().filter(|s| s.def == 85).map(|s| s.qty).sum::<u16>();
+    g.activate(0); g.me.scene = Scene::Islet; g.me.ipos = vec2(7.5, 10.5);
+    g.activate(1); assert!(g.act_start(1).is_err()); let (m1, gl1) = (g.w.p.money, glass(&g));
+    g.activate(0); g.act_start(1).unwrap(); assert_eq!(g.act.as_ref().unwrap().players, vec![0]); assert!(g.act_start(0).is_err());
+    for _ in 0..7 { let b = g.act.as_ref().unwrap().ents[0]; g.me.ipos = b; g.act_step() } assert_eq!(g.act.as_ref().unwrap().score, 7);
+    g.sim_act(ACTS[1].2 + 0.1); assert!(g.act.as_ref().unwrap().done);
+    let g0 = glass(&g); g.act_step(); assert_eq!(glass(&g), g0 + ACT_REWARD[0]); g.act_step(); assert_eq!(glass(&g), g0 + ACT_REWARD[0]);
+    g.activate(1); g.act_step(); assert_eq!((g.w.p.money, glass(&g)), (m1, gl1)); g.activate(0);
+    let g2 = reload(&g, "act"); assert_eq!(g2.w.p.act_day[1], day); assert!(g2.act.is_none());
+    g.sim_act(7.); assert!(g.act.is_none());
+    g.act_start(1).unwrap(); g.sim_act(ACTS[1].2 + 0.1); g.act.as_mut().unwrap().score = 20; let g0 = glass(&g); g.act_step(); assert_eq!(glass(&g), g0); g.act = None; // once per day
+    g.activate(1); g.me.scene = Scene::Islet; g.me.ipos = vec2(7.5, 10.5); g.activate(0); g.act_start(2).unwrap(); assert_eq!(g.act.as_ref().unwrap().players.len(), 2);
+    let r = rings(); g.me.ipos = r[1]; g.act_step(); assert_eq!(g.act.as_ref().unwrap().score, 0);
+    g.me.ipos = r[0]; assert!(g.swimming()); g.act_step(); g.activate(1); g.me.ipos = r[1]; g.act_step(); g.activate(0); assert_eq!(g.act.as_ref().unwrap().score, 2);
+    assert_eq!(g.act.as_ref().unwrap().mine.len(), 2);
+    g.act = None; g.act_start(0).unwrap(); let pen = vec2(PEN.0, PEN.1); g.act.as_mut().unwrap().ents[0] = pen + vec2(PEN.2 + 0.2, 0.); g.me.ipos = pen + vec2(PEN.2 + 0.5, 0.); g.act_step(); assert!(Game::in_pen(g.act.as_ref().unwrap().ents[0]));
+    g.swap(Scene::Town); assert!(!g.act.as_ref().unwrap().players.contains(&0));
+}

@@ -311,6 +311,18 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         log!("stones={}", have(g, 81));
         if let Some(p) = g.w.project.clone() { approach(g, c, tc((p.x, p.z))).await; shot!("x01_site_before"); press(g, c, KeyCode::E).await; log!("after contribute: project={:?} built={:?} ui={:?}", g.w.project, g.w.built, g.me.ui); for _ in 0..4 { if g.me.ui == Ui::Play { break } press(g, c, KeyCode::E).await } }
         if let Some(b) = g.w.built.first().copied() { approach(g, c, tc((b.x, b.z))).await; press(g, c, KeyCode::E).await; log!("pose={:?}", g.me.pose); wait(g, c, 30).await; shot!("x01_bench_built") }
+    } else if phase == "24" {
+        // Gullrock timed activity through the real input path: P1 sails, starts Beacon Dash at the board, chases beacons; P2 stays in town
+        g.join("Player 2");
+        go(g, c, dock_stand(), 0.12).await; face(g, c, vec2(20.5, 26.)).await; press(g, c, KeyCode::E).await; press(g, c, KeyCode::Enter).await; wait(g, c, 40).await;
+        log!("P1 scene={:?}", g.me.scene); approach(g, c, tc(ACT_BOARD)).await; log!("target={:?}", g.target()); press(g, c, KeyCode::E).await; log!("ui={:?}", g.me.ui);
+        press(g, c, KeyCode::Down).await; press(g, c, KeyCode::Enter).await; log!("act players={:?}", g.act.as_ref().map(|a| a.players.clone()));
+        let mut shot_done = false;
+        for _ in 0..120 { let Some(b) = g.act.as_ref().filter(|a| !a.done).map(|a| a.ents[0]) else { break }; approach(g, c, b).await; wait(g, c, 2).await;
+            if !shot_done && g.act.as_ref().is_some_and(|a| a.score >= 2) { shot!("act_beacon_dash"); shot_done = true } }
+        wait(g, c, 30).await; let gl: u16 = g.w.p.inv.iter().filter(|s| s.def == 85).map(|s| s.qty).sum();
+        log!("act={:?} sea_glass={gl} msgs={:?}", g.act.as_ref().map(|a| (a.score, a.done, a.left)), g.me.msgs.iter().rev().take(2).map(|m| m.0.clone()).collect::<Vec<_>>());
+        log!("P2 scene={:?} act_day={:?}", g.others.first().map(|o| o.scene), g.w.others.first().map(|o| o.act_day));
     } else if phase == "20" {
         // X-03: P1 sails to the islet (P2 stays in town), does today's task normally, gets Sea Glass, sails back
         g.join("Player 2");

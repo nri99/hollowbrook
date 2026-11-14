@@ -24,3 +24,6 @@ when every listed evidence type exists and is recorded in PROGRESS.md.
 | R16 | Content coverage table kept current (DESIGN_SPEC §Content) | doc | done (table in DESIGN_SPEC, keep updated) |
 
 Physical items (P) cannot be performed by the agent; they go to HUMAN_VERIFICATION.md.
+- [x] Money projects: leader-only start, route validation, per-player donations, built at 06:00, save/reload — unit test (headless).
+- [x] Policies: one active, fee/insufficient funds, leader-only, no stacking after reload, upkeep effect at rollover — unit test (headless).
+- [x] Gullrock activities: co-op shared score, separate rewards, once/day, forfeits on leaving — unit test; Beacon Dash executable action path + screenshot inspected. Physical controller: NOT RUN.
