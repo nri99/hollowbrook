@@ -114,5 +114,5 @@ schedules, resume-outdoors policy, clock-rollback pause).
 
 ### 04:50 — C-03b done (moving)
 - [PROV] `World.arrived/moving` per slot (serde default; older saves start the 14-day clock at load). Daily: resident present >= 14 days, friendship < 3 with every player, no open request -> letter to every profile + dialogue line; X (pad Y) in conversation asks them to stay (cancels, restarts clock, +1 friendship). After 2 days a reserve character (Clover, Basil) takes the slot; friendship for that slot resets in every profile; house labels/door prompts follow the roster (`Game::bname`). Post letter announces the change.
-- H: 47/47 (new: residents_move_out_and_in_with_stay_option, plurals). X: phase 16 (roster set as logged FIXTURE) talked to Clover and Basil. S (inspected): c03_Clover.png (sheep head + "Clover's House" label); c03_Basil.png (hedgehog mostly behind the dialogue box: spikes visible only -> partial).
+- H: 46/46 (new: residents_move_out_and_in_with_stay_option, plurals). X: phase 16 (roster set as logged FIXTURE) talked to Clover and Basil. S (inspected): c03_Clover.png (sheep head + "Clover's House" label); c03_Basil.png (hedgehog mostly behind the dialogue box: spikes visible only -> partial).
 - Fixed plural helper (cherry -> cherries) seen in the Clover screenshot.
