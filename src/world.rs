@@ -56,6 +56,8 @@ pub struct Profile {
     #[serde(default)] pub catalog: Vec<u16>,
     /// year in which this player last claimed the Harvest Fair prize
     #[serde(default)] pub fair_year: i32,
+    /// interest-free home expansion balance (no deadline)
+    #[serde(default)] pub debt: u32,
     /// furniture tint per item uid; home wallpaper/flooring palette index
     /// last gameplay day this player completed the islet activity
     #[serde(default)] pub islet_done: i64,
@@ -64,7 +66,7 @@ pub struct Profile {
     #[serde(default)] pub tints: Vec<(u32, u8)>, #[serde(default)] pub wall: u8, #[serde(default)] pub floor: u8,
 }
 impl Profile {
-    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false, visited: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, hat: None, hair: 0, mail: vec![], catalog: vec![], fair_year: 0, islet_done: 0, parcel: None, tints: vec![], wall: 0, floor: 0 } }
+    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false, visited: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, hat: None, hair: 0, mail: vec![], catalog: vec![], fair_year: 0, debt: 0, islet_done: 0, parcel: None, tints: vec![], wall: 0, floor: 0 } }
 }
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct World {
@@ -102,7 +104,7 @@ impl World {
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Snd { Step, Blip, Splash, Coin, Dig, Rustle, Door, StepPath, StepSand, StepWood, StepFloor, Swim }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize), Stall, Site, Board, Built(usize), Dock, Pell, IItem(usize), IStall }
 #[derive(Clone, PartialEq, Debug)]
-pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize), Tint(usize), Travel(bool), IStall(usize) }
+pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize), Tint(usize), Travel(bool), IStall(usize), ConfirmExpand }
 pub struct Placing { pub f: Furn, pub orig: Option<Furn>, pub slot_uid: Option<u32> }
 pub struct Fishing { pub bob: Vec2, pub fish: Option<usize>, pub t: f32, pub nib: u8, pub need: u8, pub bite: bool, pub dip: f32 }
 pub struct Shadow { pub pos: Vec2, pub def: u16, pub vel: Vec2 }
@@ -504,6 +506,8 @@ impl Game {
         self.w.p.inv[i].qty -= 1; if self.w.p.inv[i].qty == 0 { self.w.p.inv.remove(i); } true
     }
 
+    /// Pay as much of the expansion balance as current coins allow.
+    pub fn pay_debt(&mut self) { let p = self.w.p.money.min(self.w.p.debt); self.w.p.money -= p; self.w.p.debt -= p; self.snd.push(Snd::Coin); self.note(if self.w.p.debt == 0 { format!("Paid {p} coins. Your balance is cleared!") } else { format!("Paid {p} coins. {} left.", self.w.p.debt) }) }
     /// Interior size of a building; homes grow with their owner's house level.
     pub fn rdims(&self, b: usize) -> (i32, i32) {
         if let BK::Home(o) = BLDS[b].kind { let lv = if self.w.p.id == o { self.w.p.home } else { self.w.others.iter().find(|p| p.id == o).map_or(0, |p| p.home) }; HOME_DIMS[(lv as usize).min(HOME_DIMS.len() - 1)] } else { room_dims(b) }
@@ -511,10 +515,10 @@ impl Game {
     /// Pay up front to enlarge the active player's home. Furniture keeps its tiles; anything on the new doorway goes to home storage.
     pub fn expand_home(&mut self) -> Result<(), &'static str> {
         let lv = self.w.p.home as usize; if lv >= EXPAND_COST.len() { return Err("Your home is already as big as it gets!") }
-        let cost = EXPAND_COST[lv]; if self.w.p.money < cost { return Err("Not enough coins.") }
+        if self.w.p.debt > 0 { return Err("Pay off your current balance first.") } let cost = EXPAND_COST[lv];
         let (w, d) = HOME_DIMS[lv + 1]; let door = (w / 2, d - 1);
         if self.w.p.storage.len() + self.w.p.room.iter().filter(|f| foot(f.def, f.x, f.z, f.rot).contains(&door)).count() > STORE_CAP { return Err("Clear some home storage first.") }
-        self.w.p.money -= cost; self.w.p.home += 1;
+        self.w.p.debt = cost; self.w.p.home += 1;
         let (moved, keep): (Vec<Furn>, Vec<Furn>) = self.w.p.room.iter().copied().partition(|f| !def(f.def).wall && foot(f.def, f.x, f.z, f.rot).contains(&door));
         self.w.p.room = keep; for f in &moved { self.w.p.storage.push(Slot { def: f.def, qty: 1, uid: f.uid }) }
         if !moved.is_empty() { self.note("Furniture in front of the new doorway was moved to your storage.") }
@@ -978,7 +982,7 @@ impl Game {
                     if def(sl.def).k == crate::data::K::Cloth { self.me.ui = Ui::Play; self.wear(sl.uid) }
                     else if def(sl.def).k != crate::data::K::Furn { self.note(format!("{} sells for {} coins at the shop.", def(sl.def).name, def(sl.def).sell)) }
                     else if self.me.scene == Scene::Room(self.home()) { self.me.ui = Ui::Play; self.start_place(sl.uid) } else { self.note("Furniture can be placed inside your home.") } } }
-            Ui::Sell(s) => { let s = mv(s, n + 3); if ok && s == n + 1 { self.me.ui = Ui::Catalog(0); return true } if ok && s == n + 2 { self.me.ui = Ui::Tint(0); return true } self.me.ui = Ui::Sell(s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.sell_slot(s) } else if ok && s == n { match self.expand_home() { Ok(()) => { self.snd.push(Snd::Coin); self.note("Your home has been expanded! Go take a look.") } Err(e) => self.note(e) } } else if inp.p(A) || inp.p(X) { self.sell_all() } }
+            Ui::Sell(s) => { let s = mv(s, n + 3); if ok && s == n + 1 { self.me.ui = Ui::Catalog(0); return true } if ok && s == n + 2 { self.me.ui = Ui::Tint(0); return true } self.me.ui = Ui::Sell(s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.sell_slot(s) } else if ok && s == n { if self.w.p.debt > 0 { self.pay_debt() } else if (self.w.p.home as usize) < EXPAND_COST.len() { self.me.ui = Ui::ConfirmExpand } else { self.note("Your home is already as big as it gets!") } } else if inp.p(A) || inp.p(X) { self.sell_all() } }
             Ui::Confirm(d) => { if ok || inp.p(Y) { self.me.ui = Ui::Play; match self.buy(d) { Ok(()) => { self.snd.push(Snd::Coin); self.note("Thank you for your purchase!") } Err(e) => self.note(e) } } else if esc || inp.p(N) { self.me.ui = Ui::Play } }
             Ui::Storage(c, s) => { let c = if left { 0 } else if right { 1 } else { c }; let len = if c == 0 { n } else { self.w.p.storage.len() }; let s = mv(s, len); self.me.ui = Ui::Storage(c, s);
                 if esc { self.me.ui = Ui::Play } else if ok && s < len { self.transfer(c, s) } }
@@ -989,6 +993,7 @@ impl Game {
                 self.music_vol = (self.music_vol * 10.).round() / 10.; self.sfx_vol = (self.sfx_vol * 10.).round() / 10.;
                 if (mv0, sv0, mu0) != (self.music_vol, self.sfx_vol, self.muted) { self.settings_dirty = true } }
             Ui::Gift(j, s) => { let s = mv(s, n); self.me.ui = Ui::Gift(j, s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.give_gift(j, s) } }
+            Ui::ConfirmExpand => { if ok || inp.p(Y) { self.me.ui = Ui::Play; match self.expand_home() { Ok(()) => { self.snd.push(Snd::Door); self.note(format!("Your home was expanded! Balance: {} coins, no deadline.", self.w.p.debt)) } Err(e) => self.note(e) } } else if esc || inp.p(N) { self.me.ui = Ui::Play } }
             Ui::Travel(go_out) => { if ok || inp.p(Y) { self.me.ui = Ui::Play; if go_out { if self.w.p.money < FARE { self.note("Not enough coins for the fare.") } else { self.w.p.money -= FARE; self.go(Scene::Islet) } } else { self.go(Scene::Town) } } else if esc || inp.p(N) { self.me.ui = Ui::Play } }
             Ui::IStall(s) => { let s = mv(s, ISTALL_ITEMS.len()); self.me.ui = Ui::IStall(s); if esc { self.me.ui = Ui::Play } else if ok { match self.istall_buy(s) { Ok(()) => { self.snd.push(Snd::Coin); self.note(format!("Traded for a {}!", def(ISTALL_ITEMS[s].0).name)) } Err(e) => self.note(e) } } }
             Ui::Tint(s) => { let len = self.tint_targets().len() + 2; let s = mv(s, len); self.me.ui = Ui::Tint(s); if esc { self.me.ui = Ui::Play } else if ok { match self.customize(s) { Ok(m) => { self.snd.push(Snd::Coin); self.note(m) } Err(e) => self.note(e) } } }

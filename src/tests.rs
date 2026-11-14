@@ -187,13 +187,14 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     g.w.p.money = 10; assert_eq!(g.buy_cloth(64), Err("Not enough coins.")); g.activate(0); assert_eq!(g.w.p.shirt, None);
     let mut g2 = reload(&g, "cloth"); g2.join("x"); g2.activate(1); assert_eq!(g2.w.p.shirt, Some(65));
 }
-#[test] fn home_expansion_paid_upfront_keeps_furniture() {
-    let mut g = two(at(11, 12, 0, 0)); g.w.p.money = 20000; g.w.p.room.push(Furn { uid: 50, def: 52, x: 0, z: 0, rot: 0, on: false }); g.w.p.room.push(Furn { uid: 51, def: 50, x: 3, z: 4, rot: 0, on: false });
-    assert_eq!(g.rdims(HOME), (4, 4)); g.expand_home().unwrap(); assert_eq!(g.w.p.money, 17000); assert_eq!(g.rdims(HOME), (5, 5)); assert_eq!(g.w.p.room.len(), 2);
-    g.expand_home().unwrap(); assert_eq!(g.rdims(HOME), (6, 5)); assert_eq!(g.w.p.money, 2000);
-    assert!(g.w.p.room.iter().all(|f| f.uid != 51) && g.w.p.storage.iter().any(|s| s.uid == 51)); // chair on the 6x5 doorway tile (3,4) moved to storage
-    assert_eq!(g.expand_home(), Err("Your home is already as big as it gets!")); assert_eq!(g.w.p.money, 2000); assert_eq!(g.rdims(7), (4, 4)); // P2 home unaffected
-    let g2 = reload(&g, "exp"); assert_eq!(g2.rdims(HOME), (6, 5)); g.w.p.home = 0; g.w.p.money = 10; assert_eq!(g.expand_home(), Err("Not enough coins."));
+#[test] fn home_expansion_balance() {
+    let mut g = two(at(11, 12, 0, 0)); g.w.p.room.push(Furn { uid: 51, def: 50, x: 3, z: 4, rot: 0, on: false });
+    g.me.ui = Ui::Sell(0); g.update_player(&Inp::keys(&[KeyCode::Enter], &[KeyCode::Enter]), 0.016); assert_eq!(g.me.ui, Ui::ConfirmExpand);
+    g.update_player(&Inp::keys(&[KeyCode::Escape], &[KeyCode::Escape]), 0.016); assert_eq!((g.w.p.home, g.w.p.debt), (0, 0)); // cancel: no change
+    g.expand_home().unwrap(); assert_eq!((g.rdims(HOME), g.w.p.debt, g.w.p.money), ((5, 5), EXPAND_COST[0], 1000)); assert!(g.expand_home().is_err()); // must clear balance first
+    g.pay_debt(); assert_eq!((g.w.p.money, g.w.p.debt), (0, EXPAND_COST[0] - 1000)); g.w.p.money = 99999; g.pay_debt(); assert_eq!(g.w.p.debt, 0);
+    g.expand_home().unwrap(); assert!(g.w.p.storage.iter().any(|s| s.uid == 51)); g.activate(1); assert_eq!((g.w.p.debt, g.rdims(7)), (0, (4, 4)));
+    g.activate(0); let g2 = reload(&g, "debt"); assert_eq!(g2.w.p.debt, EXPAND_COST[1]);
 }
 #[test] fn mail_delivered_per_profile_claim_once() {
     let mut g = two(at(11, 12, 0, 0)); g.activate(1); for n in &mut g.w.p.npcs { n.friend = 20 } let m0 = g.w.p.money; g.activate(0);
