@@ -497,7 +497,7 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     let g = g0(at(11, 12, 0, 0)); let mut src: Vec<u16> = vec![];
     for m in 1..=12 { for h in 0..24 { for rain in [false, true] { src.extend(Game::bug_pool(rain, m, h)) } src.extend(Game::islet_bug_pool(m, h)); for hab in [1, 2] { for mouth in [false, true] { src.extend(Game::fish_pool(hab, mouth, m, h)) } } } }
     src.extend(FRUITS); src.extend([40, 41, 42, 84, 82, 75, 85, 86, 80, 81, 45, 46, 47, 70, 71, 72, 73, 74]); src.extend(FOSSILS); src.extend(FURN_IDS); src.extend(ISTALL_ITEMS.iter().map(|x| x.0)); src.extend(CLOTHES); src.extend(ARTS);
-    for v in &VISITORS { src.extend(v.goods); src.push(v.reward) } src.extend(KEEPSAKES); src.push(150); src.extend(SPECIALS); src.extend(FESTS.iter().map(|f| f.reward)); src.extend(KIOSK_ITEMS.iter().map(|x| x.0)); src.extend([60, 61, 62]);
+    for v in &VISITORS { src.extend(v.goods); src.push(v.reward) } src.extend(KEEPSAKES); src.push(150); src.extend(SPECIALS); src.extend(SEEDS); src.extend(FLOWERS); src.push(CAN); src.extend(FESTS.iter().map(|f| f.reward)); src.extend(KIOSK_ITEMS.iter().map(|x| x.0)); src.extend([60, 61, 62]);
     let missing: Vec<&str> = DEFS.iter().filter(|d| !src.contains(&d.id)).map(|d| d.name).collect(); assert!(missing.is_empty(), "no acquisition path: {missing:?}");
     // the islet offers every non-native fruit over consecutive days
     let mut g = g; let mut seen = vec![]; for k in 0..3 { g.w.day += 1; g.refresh_islet(); let _ = k; seen.extend(g.w.iground.iter().map(|i| i.def).filter(|d| FRUITS.contains(d))) } for f in FRUITS { if f != g.w.native { assert!(seen.contains(&f), "fruit {f} never on Gullrock") } }
@@ -563,4 +563,33 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
 #[test] fn festive_music_on_event_days() {
     let mut g = g0(at(11, 12, 0, 0)); g.mo = 6; g.dom = 1; assert_ne!(crate::audio::variant(&g), crate::audio::Var::Festive); g.mo = 4; g.dom = 11; assert_eq!(crate::audio::variant(&g), crate::audio::Var::Festive);
     let (n, f) = (crate::audio::compose(2, crate::audio::Var::Normal), crate::audio::compose(2, crate::audio::Var::Festive)); assert_eq!(n.len(), f.len()); assert!(n.iter().zip(&f).any(|(a, b)| (a - b).abs() > 1e-3));
+}
+
+#[test] fn gardening_plant_water_grow_pick_cross() {
+    let mut g = two(at(11, 12, 0, 0)); g.w.p.money = 5000; g.me.ui = Ui::Keeper(0);
+    let items = g.keeper_items(); assert!(items.iter().any(|x| x.1 == 5)); g.add(160); g.add(162); g.w.p.tools.push(CAN);
+    let site = (16, 20); g.w.weeds.clear(); g.w.digs.clear(); g.w.holes.clear(); g.w.ground.clear(); g.w.surprise = None; g.me.pos = vec2(15.5, 20.5); g.me.face = vec2(1., 0.);
+    assert!(g.plant_ok(site)); g.plant(site).unwrap(); assert!(g.plant(site).is_err()); g.me.pos = vec2(15.5, 21.5); g.plant((16, 21)).unwrap(); assert_eq!(g.w.garden.len(), 2);
+    assert!(!g.w.p.inv.iter().any(|s| SEEDS.contains(&s.def)));
+    // watering: front tile only at level 0
+    g.me.pos = vec2(15.5, 20.5); assert_eq!(g.water(), 1); assert_eq!(g.water(), 0);
+    let d = g.w.day; let rain_y = rainy(d); assert!(g.catch_up(at(12, 6, 0, 1))); assert_eq!(g.w.garden[0].stage, 1); assert_eq!(g.w.garden[1].stage, if rain_y { 1 } else { 0 });
+    for _ in 0..2 { for p in &mut g.w.garden { p.watered = g.w.day } g.w.day += 1; g.grow_garden() } assert!(g.w.garden.iter().take(2).all(|p| p.stage == 2));
+    let ix = 0; g.pick_flower(ix); assert!(g.w.p.inv.iter().any(|s| s.def == 164)); assert_eq!(g.w.garden[0].stage, 1);
+    // crossing: two adjacent blooms of different colours eventually make a Starfleck
+    g.w.garden[0].stage = 2; let mut crossed = false; for _ in 0..60 { g.w.day += 1; for p in &mut g.w.garden { p.watered = g.w.day - 1 } g.grow_garden(); if g.w.garden.iter().any(|p| p.kind == 4) { crossed = true; break } } assert!(crossed);
+    let g2 = reload(&g, "garden"); assert_eq!(g2.w.garden, g.w.garden);
+    g.activate(1); assert!(!g.w.garden.is_empty()); g.activate(0); // shared town garden
+}
+#[test] fn tool_upgrades_costs_and_effects() {
+    let mut g = two(at(11, 12, 0, 0)); assert_eq!(g.tool_level(60), 0); assert!(g.upgrade_tool(62).is_err()); // no shovel yet
+    g.w.p.money = 1000; assert!(g.upgrade_tool(60).is_err()); g.w.p.money = 10000; for _ in 0..3 { g.add(81); } assert_eq!(g.upgrade_tool(60), Ok(1)); assert_eq!(g.w.p.money, 10000 - UPGRADE[0].0);
+    assert!(!g.w.p.inv.iter().any(|s| s.def == 81)); assert!(g.upgrade_tool(60).is_err()); for _ in 0..5 { g.add(81); } for _ in 0..3 { g.add(85); } assert_eq!(g.upgrade_tool(60), Ok(2)); assert!(g.upgrade_tool(60).is_err());
+    g.activate(1); assert_eq!(g.tool_level(60), 0); g.activate(0); let g2 = reload(&g, "tools"); assert_eq!(g2.tool_level(60), 2);
+    // net reach: a bug 1.3 tiles in front is caught at level 2 only
+    g.w.p.equip = Some(60); g.me.pos = vec2(10.5, 12.5); g.me.face = vec2(1., 0.); g.bugs = vec![(1, g.me.pos + vec2(0.7 + 1.3, 0.), 0.)]; g.use_tool(); assert!(g.bugs.is_empty());
+    g.activate(1); g.w.p.equip = Some(60); g.me.pos = vec2(10.5, 12.5); g.me.face = vec2(1., 0.); g.bugs = vec![(1, g.me.pos + vec2(0.7 + 1.3, 0.), 0.)]; g.use_tool(); assert_eq!(g.bugs.len(), 1);
+    // watering can level 2 waters a 3x3 patch
+    g.activate(0); g.w.p.tools.push(CAN); while g.w.p.tool_lv.len() < 4 { g.w.p.tool_lv.push(0) } g.w.p.tool_lv[3] = 2; g.w.garden = (0..9).map(|k| Plant { x: 20 + k % 3, z: 10 + k / 3, kind: 0, stage: 0, watered: 0 }).collect();
+    g.me.pos = vec2(20.3, 11.5); g.me.face = vec2(1., 0.); assert_eq!(g.water(), 9);
 }

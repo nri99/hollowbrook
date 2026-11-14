@@ -230,3 +230,7 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - Next action: optional riverside fences; otherwise await user playtest feedback.
 - Visual gap fixes: riverside fences (grass edges meeting the river), Regatta boats now along the river tiles nearest the camera, larger/offset hobby props with an arm. Verified in phase 34 (split-screen night Regatta frame; clear-day prop frame with all 4 props visible).
 - M2 defined in BACKLOG (gardening, tool upgrades, home evaluation + exterior paint). Next action: M2-1 gardening.
+- M2-1 DONE: gardening (shared garden, seeds/can via counter menu entry "Seeds, watering can and tool upgrades", plant/water/grow/pick/cross, liveliness, initiative template "Water 3 flowers"). Tests gardening_plant_water_grow_pick_cross; phase 35 (menu purchase, plant + water through normal input; fixture adds grown plants for the stage frame).
+- M2-2 DONE: tool levels per player with real effects and tinted tools; test tool_upgrades_costs_and_effects.
+- Found + fixed: Mr. Tumble's tile is shadowed by the counter target, so the shop menu got an entry for his services.
+- Next action: M2-3 home evaluation + exterior paint.

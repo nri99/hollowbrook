@@ -316,6 +316,17 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         log!("stones={}", have(g, 81));
         if let Some(p) = g.w.project.clone() { approach(g, c, tc((p.x, p.z))).await; shot!("x01_site_before"); press(g, c, KeyCode::E).await; log!("after contribute: project={:?} built={:?} ui={:?}", g.w.project, g.w.built, g.me.ui); for _ in 0..4 { if g.me.ui == Ui::Play { break } press(g, c, KeyCode::E).await } }
         if let Some(b) = g.w.built.first().copied() { approach(g, c, tc((b.x, b.z))).await; press(g, c, KeyCode::E).await; log!("pose={:?}", g.me.pose); wait(g, c, 30).await; shot!("x01_bench_built") }
+    } else if phase == "35" {
+        // M2-1/M2-2: keeper menu, buy seeds + can through the menu, plant and water through normal input; fixture adds grown plants for the stage frame.
+        g.w.p.money = 6000; go(g, c, door_stand(SHOP), 0.12).await; face(g, c, door_face(SHOP)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
+        approach(g, c, vec2(3.5, 1.5)).await; log!("target={:?}", g.target()); press(g, c, KeyCode::E).await; for _ in 0..3 { press(g, c, KeyCode::Down).await } press(g, c, KeyCode::Enter).await; log!("ui={:?}", g.me.ui); shot!("m2_keeper_menu");
+        press(g, c, KeyCode::Down).await; press(g, c, KeyCode::Enter).await; press(g, c, KeyCode::Enter).await; press(g, c, KeyCode::Down).await; press(g, c, KeyCode::Down).await; press(g, c, KeyCode::Down).await; press(g, c, KeyCode::Down).await; press(g, c, KeyCode::Enter).await;
+        log!("money={} tools={:?} inv={:?}", g.w.p.money, g.w.p.tools, g.w.p.inv.iter().map(|s| (def(s.def).name, s.qty)).collect::<Vec<_>>()); press(g, c, KeyCode::Escape).await;
+        go(g, c, vec2(3.5, 4.4), 0.15).await; for _ in 0..40 { step(g, c, &[KeyCode::S], &[]).await } wait(g, c, 40).await;
+        go(g, c, vec2(15.5, 20.5), 0.15).await; face(g, c, vec2(16.5, 20.5)).await; log!("target={:?}", g.target()); press(g, c, KeyCode::E).await; press(g, c, KeyCode::E).await; log!("garden={:?}", g.w.garden);
+        for _ in 0..4 { if g.w.p.equip == Some(CAN) { break } press(g, c, KeyCode::Tab).await } press(g, c, KeyCode::Space).await; wait(g, c, 10).await; log!("after water: {:?}", g.w.garden);
+        for (k, (dx, dz, kind, stage)) in [(2, -1, 1u8, 2u8), (3, -1, 2, 2), (2, 1, 3, 1), (3, 1, 4, 2), (4, 0, 0, 2)].into_iter().enumerate() { let _ = k; g.w.garden.push(Plant { x: 15 + dx, z: 20 + dz, kind, stage, watered: 0 }) } log!("FIXTURE: grown plants added for the stage frame");
+        go(g, c, vec2(16.5, 22.0), 0.2).await; face(g, c, vec2(17.5, 20.5)).await; shot!("m2_garden");
     } else if phase == "34" {
         // Visual gap fixes from ordinary cameras: riverside fences + Regatta boats near the river at night (split-screen), hobby props on each resident.
         g.join("Player 2"); let c2 = Clock { dev: Some((chrono::NaiveDate::from_ymd_opt(2026, 7, 25).unwrap().and_hms_opt(21, 0, 0).unwrap(), std::time::Instant::now())) }; let c = &c2;

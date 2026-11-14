@@ -86,7 +86,9 @@ fn season(mo: u32) -> (Color, Color) { match mo { 3..=5 => (Color::new(0.5, 0.78
 
 // ---- models ----
 pub fn draw_tool(r: &mut R, t: u16) {
+    let (t, lv) = (t % 1000, t / 1000); if lv > 0 { r.sphere(vec3(0., 0.02, 0.), Vec3::splat(0.035), if lv == 1 { Color::new(0.8, 0.82, 0.88, 1.) } else { GOLD }) }
     match t {
+        154 => { let c = if lv == 2 { GOLD } else if lv == 1 { Color::new(0.75, 0.78, 0.85, 1.) } else { Color::new(0.35, 0.6, 0.45, 1.) }; r.cyl(vec3(0., -0.12, 0.08), 0.08, 0.13, c); r.seg(vec3(0., -0.05, 0.14), vec3(0., 0.02, 0.3), 0.015, c); r.seg(vec3(0., 0.02, -0.02), vec3(0., 0.05, 0.12), 0.012, c) }
         60 => { r.seg(vec3(0., 0.05, 0.), vec3(0., 0.3, 0.45), 0.014, WOOD); for k in 0..10 { let a = k as f32 / 10. * 2. * PI; r.sphere(vec3(a.cos() * 0.12, 0.38 + a.sin() * 0.12, 0.55), Vec3::splat(0.02), WHITE) } }
         61 => { r.seg(vec3(0., 0., 0.), vec3(0., 0.5, 0.7), 0.012, WOOD); r.sphere(vec3(0., 0.05, 0.06), Vec3::splat(0.03), DARKGRAY) }
         _ => { r.seg(vec3(0., 0.1, -0.05), vec3(0., -0.2, 0.35), 0.014, WOOD); r.with(Mat4::from_translation(vec3(0., -0.25, 0.42)) * Mat4::from_rotation_x(0.9), |r| r.cube(Vec3::ZERO, vec3(0.08, 0.1, 0.012), GRAY)) }
@@ -449,6 +451,11 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
     if g.art_open() { let c = tc(STALL); r.cube(vec3(c.x, 0.4, c.y), vec3(0.5, 0.4, 0.35), Color::new(0.35, 0.3, 0.45, 1.)); r.cube(vec3(c.x, 1.3, c.y), vec3(0.6, 0.04, 0.45), Color::new(0.85, 0.3, 0.4, 1.));
         for x in [-0.55f32, 0.55] { r.cube(vec3(c.x + x, 0.65, c.y + 0.4), vec3(0.03, 0.65, 0.03), WOOD) } painting(r, art_of_week(g.w.day), vec3(c.x, 1.0, c.y + 0.37), 0.5, 0.36);
         if g.me.pos.distance(c) < 4. { labels.push((vec3(c.x, 1.7, c.y), "Saturday art stall".into(), Color::new(1., 0.85, 0.9, 1.))) } }
+    for pl in &g.w.garden { let p = tc((pl.x, pl.z)); if !near(p.x, p.y) { continue } let col = rgb(def(FLOWERS[pl.kind as usize]).col); let stem = Color::new(0.3, 0.6, 0.3, 1.);
+        r.disc(vec3(p.x, 0.012, p.y), vec2(0.3, 0.3), if pl.watered == g.w.day { Color::new(0.35, 0.25, 0.18, 1.) } else { Color::new(0.5, 0.38, 0.26, 1.) });
+        match pl.stage { 0 => { for k in 0..2 { r.with(Mat4::from_translation(vec3(p.x, 0.05, p.y)) * Mat4::from_rotation_y(k as f32 * 1.6), |r| r.cube(vec3(0.05, 0.04, 0.), vec3(0.05, 0.01, 0.025), stem)) } }
+            1 => { r.cyl(vec3(p.x, 0., p.y), 0.025, 0.4, stem); r.sphere(vec3(p.x + 0.08, 0.15, p.y), vec3(0.08, 0.02, 0.04), stem); r.sphere(vec3(p.x, 0.46, p.y), vec3(0.08, 0.11, 0.08), sh(col, 0.8)) }
+            _ => { r.cyl(vec3(p.x, 0., p.y), 0.025, 0.45, stem); r.sphere(vec3(p.x + 0.09, 0.16, p.y), vec3(0.09, 0.02, 0.045), stem); let u = r.unlit; r.unlit = pl.kind == 4 && lt.night > 0.3; for k in 0..6 { let a = k as f32 * 1.047 + pl.x as f32; r.sphere(vec3(p.x + a.cos() * 0.13, 0.5, p.y + a.sin() * 0.13), vec3(0.1, 0.035, 0.1), col) } r.unlit = u; r.sphere(vec3(p.x, 0.52, p.y), Vec3::splat(0.06), if pl.kind == 4 { WHITE } else { YELLOW }) } } }
     if let Some(sp) = &g.w.surprise { let p = tc((sp.x, sp.z)); let t = g.t;
         match sp.kind { 0 => { r.with(Mat4::from_translation(vec3(p.x, 0.08, p.y)) * Mat4::from_rotation_z(FRAC_PI_2) * Mat4::from_rotation_x(0.3), |r| { r.cyl(Vec3::ZERO, 0.07, 0.22, Color::new(0.45, 0.75, 0.6, 0.85)); r.cyl(vec3(0., 0.22, 0.), 0.03, 0.08, Color::new(0.45, 0.75, 0.6, 0.85)); r.cube(vec3(0., 0.31, 0.), Vec3::splat(0.025), WOOD) }) }
             1 => { r.cube(vec3(p.x, 0.05, p.y), vec3(0.2, 0.04, 0.08), rgb(def(150).col)); r.cube(vec3(p.x + 0.12, 0.05, p.y + 0.1), vec3(0.06, 0.03, 0.12), sh(rgb(def(150).col), 0.85)) }
@@ -512,7 +519,7 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
         else if n.pos.distance(g.me.pos) < 4. { labels.push((vec3(n.pos.x, 1.75, n.pos.y), g.res(i).name.into(), Color::new(1., 0.95, 0.7, 1.))) } }
     let sy = if g.swimming() { for k in 0..10 { let a = k as f32 * 0.63 + t; r.sphere(vec3(g.me.pos.x + a.cos() * 0.38, -0.17, g.me.pos.y + a.sin() * 0.3), vec3(0.05, 0.015, 0.05), Color::new(0.9, 0.97, 1., 1.)) } -0.55 } else { 0. };
     let opose = match g.me.pose { Pose::Stand => 0, Pose::Sit(_) => 1, Pose::Lie(_) => 2 };
-    human(r, g.me.id, (g.w.p.shirt, g.w.p.hat, g.w.p.hair), vec3(g.me.pos.x, sy + if opose == 1 { 0.02 } else { 0. }, g.me.pos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, opose, g.w.p.equip, t, g.me.swing);
+    human(r, g.me.id, (g.w.p.shirt, g.w.p.hat, g.w.p.hair), vec3(g.me.pos.x, sy + if opose == 1 { 0.02 } else { 0. }, g.me.pos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, opose, g.w.p.equip.map(|t| t + 1000 * g.tool_level(t) as u16), t, g.me.swing);
     others(r, g, t);
     for b in &g.bugs { let c = rgb(def(b.0).col); let fl = (t * 20. + b.2).sin().abs(); let y = 0.6 + (t * 3. + b.2).sin() * 0.15;
         for s in [-1f32, 1.] { r.sphere(vec3(b.1.x + s * 0.07, y + fl * 0.04, b.1.y), vec3(0.07, 0.01 + fl * 0.03, 0.05), c) } r.sphere(vec3(b.1.x, y, b.1.y), Vec3::splat(0.03), DARK) }
@@ -531,7 +538,7 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
 fn others(r: &mut R, g: &Game, t: f32) {
     for o in g.others.iter().filter(|o| o.scene == g.me.scene) {
         let p = if o.scene == Scene::Town { o.pos } else { o.ipos }; let pose = match o.pose { Pose::Stand => 0, Pose::Sit(_) => 1, Pose::Lie(_) => 2 };
-        let tool = if o.scene == Scene::Town { g.w.others.iter().find(|pr| pr.id == o.id).and_then(|pr| pr.equip) } else { None };
+        let tool = if o.scene == Scene::Town { g.w.others.iter().find(|pr| pr.id == o.id).and_then(|pr| pr.equip.map(|t| t + 1000 * UPGRADABLE.iter().position(|&u| u == t).and_then(|k| pr.tool_lv.get(k).copied()).unwrap_or(0) as u16)) } else { None };
         if pose == 0 { r.disc(vec3(p.x, 0.02, p.y), vec2(0.32, 0.26), Color::new(0., 0., 0., 0.22)) }
         let shirt = g.w.others.iter().find(|pr| pr.id == o.id).map_or((None, None, 0), |pr| (pr.shirt, pr.hat, pr.hair));
         let sy = if o.scene == Scene::Town && tile_at(&g.map, p.x.floor() as i32, p.y.floor() as i32) == SEA { -0.55 } else { 0. };
@@ -656,7 +663,7 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         Ui::Inv(s) | Ui::Sell(s) => { let sell = matches!(g.me.ui, Ui::Sell(_)); panel(sw / 2. - 260., 90., 520., 520.);
             txt(if sell { "Sell to Mr. Tumble" } else { "Pockets" }, sw / 2. - 240., 125., 30., Color::new(0.45, 0.3, 0.2, 1.));
             let mut items: Vec<String> = g.w.p.inv.iter().map(|it| if sell { format!("{}  -  {}c", slot_name(it), def(it.def).sell * it.qty as u32) } else { slot_name(it) }).collect();
-            if sell { let lv = g.w.p.home as usize; items.push(if g.w.p.debt > 0 { format!("Pay home balance  ({} left)", g.w.p.debt) } else if lv < EXPAND_COST.len() { format!("Expand your home  (adds {}c balance)", EXPAND_COST[lv]) } else { "Home fully expanded".into() }); items.push(format!("Order from catalog ({} items)", g.w.p.catalog.len())); items.push("Customize furniture / wallpaper / flooring".into()) }
+            if sell { let lv = g.w.p.home as usize; items.push(if g.w.p.debt > 0 { format!("Pay home balance  ({} left)", g.w.p.debt) } else if lv < EXPAND_COST.len() { format!("Expand your home  (adds {}c balance)", EXPAND_COST[lv]) } else { "Home fully expanded".into() }); items.push(format!("Order from catalog ({} items)", g.w.p.catalog.len())); items.push("Customize furniture / wallpaper / flooring".into()); items.push("Seeds, watering can and tool upgrades".into()) }
             if items.is_empty() { txt("(empty)", sw / 2. - 230., 170., 22., GRAY) } list(&items, Some(*s), sw / 2. - 230., 170.);
             txt(match (sell, g.me.pad) { (true, false) => "W/S select  Enter sell  A sell all finds  Esc close", (true, true) => "Up/Down select  A sell  Y sell all finds  B close", (false, false) => "W/S select  Enter place furniture (at home)  Esc close", _ => "Up/Down select  A place furniture (at home)  B close" }, sw / 2. - 240., 590., 19., DARKGRAY);
             if !sell { txt(&format!("Tools: {}", g.w.p.tools.iter().map(|t| def(*t).name).collect::<Vec<_>>().join(", ")), sw / 2. - 240., 565., 19., DARKGRAY) } }
@@ -671,6 +678,8 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         Ui::MPick(sel) => { panel(sw / 2. - 270., 100., 540., 330.); txt("Start a funded public project", sw / 2. - 250., 135., 26., Color::new(0.45, 0.3, 0.2, 1.));
             let items: Vec<String> = MPROJECTS.iter().map(|p| format!("{}  -  {} coins", p.0, p.1)).collect(); list(&items, Some(*sel), sw / 2. - 240., 175.);
             txt("Pick one; you head outside to choose the spot (green = valid).", sw / 2. - 250., 330., 18., DARKGRAY); txt("Built the morning after it is fully funded. Esc cancels.", sw / 2. - 250., 355., 18., DARKGRAY) }
+        Ui::Keeper(sel) => { let items = g.keeper_items(); let pw = (sw - 40.).min(720.); let x0 = sw / 2. - pw / 2.; panel(x0, 80., pw, 120. + items.len() as f32 * 28.); txt("Mr. Tumble  -  seeds, watering can, tool upgrades", x0 + 20., 115., 22., Color::new(0.45, 0.3, 0.2, 1.));
+            let labels: Vec<String> = items.iter().map(|x| x.0.clone()).collect(); list(&labels, Some(*sel), x0 + 30., 145.); txt(&format!("You have {} coins.  {}", g.w.p.money, if g.me.pad { "[A] Choose  [B] Leave" } else { "[Enter] Choose  [Esc] Leave" }), x0 + 20., 120. + items.len() as f32 * 28. + 60., 17., DARKGRAY) }
         Ui::Camp(sel) => { let v = &VISITORS[g.visitor()]; panel(sw / 2. - 300., 100., 600., 330.); txt(&format!("{} the {}  -  campground", v.name, v.species), sw / 2. - 280., 135., 24., Color::new(0.45, 0.3, 0.2, 1.));
             let (fd, fq) = g.favor_item(); let done = g.w.p.camp_favors.contains(&(g.visitor() as u8));
             let mut items: Vec<String> = v.goods.iter().map(|&d| format!("{}  -  {} coins{}", def(d).name, def(d).buy, if g.w.camp_sold.contains(&d) { "  (sold out today)" } else { "" })).collect();

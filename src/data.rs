@@ -30,7 +30,7 @@ const fn fu(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32), fp: (i3
 const fn cl(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32)) -> D { D { buy, ..b(id, name, K::Cloth, buy / 4, col) } }
 const fn tl(id: u16, name: &'static str, buy: u32) -> D { D { buy, ..b(id, name, K::Tool, 0, (0.6, 0.45, 0.3)) } }
 
-pub static DEFS: [D; 119] = [
+pub static DEFS: [D; 129] = [
     cr(0, "Cabbage White", K::Bug, 90, (1., 1., 0.95), 0.2, 0, 3, 10, 6, 17), cr(1, "Honeybee", K::Bug, 160, (1., 0.85, 0.2), 0.2, 0, 3, 7, 8, 17),
     cr(2, "Ladybug", K::Bug, 120, (0.9, 0.15, 0.1), 0.2, 0, 3, 6, 8, 17), cr(3, "Dragonfly", K::Bug, 230, (0.3, 0.8, 0.9), 0.2, 0, 5, 10, 8, 19),
     cr(4, "Cicada", K::Bug, 300, (0.4, 0.6, 0.3), 0.2, 0, 7, 8, 8, 17), cr(5, "Firefly", K::Bug, 450, (0.8, 1., 0.3), 0.2, 0, 6, 7, 19, 4),
@@ -69,6 +69,11 @@ pub static DEFS: [D; 119] = [
     fu(146, "Blossom Lantern", 1500, (1., 0.7, 0.8), (1, 1), false, false, Act::Lamp), fu(147, "Paper Boat Model", 1500, (0.95, 0.95, 0.9), (1, 1), false, false, Act::None),
     fu(148, "Frost Lantern", 1500, (0.7, 0.85, 1.), (1, 1), false, false, Act::Lamp), fu(149, "Sunrise Banner", 1500, (1., 0.6, 0.3), (1, 1), false, true, Act::None),
     fu(151, "Velvet Armchair", 4000, (0.6, 0.15, 0.25), (1, 1), true, false, Act::Sit), fu(152, "Crystal Lamp", 3500, (0.85, 0.95, 1.), (1, 1), false, false, Act::Lamp), fu(153, "Grand Wardrobe", 5000, (0.35, 0.22, 0.15), (1, 1), true, false, Act::Storage),
+    tl(154, "Watering Can", 500),
+    // gardening (original): seeds from Mr. Tumble, flowers picked from blooms
+    b(160, "Sunbell Seeds", K::Material, 30, (0.95, 0.85, 0.3)), b(161, "Moonpetal Seeds", K::Material, 30, (0.92, 0.92, 0.98)), b(162, "Emberbloom Seeds", K::Material, 30, (0.9, 0.3, 0.25)), b(163, "Skycup Seeds", K::Material, 30, (0.4, 0.6, 0.95)),
+    b(164, "Sunbell", K::Material, 80, (0.98, 0.85, 0.25)), b(165, "Moonpetal", K::Material, 80, (0.96, 0.96, 1.)), b(166, "Emberbloom", K::Material, 80, (0.92, 0.28, 0.22)), b(167, "Skycup", K::Material, 80, (0.4, 0.6, 1.)),
+    b(168, "Starfleck Bloom", K::Material, 600, (0.8, 0.55, 0.95)),
     b(150, "Lost Scarf", K::Material, 0, (0.85, 0.35, 0.45)),
     b(106, "Bramble's Garden", K::Art, 600, (0.55, 0.45, 0.6)), b(107, "Harbor Fog", K::Art, 600, (0.7, 0.75, 0.78)),
     b(103, "Lantern Night", K::Art, 600, (0.2, 0.22, 0.45)), b(104, "Pond in Summer", K::Art, 600, (0.4, 0.7, 0.4)), b(105, "First Snow", K::Art, 600, (0.85, 0.9, 0.98)),
@@ -337,13 +342,14 @@ pub const HELP_KEYS: [&str; 10] = ["Move: WASD or arrows   Run: hold Shift", "In
 pub const HELP_PAD: [&str; 10] = ["Move: left stick or d-pad   Run: hold LT or RT", "Interact / confirm / next: A   Cancel / close: B", "Use tool / dive: X   Cycle tools: RB",
     "Pockets: Y   Journal: Menu (Start)", "Gift during a chat: LB", "Furniture: View move, LB pick up, RB rotate", "Menu or A on a new pad: join as P2", "Hold View + press Menu: switch pad P1 <-> P2",
     "Journal pages: RB next page", "Xbox names; PlayStation: Cross = A, Circle = B"];
-pub const GUIDE: [&str; 10] = [
+pub const GUIDE: [&str; 11] = [
     "Home: expand at the General Store counter. Each expansion adds an interest-free balance to pay off whenever you like; pay it off before the next one.",
     "Projects: residents propose material projects at the notice board; the town leader (Player 1) starts coin-funded projects at Hazel's desk. Fully funded = built next morning.",
     "Policies: Player 1 can enact one policy at Hazel's desk (fee shown first): earlier store hours, later hours, or fewer weeds.",
     "Gullrock: sail from the dock (200 coins, or a Ferry Pass). Captain Pell has a daily task; the board runs timed activities for Sea Glass.",
     "Campground (east meadow): a different traveller visits each day, 8:00-22:00. Buy their goods (one of each per day) and do their favor once for a keepsake.",
     "Initiatives: 3 personal tasks a day plus a weekly town task. Claim coupons at the kiosk in the Town Hall and trade them for rewards.",
+    "Gardening: buy seeds and a watering can from Mr. Tumble, plant on grass, water daily (rain counts). Blooms can be picked; different colours side by side may cross. He also upgrades tools.",
     "Museum: donate fish, bugs, fossils and paintings. The art stall opens on Saturdays (not during festivals).",
     "Calendar: First Light Jan 1-2, Blossom Picnic Apr 10-12, Starlit Regatta Jul 24-26, Harvest Fair Nov 13-16, Frost Lantern Festival Dec 20-24. Visit the plaza host.",
     "Days change at 6:00 real time. The game saves every 15 seconds, at each new day, and when you close it.",
@@ -419,3 +425,16 @@ pub const SHOP_TIERS: [u32; 2] = [8000, 25000];
 pub const SPECIALS: [u16; 3] = [151, 152, 153];
 pub const SPECIAL_DISPLAY: (i32, i32) = (6, 2);
 pub const EXTRA_DISPLAY: (i32, i32) = (0, 2);
+
+// ---- Gardening (original, provisional) ----
+pub const SEEDS: [u16; 4] = [160, 161, 162, 163];
+pub const SEED_PRICE: u32 = 120;
+/// Flower item for plant kind 0-3 (colours) and 4 (rare cross-bred Starfleck).
+pub const FLOWERS: [u16; 5] = [164, 165, 166, 167, 168];
+pub const CAN: u16 = 154;
+/// Chance per adjacent pair of different-coloured blooms per day to cross into a Starfleck (provisional).
+pub const CROSS_CHANCE: u32 = 4; // 1 in 4
+// ---- Tool upgrades (original, provisional): level 1 and 2 costs (coins, stones, sea glass) ----
+pub const UPGRADE: [(u32, u16, u16); 2] = [(1500, 3, 0), (4000, 5, 3)];
+pub const UPGRADABLE: [u16; 4] = [60, 61, 62, 154];
+pub const LV_NAME: [&str; 3] = ["", "Sturdy ", "Masterwork "];

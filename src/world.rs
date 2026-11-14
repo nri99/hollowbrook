@@ -40,13 +40,13 @@ pub struct Built { pub kind: u8, pub x: i32, pub z: i32, pub day: i64 }
 pub struct MProject { pub idx: usize, pub x: i32, pub z: i32, pub funded: u32, pub log: Vec<(usize, u32)> }
 /// Initiative events counted from normal play.
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
-pub enum Ev { Bug, Fish, Weed, Fruit, Sell, Talk, Dig, Shell, Gift, Buy, Activity, Rock, Dive, Camp }
+pub enum Ev { Bug, Fish, Weed, Fruit, Sell, Talk, Dig, Shell, Gift, Buy, Activity, Rock, Dive, Camp, Water }
 /// Initiative templates (original balance, provisional): event, target, text, coupons.
-pub const TASKS: [(Ev, u32, &str, u32); 14] = [
+pub const TASKS: [(Ev, u32, &str, u32); 15] = [
     (Ev::Bug, 2, "Catch 2 bugs with the net", 3), (Ev::Fish, 1, "Catch a fish", 3), (Ev::Weed, 2, "Pull 2 weeds", 2), (Ev::Fruit, 1, "Shake fruit from a tree", 2),
     (Ev::Sell, 500, "Sell items worth 500 coins", 3), (Ev::Talk, 3, "Chat with 3 residents", 2), (Ev::Dig, 1, "Dig up something buried", 3), (Ev::Shell, 2, "Pick up 2 shells", 2),
     (Ev::Gift, 1, "Give a resident a gift", 3), (Ev::Buy, 1, "Buy something at the General Store", 2), (Ev::Rock, 1, "Get a stone from a rock (shovel)", 2), (Ev::Dive, 1, "Dive up a sea creature", 3),
-    (Ev::Camp, 1, "Chat with today's camper", 2), (Ev::Activity, 1, "Finish a Gullrock timed activity", 4)];
+    (Ev::Camp, 1, "Chat with today's camper", 2), (Ev::Activity, 1, "Finish a Gullrock timed activity", 4), (Ev::Water, 3, "Water 3 flowers", 2)];
 /// Weekly town task templates: (event, target, text). Shared progress; each player claims WEEKLY_COUPONS once.
 pub const WTASKS: [(Ev, u32, &str); 5] = [(Ev::Bug, 15, "Town goal: catch 15 bugs"), (Ev::Sell, 6000, "Town goal: sell 6,000 coins of goods"), (Ev::Talk, 20, "Town goal: 20 chats with residents"), (Ev::Shell, 12, "Town goal: pick up 12 shells"), (Ev::Dive, 6, "Town goal: dive up 6 sea creatures")];
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
@@ -57,6 +57,9 @@ pub fn week_of(day: i64) -> i64 { (day - 1).div_euclid(7) }
 /// Today's shared surprise: kind (index into SURPRISES), tile, resident slot that lost the scarf.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Surprise { pub kind: u8, pub x: i32, pub z: i32, pub owner: usize, pub day: i64 }
+/// A planted flower in the shared town garden: kind 0-3 colour, 4 Starfleck; stage 0 sprout, 1 bud, 2 bloom.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
+pub struct Plant { pub x: i32, pub z: i32, pub kind: u8, pub stage: u8, pub watered: i64 }
 /// A running Gullrock activity (runtime only, not saved): shared by every participant.
 #[derive(Clone, Debug)]
 pub struct Activity { pub kind: usize, pub left: f32, pub score: u32, pub mine: Vec<(usize, u32)>, pub players: Vec<usize>, pub ents: Vec<Vec2>, pub next: usize, pub life: f32, pub done: bool, pub paid: Vec<usize> }
@@ -83,7 +86,7 @@ pub struct Profile {
     /// week index of the last art-stall purchase
     #[serde(default)] pub art_week: i64,
     /// initiatives: coupon balance, today's tasks (assigned for task_day), campground favors done (visitor index)
-    #[serde(default)] pub keepsakes: Vec<u8>, #[serde(default)] pub fest_years: Vec<(u8, i32)>, #[serde(default)] pub lost_owner: Option<usize>, #[serde(default)] pub coupons: u32, #[serde(default)] pub tasks: Vec<PTask>, #[serde(default)] pub task_day: i64, #[serde(default)] pub camp_favors: Vec<u8>, #[serde(default)] pub ferry: u32,
+    #[serde(default)] pub keepsakes: Vec<u8>, #[serde(default)] pub fest_years: Vec<(u8, i32)>, #[serde(default)] pub lost_owner: Option<usize>, #[serde(default)] pub tool_lv: Vec<u8>, #[serde(default)] pub coupons: u32, #[serde(default)] pub tasks: Vec<PTask>, #[serde(default)] pub task_day: i64, #[serde(default)] pub camp_favors: Vec<u8>, #[serde(default)] pub ferry: u32,
     /// interest-free home expansion balance (no deadline)
     #[serde(default)] pub debt: u32,
     /// furniture tint per item uid; home wallpaper/flooring palette index
@@ -96,7 +99,7 @@ pub struct Profile {
     #[serde(default)] pub tints: Vec<(u32, u8)>, #[serde(default)] pub wall: u8, #[serde(default)] pub floor: u8,
 }
 impl Profile {
-    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false, visited: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, hat: None, hair: 0, mail: vec![], catalog: vec![], fair_year: 0, art_week: 0, keepsakes: vec![], fest_years: vec![], lost_owner: None, coupons: 0, tasks: vec![], task_day: 0, camp_favors: vec![], ferry: 0, debt: 0, islet_done: 0, act_day: [0; 3], parcel: None, tints: vec![], wall: 0, floor: 0 } }
+    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false, visited: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, hat: None, hair: 0, mail: vec![], catalog: vec![], fair_year: 0, art_week: 0, keepsakes: vec![], fest_years: vec![], lost_owner: None, tool_lv: vec![], coupons: 0, tasks: vec![], task_day: 0, camp_favors: vec![], ferry: 0, debt: 0, islet_done: 0, act_day: [0; 3], parcel: None, tints: vec![], wall: 0, floor: 0 } }
 }
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct World {
@@ -113,7 +116,7 @@ pub struct World {
     #[serde(default)] pub project: Option<Project>, #[serde(default)] pub mproject: Option<MProject>,
     /// active town policy (index into POLICIES); effects are derived, never stored
     #[serde(default)] pub policy: Option<usize>,
-    #[serde(default)] pub wtask: Option<WTask>, #[serde(default)] pub surprise: Option<Surprise>, #[serde(default)] pub spent: u32, #[serde(default)] pub shop_lv: u8, #[serde(default)] pub special_week: i64, #[serde(default)] pub camp_day: i64, #[serde(default)] pub camp_sold: Vec<u16>, #[serde(default)] pub built: Vec<Built>,
+    #[serde(default)] pub wtask: Option<WTask>, #[serde(default)] pub surprise: Option<Surprise>, #[serde(default)] pub garden: Vec<Plant>, #[serde(default)] pub spent: u32, #[serde(default)] pub shop_lv: u8, #[serde(default)] pub special_week: i64, #[serde(default)] pub camp_day: i64, #[serde(default)] pub camp_sold: Vec<u16>, #[serde(default)] pub built: Vec<Built>,
     /// trees already yielding a branch / rocks already yielding a stone today
     #[serde(default)] pub branches: Vec<(i32, i32)>, #[serde(default)] pub rocks_hit: Vec<(i32, i32)>,
     /// islet collectibles (islet coordinates), refreshed daily
@@ -126,7 +129,7 @@ pub fn roster0() -> Vec<usize> { vec![0, 1, 2, 3] }
 impl World {
     pub fn fresh(name: String, day: i64, map: &[u8]) -> World {
         let trees = (0..W * H).filter(|&i| map[i] == TREE).map(|i| Tree { x: (i % W) as i32, z: (i / W) as i32, fruit: true, shaken: i64::MIN / 2 }).collect();
-        World { version: SAVE_VERSION, day, native: FRUITS[gen_range(0usize, 4)], trees, ground: vec![], weeds: vec![], holes: vec![], digs: vec![], stock: vec![], stock_day: i64::MIN, uid: 1, trampled: vec![], donated: vec![], roster: roster0(), arrived: vec![day; 4], moving: vec![0; 4], project: None, mproject: None, policy: None, wtask: None, surprise: None, spent: 0, shop_lv: 0, special_week: -1, camp_day: 0, camp_sold: vec![], built: vec![], branches: vec![], rocks_hit: vec![], iground: vec![], p: Profile::new(0, name, door_stand(HOME)), others: vec![] }
+        World { version: SAVE_VERSION, day, native: FRUITS[gen_range(0usize, 4)], trees, ground: vec![], weeds: vec![], holes: vec![], digs: vec![], stock: vec![], stock_day: i64::MIN, uid: 1, trampled: vec![], donated: vec![], roster: roster0(), arrived: vec![day; 4], moving: vec![0; 4], project: None, mproject: None, policy: None, wtask: None, surprise: None, garden: vec![], spent: 0, shop_lv: 0, special_week: -1, camp_day: 0, camp_sold: vec![], built: vec![], branches: vec![], rocks_hit: vec![], iground: vec![], p: Profile::new(0, name, door_stand(HOME)), others: vec![] }
     }
 }
 
@@ -135,9 +138,9 @@ impl World {
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Pose { Stand, Sit(u32), Lie(u32) }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Loc { Out, Home, Asleep }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Snd { Step, Blip, Splash, Coin, Dig, Rustle, Door, StepPath, StepSand, StepWood, StepFloor, Swim }
-#[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize), Stall, Site, Board, Built(usize), Dock, Pell, IItem(usize), IStall, MSite, ActBoard, Hazel, ArtStall, Camper, CampSign, Kiosk, Fest, Surprise }
+#[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize), Stall, Site, Board, Built(usize), Dock, Pell, IItem(usize), IStall, MSite, ActBoard, Hazel, ArtStall, Camper, CampSign, Kiosk, Fest, Surprise, Plant(usize), PlantSpot }
 #[derive(Clone, PartialEq, Debug)]
-pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize), Tint(usize), Travel(bool), IStall(usize), ConfirmExpand, MPick(usize), Fund, Policy(usize), PolicyOk(usize), Act(usize), Civic(usize), Camp(usize), Kiosk(usize), Title(usize), Help }
+pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize), Tint(usize), Travel(bool), IStall(usize), ConfirmExpand, MPick(usize), Fund, Policy(usize), PolicyOk(usize), Act(usize), Civic(usize), Keeper(usize), Camp(usize), Kiosk(usize), Title(usize), Help }
 pub struct Placing { pub f: Furn, pub orig: Option<Furn>, pub slot_uid: Option<u32> }
 pub struct Fishing { pub bob: Vec2, pub fish: Option<usize>, pub t: f32, pub nib: u8, pub need: u8, pub bite: bool, pub dip: f32 }
 pub struct Shadow { pub pos: Vec2, pub def: u16, pub vel: Vec2 }
@@ -305,7 +308,7 @@ impl Game {
         }
     }
     pub fn refresh_world(&mut self) {
-        let day = self.w.day; self.w.trampled.clear(); self.w.branches.clear(); self.w.rocks_hit.clear(); self.refresh_islet(); self.finish_mproject(); self.assign_weekly(); self.new_surprise(); let lv = self.shop_tier(); if lv > self.w.shop_lv { self.w.shop_lv = lv; self.mail_all("Mr. Tumble", if lv == 1 { "Thanks to all of you, the General Store has been renovated! Look for a new weekly special by the window." } else { "Another renovation! The General Store now stocks an extra item every day." }) } if self.w.camp_day != self.w.day { self.w.camp_day = self.w.day; self.w.camp_sold.clear() } if self.w.project.is_none() { self.propose() } // flattened flowers recover each morning
+        let day = self.w.day; self.w.trampled.clear(); self.w.branches.clear(); self.w.rocks_hit.clear(); self.refresh_islet(); self.finish_mproject(); self.assign_weekly(); self.grow_garden(); self.new_surprise(); let lv = self.shop_tier(); if lv > self.w.shop_lv { self.w.shop_lv = lv; self.mail_all("Mr. Tumble", if lv == 1 { "Thanks to all of you, the General Store has been renovated! Look for a new weekly special by the window." } else { "Another renovation! The General Store now stocks an extra item every day." }) } if self.w.camp_day != self.w.day { self.w.camp_day = self.w.day; self.w.camp_sold.clear() } if self.w.project.is_none() { self.propose() } // flattened flowers recover each morning
         for t in &mut self.w.trees { if !t.fruit && day - t.shaken >= 3 { t.fruit = true } } // persisted elapsed-time regrowth rule
         for _ in 0..self.pol().map_or(2, |p| p.weeds) { if self.w.weeds.len() < 12 { if let Some(t) = self.rand_tile(GRASS) { self.w.weeds.push(t) } } }
         while self.w.ground.iter().filter(|g| def(g.def).k == K::Shell).count() < 4 { let Some(t) = self.rand_tile(SAND) else { break }; self.drop_item([40, 42, 40, 42, 41][gen_range(0, 5)], t.0, t.1) }
@@ -316,7 +319,7 @@ impl Game {
         for _ in 0..300 { let (x, z) = (gen_range(1, W as i32 - 1), gen_range(1, H as i32 - 1)); if tile_at(&self.map, x, z) == kind && self.walk_tile(x, z) && !self.occupied(x, z) && (x, z) != tile_of(self.me.pos) { return Some((x, z)) } }
         None
     }
-    fn occupied(&self, x: i32, z: i32) -> bool { self.item_at(x, z) || self.w.weeds.contains(&(x, z)) || self.w.digs.contains(&(x, z)) || self.w.holes.contains(&(x, z)) }
+    fn occupied(&self, x: i32, z: i32) -> bool { self.w.garden.iter().any(|p| (p.x, p.z) == (x, z)) || self.item_at(x, z) || self.w.weeds.contains(&(x, z)) || self.w.digs.contains(&(x, z)) || self.w.holes.contains(&(x, z)) }
     fn item_at(&self, x: i32, z: i32) -> bool { self.w.ground.iter().any(|g| tile_of(vec2(g.x, g.z)) == (x, z)) }
     fn drop_item(&mut self, d: u16, x: i32, z: i32) { let uid = self.uid(); self.w.ground.push(GItem { uid, def: d, x: x as f32 + 0.5 + gen_range(-0.15, 0.15), z: z as f32 + 0.5 + gen_range(-0.15, 0.15) }) }
 
@@ -421,6 +424,8 @@ impl Game {
                 cand(vec2(DOCK.0 as f32 + 0.5, DOCK.1 as f32 + 0.3), 1.4, 0.7, Tg::Dock, None);
                 for (i, b) in self.w.built.iter().enumerate() { if b.kind == 0 { cand(tc((b.x, b.z)), 1.4, 0.9, Tg::Built(i), Some((b.x, b.z))) } }
                 if self.camp_open() { cand(vec2(CAMP_SPOT.0, CAMP_SPOT.1), 1.5, 0.8, Tg::Camper, None) } cand(tc(CAMP_SIGN), 1.4, 0.8, Tg::CampSign, Some(CAMP_SIGN)); if let Some(sp) = &self.w.surprise { cand(tc((sp.x, sp.z)), 1.3, 0.9, Tg::Surprise, Some((sp.x, sp.z))) }
+                for (i, p) in self.w.garden.iter().enumerate() { cand(tc((p.x, p.z)), 1.2, 0.9, Tg::Plant(i), Some((p.x, p.z))) }
+                if self.w.p.inv.iter().any(|s| SEEDS.contains(&s.def)) { let ft = tile_of(self.me.pos + self.me.face * 0.9); if self.plant_ok(ft) { cand(tc(ft), 1.2, 0.85, Tg::PlantSpot, Some(ft)) } }
                 if self.fair() { cand(tc(STALL), 1.5, 0.8, Tg::Stall, Some(STALL)) } else if self.fest().is_some() { cand(tc(STALL), 1.5, 0.8, Tg::Fest, Some(STALL)) } else if self.art_open() { cand(tc(STALL), 1.5, 0.8, Tg::ArtStall, Some(STALL)) }
             }
             Scene::Islet => {
@@ -445,7 +450,7 @@ impl Game {
         match tg {
             Tg::Npc(i) => v(match self.me.scene { Scene::Town => self.npcs[i].pos, Scene::Room(b) if self.visit.is_some_and(|x| x.0 == i && x.1 == b) => self.visit_spot(b), _ => res_spot() }, 1.5), Tg::Door(b) => v(door_face(b), 1.3),
             Tg::Tree(i) => v(tc((self.w.trees[i].x, self.w.trees[i].z)), 2.15), Tg::Item(i) => vec3(self.w.ground[i].x, 0.45, self.w.ground[i].z),
-            Tg::Weed(i) => v(tc(self.w.weeds[i]), 0.55), Tg::Rack => vec3(1.5, 1.8, 1.5), Tg::Mailbox(o) => v(tc(mailbox_tile(o)), 1.4), Tg::Stall | Tg::ArtStall | Tg::Fest => v(tc(STALL), 1.9), Tg::Camper => vec3(CAMP_SPOT.0, 1.7, CAMP_SPOT.1), Tg::Surprise => self.w.surprise.as_ref().map_or(Vec3::ZERO, |sp| v(tc((sp.x, sp.z)), 0.9)), Tg::CampSign => v(tc(CAMP_SIGN), 1.5), Tg::Kiosk => v(tc(KIOSK), 1.5), Tg::Board => v(tc(BOARD), 1.9), Tg::MSite => self.w.mproject.as_ref().map_or(Vec3::ZERO, |m| v(tc((m.x, m.z)), 1.6)), Tg::Dock => vec3(DOCK.0 as f32 + 0.5, 1.6, DOCK.1 as f32 + 0.3), Tg::ActBoard => v(tc(ACT_BOARD), 1.5), Tg::Pell => vec3(PELL_I.0, 1.6, PELL_I.1), Tg::IStall => v(tc(ISTALL), 1.5), Tg::IItem(i) => vec3(self.w.iground[i].x, 0.45, self.w.iground[i].z), Tg::Built(i) => v(tc((self.w.built[i].x, self.w.built[i].z)), 1.2), Tg::Site => self.w.project.as_ref().map_or(Vec3::ZERO, |p| v(tc((p.x, p.z)), 1.6)), Tg::Curator | Tg::Hazel => vec3(3.5, 1.3, 1.5), Tg::Exhibit(k) => match k { 0 => vec3(0.5, 1.5, 2.5), 1 => vec3(6.5, 1.5, 2.5), _ => { let p = tc(MUSEUM_PED[k - 2].0); vec3(p.x, 1.2, p.y) } }, Tg::Counter => vec3(3.5, 1.3, 1.5), Tg::Keeper => vec3(3.5, 1.7, 0.5), Tg::Display(i) => v(tc(match i { 7 => EXTRA_DISPLAY, 8 => SPECIAL_DISPLAY, _ => DISPLAYS[i] }), 1.3),
+            Tg::Weed(i) => v(tc(self.w.weeds[i]), 0.55), Tg::Rack => vec3(1.5, 1.8, 1.5), Tg::Mailbox(o) => v(tc(mailbox_tile(o)), 1.4), Tg::Stall | Tg::ArtStall | Tg::Fest => v(tc(STALL), 1.9), Tg::Camper => vec3(CAMP_SPOT.0, 1.7, CAMP_SPOT.1), Tg::Plant(i) => v(tc((self.w.garden[i].x, self.w.garden[i].z)), 0.7), Tg::PlantSpot => v(tc(tile_of(self.me.pos + self.me.face * 0.9)), 0.4), Tg::Surprise => self.w.surprise.as_ref().map_or(Vec3::ZERO, |sp| v(tc((sp.x, sp.z)), 0.9)), Tg::CampSign => v(tc(CAMP_SIGN), 1.5), Tg::Kiosk => v(tc(KIOSK), 1.5), Tg::Board => v(tc(BOARD), 1.9), Tg::MSite => self.w.mproject.as_ref().map_or(Vec3::ZERO, |m| v(tc((m.x, m.z)), 1.6)), Tg::Dock => vec3(DOCK.0 as f32 + 0.5, 1.6, DOCK.1 as f32 + 0.3), Tg::ActBoard => v(tc(ACT_BOARD), 1.5), Tg::Pell => vec3(PELL_I.0, 1.6, PELL_I.1), Tg::IStall => v(tc(ISTALL), 1.5), Tg::IItem(i) => vec3(self.w.iground[i].x, 0.45, self.w.iground[i].z), Tg::Built(i) => v(tc((self.w.built[i].x, self.w.built[i].z)), 1.2), Tg::Site => self.w.project.as_ref().map_or(Vec3::ZERO, |p| v(tc((p.x, p.z)), 1.6)), Tg::Curator | Tg::Hazel => vec3(3.5, 1.3, 1.5), Tg::Exhibit(k) => match k { 0 => vec3(0.5, 1.5, 2.5), 1 => vec3(6.5, 1.5, 2.5), _ => { let p = tc(MUSEUM_PED[k - 2].0); vec3(p.x, 1.2, p.y) } }, Tg::Counter => vec3(3.5, 1.3, 1.5), Tg::Keeper => vec3(3.5, 1.7, 0.5), Tg::Display(i) => v(tc(match i { 7 => EXTRA_DISPLAY, 8 => SPECIAL_DISPLAY, _ => DISPLAYS[i] }), 1.3),
             Tg::Furn(uid, d) => { let c = self.room_furn(match self.me.scene { Scene::Room(b) => b, _ => HOME }).into_iter().find(|f| f.uid == uid && f.def == d).map(|f| fcenter(&f)).unwrap_or_default(); v(c, if def(d).wall { 1.9 } else { 1.2 }) }
         }
     }
@@ -456,8 +461,10 @@ impl Game {
             Tg::Item(i) => format!("Pick up {}", def(self.w.ground[i].def).name), Tg::Weed(_) => "Pull weed".into(),
             Tg::Furn(uid, d) => { let a = match def(d).act { Act::Sit => "Sit on", Act::Bed => "Lie on", Act::Lamp => "Toggle", Act::Storage => "Open", Act::None => "Look at" };
                 if uid != 0 && self.me.scene == Scene::Room(self.home()) { format!("{a} {}   [F] Move  [G] Pick up", def(d).name) } else { format!("{a} {}", def(d).name) } }
-            Tg::Counter => "Sell items".into(), Tg::Keeper => "Talk to Mr. Tumble".into(), Tg::Hazel => "Talk to Hazel Quill (civic desk)".into(), Tg::Curator => "Donate / identify fossils".into(), Tg::Rack => "Browse clothes".into(), Tg::Site => self.w.project.as_ref().map_or(String::new(), |p| format!("Contribute to the {}", PROJECTS[p.kind as usize].0)), Tg::Board => "Read the town notice board".into(), Tg::MSite => self.w.mproject.as_ref().map_or(String::new(), |m| format!("Fund the {}", MPROJECTS[m.idx].0)), Tg::Dock => format!("Sail to Gullrock Islet ({FARE} coins)"), Tg::ActBoard => "Timed activities board".into(), Tg::Pell => "Talk to Captain Pell".into(), Tg::IStall => "Sea Glass stall".into(), Tg::IItem(i) => format!("Pick up {}", def(self.w.iground[i].def).name), Tg::Built(_) => "Sit on the bench".into(),
+            Tg::Counter => "Sell items".into(), Tg::Keeper => "Talk to Mr. Tumble (seeds, tool upgrades)".into(), Tg::Hazel => "Talk to Hazel Quill (civic desk)".into(), Tg::Curator => "Donate / identify fossils".into(), Tg::Rack => "Browse clothes".into(), Tg::Site => self.w.project.as_ref().map_or(String::new(), |p| format!("Contribute to the {}", PROJECTS[p.kind as usize].0)), Tg::Board => "Read the town notice board".into(), Tg::MSite => self.w.mproject.as_ref().map_or(String::new(), |m| format!("Fund the {}", MPROJECTS[m.idx].0)), Tg::Dock => format!("Sail to Gullrock Islet ({FARE} coins)"), Tg::ActBoard => "Timed activities board".into(), Tg::Pell => "Talk to Captain Pell".into(), Tg::IStall => "Sea Glass stall".into(), Tg::IItem(i) => format!("Pick up {}", def(self.w.iground[i].def).name), Tg::Built(_) => "Sit on the bench".into(),
             Tg::Camper => format!("Talk to {} the {}", VISITORS[self.visitor()].name, VISITORS[self.visitor()].species), Tg::CampSign => "Read the campground sign".into(), Tg::Kiosk => format!("Initiatives kiosk ({} coupons)", self.w.p.coupons),
+            Tg::Plant(i) => { let p = self.w.garden[i]; let n = def(FLOWERS[p.kind as usize]).name; if p.stage == 2 { format!("Pick the {n}") } else { format!("{n} ({}{})", ["sprout", "bud"][p.stage as usize], if p.watered == self.w.day { ", watered" } else { ", needs water" }) } }
+            Tg::PlantSpot => format!("Plant {}", self.w.p.inv.iter().find(|s| SEEDS.contains(&s.def)).map_or("", |s| def(s.def).name)),
             Tg::Surprise => self.w.surprise.as_ref().map_or(String::new(), |sp| format!("Pick up the {}", SURPRISES[sp.kind as usize])),
             Tg::Fest => format!("Talk to Hazel about the {}", self.fest().map_or("", |f| FESTS[f].name)),
             Tg::ArtStall => format!("Art stall: {} ({ART_PRICE} coins)", def(art_of_week(self.w.day)).name),
@@ -486,6 +493,8 @@ impl Game {
             Tg::Stall => self.fair_prize(),
             Tg::Fest => self.fest_talk(),
             Tg::Surprise => self.take_surprise(),
+            Tg::Plant(i) => self.pick_flower(i),
+            Tg::PlantSpot => { let ft = tile_of(self.me.pos + self.me.face * 0.9); if let Err(e) = self.plant(ft) { self.note(e) } }
             Tg::Camper => { self.me.ui = Ui::Camp(0) }
             Tg::CampSign => { let v = &VISITORS[self.visitor()]; let n = &VISITORS[visitor_of(self.w.day + 1)]; self.me.ui = Ui::Talk { npc: None, who: "Campground sign".into(), lines: vec![format!("Hollowbrook Campground. Travellers stay one day each, at the campfire from {}:00 to {}:00.", CAMP_HOURS.0, CAMP_HOURS.1), format!("Today: {} the {}. Tomorrow: {} the {}.", v.name, v.species, n.name, n.species), "Each traveller sells one of each item per day and has one favor to ask.".into()], i: 0 } }
             Tg::Kiosk => { self.me.ui = Ui::Kiosk(0) }
@@ -503,7 +512,7 @@ impl Game {
             Tg::Exhibit(k) => { let (n, t) = match k { 0 => (self.donated_of(K::Fish), DEFS.iter().filter(|d| d.k == K::Fish).count()), 1 => (self.donated_of(K::Bug), DEFS.iter().filter(|d| d.k == K::Bug).count()), _ => (self.w.donated.iter().any(|x| x.0 == MUSEUM_PED[k - 2].1) as usize, 1) };
                 let who = if k >= 2 { self.w.donated.iter().find(|x| x.0 == MUSEUM_PED[k - 2].1).map(|x| format!(" (donated by Player {})", x.1 + 1)).unwrap_or_default() } else { String::new() };
                 self.note(format!("{}: {n}/{t} on display.{who}", ["Fish tank", "Bug case"].get(k).copied().unwrap_or(def(MUSEUM_PED[k.max(2) - 2].1).name))) }
-            Tg::Keeper => self.me.ui = Ui::Talk { npc: None, who: "Mr. Tumble the tortoise".into(), lines: KEEPER.iter().map(|s| s.to_string()).collect(), i: 0 },
+            Tg::Keeper => self.me.ui = Ui::Keeper(0),
             Tg::Display(i) => {
                 if i >= 7 && self.display_item(i).2 { self.note(if i == 8 { "This week's special is sold. A new one arrives next week." } else { "That one's sold out. New stock arrives at 6:00." }) }
                 else if i < 5 && self.w.stock[i].sold { self.note("That one's sold out. New stock arrives at 6:00.") }
@@ -674,7 +683,7 @@ impl Game {
         let tools = &self.w.p.tools; let money = self.w.p.money;
         match TASKS[t].0 { Ev::Fish => tools.contains(&61), Ev::Dig => tools.contains(&62) && self.w.digs.len() >= 2, Ev::Rock => tools.contains(&62),
             Ev::Weed => self.w.weeds.len() >= 4, Ev::Fruit => self.w.trees.iter().filter(|t| t.fruit).count() >= 3, Ev::Buy => money >= 600,
-            Ev::Activity => money >= FARE + 100 || self.w.p.ferry > 0, Ev::Gift => true, Ev::Bug => tools.contains(&60), _ => true }
+            Ev::Activity => money >= FARE + 100 || self.w.p.ferry > 0, Ev::Gift => true, Ev::Bug => tools.contains(&60), Ev::Water => tools.contains(&CAN) && self.w.garden.len() >= 3, _ => true }
     }
     /// Give the active player three attainable tasks for today (once per day).
     pub fn assign_tasks(&mut self) {
@@ -720,6 +729,51 @@ impl Game {
             _ => { let d = FURN_IDS[gen_range(0, FURN_IDS.len())]; if !self.add_furn(d) { return } self.note(format!("A gift drifted down on a balloon! Inside: a {}.", def(d).name)) }
         }
         self.snd.push(Snd::Coin); self.w.surprise = None;
+    }
+    // ---- Gardening ----
+    pub fn plant_ok(&self, t: (i32, i32)) -> bool { self.me.scene == Scene::Town && tile_at(&self.map, t.0, t.1) == GRASS && self.walk_tile(t.0, t.1) && !self.occupied(t.0, t.1) && t != tile_of(self.me.pos) && ![mailbox_tile(0), mailbox_tile(1)].contains(&t) }
+    pub fn plant(&mut self, t: (i32, i32)) -> Result<(), &'static str> {
+        if !self.plant_ok(t) { return Err("You can't plant there. Try open grass.") }
+        let Some(k) = SEEDS.iter().position(|&s| self.w.p.inv.iter().any(|x| x.def == s)) else { return Err("You have no seeds.") };
+        self.remove_one(SEEDS[k]); self.w.garden.push(Plant { x: t.0, z: t.1, kind: k as u8, stage: 0, watered: i64::MIN }); self.snd.push(Snd::Dig); self.note(format!("You planted {}. Water it every day!", def(SEEDS[k]).name)); Ok(())
+    }
+    /// Water plants in front (area grows with the can's level). Returns how many were watered.
+    pub fn water(&mut self) -> usize {
+        let lv = self.tool_level(CAN); let f = tile_of(self.me.pos + self.me.face * 0.9); let (fx, fz) = (self.me.face.x.round() as i32, self.me.face.y.round() as i32);
+        let mut tiles = vec![f]; if lv >= 1 { tiles.push((f.0 + fz, f.1 + fx)); tiles.push((f.0 - fz, f.1 - fx)); } if lv >= 2 { for dx in -1..=1 { for dz in -1..=1 { tiles.push((f.0 + dx, f.1 + dz)) } } }
+        let day = self.w.day; let mut n = 0; for p in &mut self.w.garden { if tiles.contains(&(p.x, p.z)) && p.watered != day { p.watered = day; n += 1 } }
+        let fp = tc(f); self.fx.push((vec3(fp.x, 0.05, fp.y), 0., 0)); self.snd.push(Snd::Splash);
+        if n > 0 { self.ev(Ev::Water, n as u32); self.note(format!("Watered {n} flower{}.", if n == 1 { "" } else { "s" })) } else { self.note("Nothing here needs water.") } n
+    }
+    pub fn pick_flower(&mut self, i: usize) {
+        let p = self.w.garden[i]; if p.stage < 2 { return self.note(if p.watered == self.w.day { "It's growing. Come back tomorrow!" } else { "It needs water today to keep growing." }) }
+        if self.add(FLOWERS[p.kind as usize]) { self.w.garden[i].stage = 1; self.note(format!("You picked a {}. It will bloom again soon.", def(FLOWERS[p.kind as usize]).name)) }
+    }
+    /// Daily growth (watered yesterday or rain) and cross-breeding of neighbouring blooms of different colours.
+    pub fn grow_garden(&mut self) {
+        let prev = self.w.day - 1; let rain = rainy(prev);
+        for p in &mut self.w.garden { if p.watered >= prev || rain { p.stage = (p.stage + 1).min(2) } }
+        let blooms: Vec<Plant> = self.w.garden.iter().copied().filter(|p| p.stage == 2 && p.kind < 4).collect();
+        'outer: for a in &blooms { for b in &blooms { if (a.x - b.x).abs() + (a.z - b.z).abs() == 1 && a.kind < b.kind && gen_range(0, CROSS_CHANCE) == 0 {
+            for (dx, dz) in [(0, 1), (1, 0), (0, -1), (-1, 0), (1, 1), (-1, -1)] { let t = (a.x + dx, a.z + dz); if tile_at(&self.map, t.0, t.1) == GRASS && self.walk_tile(t.0, t.1) && !self.occupied(t.0, t.1) {
+                self.w.garden.push(Plant { x: t.0, z: t.1, kind: 4, stage: 0, watered: i64::MIN }); self.mail_all("Town notice board", "A strange new sprout appeared in the town garden! Some say crossed flowers make something rare."); break 'outer } } } } }
+    }
+    // ---- Tool upgrades ----
+    pub fn tool_level(&self, t: u16) -> u8 { UPGRADABLE.iter().position(|&u| u == t).and_then(|k| self.w.p.tool_lv.get(k).copied()).unwrap_or(0) }
+    pub fn upgrade_tool(&mut self, t: u16) -> Result<u8, String> {
+        let Some(k) = UPGRADABLE.iter().position(|&u| u == t) else { return Err("That tool can't be upgraded.".into()) };
+        if !self.w.p.tools.contains(&t) { return Err(format!("You need a {} first.", def(t).name)) }
+        let lv = self.tool_level(t); if lv >= 2 { return Err("That's already a masterwork!".into()) }
+        let (c, st, gl) = UPGRADE[lv as usize]; let have = |g: &Game, d: u16| g.w.p.inv.iter().filter(|s| s.def == d).map(|s| s.qty).sum::<u16>();
+        if self.w.p.money < c || have(self, 81) < st || have(self, 85) < gl { return Err(format!("I need {c} coins, {st} Stone{} to do that.", if gl > 0 { format!(" and {gl} Sea Glass") } else { String::new() })) }
+        self.w.p.money -= c; for _ in 0..st { self.remove_one(81); } for _ in 0..gl { self.remove_one(85); }
+        while self.w.p.tool_lv.len() < UPGRADABLE.len() { self.w.p.tool_lv.push(0) } self.w.p.tool_lv[k] = lv + 1; Ok(lv + 1)
+    }
+    pub fn keeper_items(&self) -> Vec<(String, u8)> { // (label, action) 0 chat, 1-4 seed, 5 can, 10+k upgrade tool k
+        let mut v = vec![("Chat".to_string(), 0)]; for (k, &s) in SEEDS.iter().enumerate() { v.push((format!("{}  -  {SEED_PRICE} coins", def(s).name), 1 + k as u8)) }
+        if !self.w.p.tools.contains(&CAN) { v.push((format!("Watering Can  -  {} coins", def(CAN).buy), 5)) }
+        for (k, &t) in UPGRADABLE.iter().enumerate() { if self.w.p.tools.contains(&t) { let lv = self.tool_level(t); if lv < 2 { let (c, st, gl) = UPGRADE[lv as usize]; v.push((format!("Upgrade {} -> {}{}  -  {c}c, {st} Stone{}", def(t).name, LV_NAME[lv as usize + 1], def(t).name, if gl > 0 { format!(", {gl} Sea Glass") } else { String::new() }), 10 + k as u8)) } } }
+        v
     }
     pub fn fest(&self) -> Option<usize> { fest_of(self.mo, self.dom) }
     /// Festival host: explains the event and gives the yearly keepsake once the task is done (once per player per year).
@@ -881,7 +935,7 @@ impl Game {
 
     // ---- community projects ----
     pub fn remaining(p: &Project) -> String { let r: Vec<String> = p.need.iter().filter(|n| n.2 < n.1).map(|n| format!("{} {}", n.1 - n.2, MAT_NAMES[n.0 as usize])).collect(); if r.is_empty() { "It's ready!".into() } else { format!("Still needed: {}.", r.join(", ")) } }
-    pub fn liveliness(&self) -> i32 { let flowers = self.map.iter().filter(|&&c| c == FLOWER).count() as i32 - self.w.trampled.len() as i32; (10 * self.w.built.len() as i32 + 2 * self.w.donated.len() as i32 + flowers / 2 - 3 * self.w.weeds.len() as i32).clamp(0, 100) }
+    pub fn liveliness(&self) -> i32 { let flowers = self.map.iter().filter(|&&c| c == FLOWER).count() as i32 - self.w.trampled.len() as i32 + 2 * self.w.garden.iter().filter(|p| p.stage == 2).count() as i32; (10 * self.w.built.len() as i32 + 2 * self.w.donated.len() as i32 + flowers / 2 - 3 * self.w.weeds.len() as i32).clamp(0, 100) }
     pub fn live_word(l: i32) -> &'static str { if l < 20 { "Quiet" } else if l < 45 { "Cozy" } else if l < 70 { "Lively" } else { "Bustling" } }
     pub fn board_lines(&self) -> Vec<String> {
         let mut v = vec![format!("Town liveliness: {} / 100 ({}).", self.liveliness(), Game::live_word(self.liveliness()))];
@@ -1091,25 +1145,27 @@ impl Game {
         if self.me.scene == Scene::Islet { // only the net works on Gullrock (for island bugs)
             if self.w.p.equip != Some(60) { return self.note("Only the net is useful on Gullrock.") }
             self.me.swing = 0.35; let at = self.me.ipos + self.me.face * 0.7; self.fx.push((vec3(at.x, 0.6, at.y), 0., 2));
-            if let Some(j) = self.ibugs.iter().position(|b| b.1.distance(at) < 0.8) { let d = self.ibugs.remove(j).0; if self.add(d) { self.ev(Ev::Bug, 1) } } else { self.snd.push(Snd::Rustle) } return }
+            if let Some(j) = { let reach = 0.8 + 0.3 * self.tool_level(60) as f32; self.ibugs.iter().position(|b| b.1.distance(at) < reach) } { let d = self.ibugs.remove(j).0; if self.add(d) { self.ev(Ev::Bug, 1) } } else { self.snd.push(Snd::Rustle) } return }
         if self.me.scene != Scene::Town { return }
         if self.me.fish.is_some() { return self.reel() }
         let (p, f) = (self.me.pos, self.me.face);
         match self.w.p.equip {
             None => self.note("No tool equipped. Press Tab to cycle tools."),
-            Some(60) => { self.me.swing = 0.35; let at = p + f * 0.7; self.fx.push((vec3(at.x, 0.6, at.y), 0., 2)); if self.me.scene == Scene::Islet { if let Some(j) = self.ibugs.iter().position(|b| b.1.distance(at) < 0.8) { let d = self.ibugs.remove(j).0; if self.add(d) { self.ev(Ev::Bug, 1) } } else { self.snd.push(Snd::Rustle) } } else if let Some(j) = self.bugs.iter().position(|b| b.1.distance(at) < 0.8) { let d = self.bugs.remove(j).0; if self.add(d) { self.ev(Ev::Bug, 1) } } else { self.snd.push(Snd::Rustle) } }
+            Some(60) => { self.me.swing = 0.35; let at = p + f * 0.7; self.fx.push((vec3(at.x, 0.6, at.y), 0., 2)); if self.me.scene == Scene::Islet { if let Some(j) = self.ibugs.iter().position(|b| b.1.distance(at) < 0.8) { let d = self.ibugs.remove(j).0; if self.add(d) { self.ev(Ev::Bug, 1) } } else { self.snd.push(Snd::Rustle) } } else if let Some(j) = { let reach = 0.8 + 0.3 * self.tool_level(60) as f32; self.bugs.iter().position(|b| b.1.distance(at) < reach) } { let d = self.bugs.remove(j).0; if self.add(d) { self.ev(Ev::Bug, 1) } } else { self.snd.push(Snd::Rustle) } }
+            Some(CAN) => { self.me.swing = 0.35; self.water(); }
             Some(61) => {
                 let spot = [1.6, 2.2, 2.8].iter().map(|&k| p + f * k).find(|&q| { let t = tile_of(q); matches!(self.tile(t.0, t.1), RIVER | SEA) });
                 let Some(bob) = spot else { return self.note("Face the water to cast.") };
                 self.me.swing = 0.35; let bt = tile_of(bob); let hab = if self.tile(bt.0, bt.1) == SEA { 2 } else { 1 };
                 let fish = self.shadows.iter().enumerate().filter(|(_, s)| (def(s.def).hab == hab || def(s.def).hab == 3) && s.pos.distance(bob) < 5.).min_by(|a, b| a.1.pos.distance(bob).total_cmp(&b.1.pos.distance(bob))).map(|(i, _)| i);
-                self.me.fish = Some(Fishing { bob, fish, t: 0., nib: 0, need: gen_range(1u8, 4), bite: false, dip: 0.3 }); self.snd.push(Snd::Splash); self.fx.push((vec3(bob.x, -0.17, bob.y), 0., 0));
+                self.me.fish = Some(Fishing { bob, fish, t: 0., nib: 0, need: gen_range(1u8, 4 - self.tool_level(61)), bite: false, dip: 0.3 }); self.snd.push(Snd::Splash); self.fx.push((vec3(bob.x, -0.17, bob.y), 0., 0));
             }
             Some(_) => {
                 self.me.swing = 0.35; let t = tile_of(p + f * 0.9); self.fx.push((vec3(t.0 as f32 + 0.5, 0.05, t.1 as f32 + 0.5), 0., 1));
-                if self.tile(t.0, t.1) == ROCK { self.snd.push(Snd::Dig); if self.w.rocks_hit.contains(&t) { return self.note("This rock has nothing more to give today.") } if self.add(81) { self.w.rocks_hit.push(t); self.ev(Ev::Rock, 1) } return }
+                if self.tile(t.0, t.1) == ROCK { self.snd.push(Snd::Dig); if self.w.rocks_hit.contains(&t) { return self.note("This rock has nothing more to give today.") } if self.add(81) { self.w.rocks_hit.push(t); self.ev(Ev::Rock, 1); for _ in 0..self.tool_level(62) { self.add(81); } } return }
+                if let Some(i) = self.w.garden.iter().position(|p| (p.x, p.z) == t) { self.w.garden.remove(i); self.snd.push(Snd::Dig); return self.note("You dug up the flower.") }
                 if let Some(i) = self.w.holes.iter().position(|&h| h == t) { self.w.holes.remove(i); self.snd.push(Snd::Dig); self.note("You filled the hole.") }
-                else if let Some(i) = self.w.digs.iter().position(|&h| h == t) { self.w.digs.remove(i); self.w.holes.push(t); self.snd.push(Snd::Dig); let d = [47, 47, 47, 45, 46][gen_range(0, 5)]; if self.add(d) { self.ev(Ev::Dig, 1) } }
+                else if let Some(i) = self.w.digs.iter().position(|&h| h == t) { self.w.digs.remove(i); self.w.holes.push(t); self.snd.push(Snd::Dig); let d = [47, 47, 47, 45, 46][gen_range(0, 5)]; if self.add(d) { self.ev(Ev::Dig, 1); if self.tool_level(62) >= 2 && gen_range(0, 3) == 0 { let b = [45, 46][gen_range(0, 2)]; if self.add(b) { self.note(format!("Your masterwork shovel turned up a {} too!", def(b).name)) } } } }
                 else if matches!(self.tile(t.0, t.1), GRASS | SAND | PATH) && self.walk_tile(t.0, t.1) && !self.occupied(t.0, t.1) && t != tile_of(p) { self.w.holes.push(t); self.snd.push(Snd::Dig); self.note("You dug a hole.") }
                 else { self.note("You can't dig there.") }
             }
@@ -1130,7 +1186,7 @@ impl Game {
         f.t += dt; f.dip = (f.dip - dt * 2.5).max(0.); let mut keep = true;
         match f.fish {
             None => if f.t > 6. { keep = false; self.note("Nothing seems interested...") },
-            Some(si) => if f.bite { if f.t > 0.8 { keep = false; self.shadows.remove(si); self.note("It got away!") } }
+            Some(si) => if f.bite { if f.t > 0.8 + 0.3 * self.tool_level(61) as f32 { keep = false; self.shadows.remove(si); self.note("It got away!") } }
                 else { let sh = &mut self.shadows[si]; let to = f.bob - sh.pos;
                     if to.length() > 0.3 { sh.pos += to.normalize() * 0.8 * dt; f.t = 0. }
                     else if f.t > 0.9 { f.t = 0.; f.nib += 1; f.dip = 0.5; self.snd.push(Snd::Blip); if f.nib >= f.need { f.bite = true; f.dip = 1.2; self.snd.push(Snd::Splash) } } },
@@ -1292,7 +1348,7 @@ impl Game {
                     if def(sl.def).k == crate::data::K::Cloth { self.me.ui = Ui::Play; self.wear(sl.uid) }
                     else if def(sl.def).k != crate::data::K::Furn { self.note(format!("{} sells for {} coins at the shop.", def(sl.def).name, def(sl.def).sell)) }
                     else if self.me.scene == Scene::Room(self.home()) { self.me.ui = Ui::Play; self.start_place(sl.uid) } else { self.note("Furniture can be placed inside your home.") } } }
-            Ui::Sell(s) => { let s = mv(s, n + 3); if ok && s == n + 1 { self.me.ui = Ui::Catalog(0); return true } if ok && s == n + 2 { self.me.ui = Ui::Tint(0); return true } self.me.ui = Ui::Sell(s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.sell_slot(s) } else if ok && s == n { if self.w.p.debt > 0 { self.pay_debt() } else if (self.w.p.home as usize) < EXPAND_COST.len() { self.me.ui = Ui::ConfirmExpand } else { self.note("Your home is already as big as it gets!") } } else if inp.p(A) || inp.p(X) { self.sell_all() } }
+            Ui::Sell(s) => { let s = mv(s, n + 4); if ok && s == n + 3 { self.me.ui = Ui::Keeper(0); return true } if ok && s == n + 1 { self.me.ui = Ui::Catalog(0); return true } if ok && s == n + 2 { self.me.ui = Ui::Tint(0); return true } self.me.ui = Ui::Sell(s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.sell_slot(s) } else if ok && s == n { if self.w.p.debt > 0 { self.pay_debt() } else if (self.w.p.home as usize) < EXPAND_COST.len() { self.me.ui = Ui::ConfirmExpand } else { self.note("Your home is already as big as it gets!") } } else if inp.p(A) || inp.p(X) { self.sell_all() } }
             Ui::Confirm(d) => { if ok || inp.p(Y) { self.me.ui = Ui::Play; match self.buy(d) { Ok(()) => { self.snd.push(Snd::Coin); self.note("Thank you for your purchase!") } Err(e) => self.note(e) } } else if esc || inp.p(N) { self.me.ui = Ui::Play } }
             Ui::Storage(c, s) => { let c = if left { 0 } else if right { 1 } else { c }; let len = if c == 0 { n } else { self.w.p.storage.len() }; let s = mv(s, len); self.me.ui = Ui::Storage(c, s);
                 if esc { self.me.ui = Ui::Play } else if ok && s < len { self.transfer(c, s) } }
@@ -1314,6 +1370,11 @@ impl Game {
             Ui::PolicyOk(s) => { if esc { self.me.ui = Ui::Policy(s) } else if ok { let r = self.enact((s < POLICIES.len()).then_some(s)); self.me.ui = Ui::Play;
                 match r { Ok(()) => { self.snd.push(Snd::Coin); self.note(self.pol().map_or("Policy repealed. Normal hours apply.".to_string(), |p| format!("{} is now in effect.", p.name))) } Err(e) => self.note(e) } } }
             Ui::Act(s) => { let s = mv(s, ACTS.len()); self.me.ui = Ui::Act(s); if esc { self.me.ui = Ui::Play } else if ok { self.me.ui = Ui::Play; match self.act_start(s) { Ok(()) => { self.snd.push(Snd::Blip); self.note(format!("{} started!", ACTS[s].0)) } Err(e) => self.note(e) } } }
+            Ui::Keeper(s) => { let items = self.keeper_items(); let s = mv(s, items.len()); self.me.ui = Ui::Keeper(s); if esc { self.me.ui = Ui::Play } else if ok { let a = items[s].1;
+                match a { 0 => self.me.ui = Ui::Talk { npc: None, who: "Mr. Tumble the tortoise".into(), lines: KEEPER.iter().map(|s| s.to_string()).collect(), i: 0 },
+                    1..=4 => { if self.w.p.money < SEED_PRICE { self.note("Not enough coins.") } else if self.add(SEEDS[a as usize - 1]) { self.w.p.money -= SEED_PRICE; self.w.spent += SEED_PRICE; self.snd.push(Snd::Coin); self.note(format!("Bought {}.", def(SEEDS[a as usize - 1]).name)) } }
+                    5 => { let p = def(CAN).buy; if self.w.p.money < p { self.note("Not enough coins.") } else { self.w.p.money -= p; self.w.spent += p; self.w.p.tools.push(CAN); self.w.p.equip = Some(CAN); self.snd.push(Snd::Coin); self.note("Bought a Watering Can (equipped). Use it with Space / X.") } }
+                    _ => { let t = UPGRADABLE[(a - 10) as usize]; match self.upgrade_tool(t) { Ok(lv) => { self.snd.push(Snd::Coin); self.note(format!("Your {} is now a {}{}!", def(t).name, LV_NAME[lv as usize], def(t).name)) } Err(e) => self.note(e) } } } } }
             Ui::Camp(s) => { let s = mv(s, 5); self.me.ui = Ui::Camp(s); if esc { self.me.ui = Ui::Play } else if ok { let v = &VISITORS[self.visitor()]; let who = format!("{} the {}", v.name, v.species);
                 match s { 0..=2 => match self.camp_buy(s) { Ok(n) => { self.snd.push(Snd::Coin); self.note(format!("Bought {n}.")) } Err(e) => self.note(e) },
                     3 => match self.camp_favor() { Ok(n) => { self.snd.push(Snd::Coin); self.me.ui = Ui::Talk { npc: None, who, lines: vec![format!("You found them! Please take this {n} as thanks.")], i: 0 } } Err(e) => self.me.ui = Ui::Talk { npc: None, who, lines: vec![e], i: 0 } },
