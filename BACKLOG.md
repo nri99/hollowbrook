@@ -58,4 +58,4 @@ Status: `[ ]` open · `[x]` done · `[B]` blocked (reason given)
 - [x] **C-02 Resident home visits**: a resident occasionally visits a player's home while they are inside (provisional schedule). *AC:* H + S.
 - [x] **C-03 Resident moving out/in** with safeguards (announce a day ahead, never while a request is active) — provisional. *AC:* H.
 - [x] **C-04 Furniture customization** (re-colour at the counter) and wallpaper/flooring items. *AC:* H + S.
-- [ ] **C-05 More clothing slots** (hats) and a hairstyle choice at the shop. *AC:* H + S.
+- [x] **C-05 More clothing slots** (hats) and a hairstyle choice at the shop. *AC:* H + S.

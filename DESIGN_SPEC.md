@@ -110,7 +110,7 @@ original sample, not a claim of full coverage.
 | Museum exhibits | fish tank, bug case, 4 fossil pedestals, shared donations | PARTIAL | per-species exhibit layouts, art wing |
 | Fruit / shells / treasures | 4 / 3 / 2 | PARTIAL | non-native fruit, special shells |
 | Furniture | 8 items, 4 tints, 4 wallpapers, 4 floors | PARTIAL | sets, themes, rugs, more items |
-| Clothing / appearance | 4 shirts; no hair/face changes | PARTIAL | trousers, shoes, hats, accessories, hairstyles, designs |
+| Clothing / appearance | 4 shirts, 3 hats, 4 hairstyles | PARTIAL | trousers, shoes, accessories, face options, custom designs |
 | Shops | general store (5 daily stock, 2 tools, rack, counter, catalog) | PARTIAL | additional shops, upgrades, seasonal stock |
 | Housing | 3 sizes (paid up front), storage 40 | PARTIAL | extra rooms, exterior customization; loans BLOCKED |
 | Residents | 4 + shopkeeper + curator; schedules, requests, gifts, letters, home visits | PARTIAL | more personalities, birthdays (moving in/out: provisional rules implemented) |

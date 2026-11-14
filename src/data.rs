@@ -30,7 +30,7 @@ const fn fu(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32), fp: (i3
 const fn cl(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32)) -> D { D { buy, ..b(id, name, K::Cloth, buy / 4, col) } }
 const fn tl(id: u16, name: &'static str, buy: u32) -> D { D { buy, ..b(id, name, K::Tool, 0, (0.6, 0.45, 0.3)) } }
 
-pub static DEFS: [D; 52] = [
+pub static DEFS: [D; 55] = [
     cr(0, "Cabbage White", K::Bug, 90, (1., 1., 0.95), 0.2, 0, 3, 10, 6, 17), cr(1, "Honeybee", K::Bug, 160, (1., 0.85, 0.2), 0.2, 0, 3, 7, 8, 17),
     cr(2, "Ladybug", K::Bug, 120, (0.9, 0.15, 0.1), 0.2, 0, 3, 6, 8, 17), cr(3, "Dragonfly", K::Bug, 230, (0.3, 0.8, 0.9), 0.2, 0, 5, 10, 8, 19),
     cr(4, "Cicada", K::Bug, 300, (0.4, 0.6, 0.3), 0.2, 0, 7, 8, 8, 17), cr(5, "Firefly", K::Bug, 450, (0.8, 1., 0.3), 0.2, 0, 6, 7, 19, 4),
@@ -51,6 +51,7 @@ pub static DEFS: [D; 52] = [
     fu(54, "Lamp", 700, (0.95, 0.88, 0.65), (1, 1), false, false, Act::Lamp), fu(55, "Cabinet", 1500, (0.58, 0.38, 0.24), (1, 1), true, false, Act::Storage),
     fu(56, "Potted Plant", 500, (0.3, 0.62, 0.3), (1, 1), false, false, Act::None), fu(57, "Painting", 900, (0.4, 0.62, 0.88), (1, 1), false, true, Act::None),
     b(70, "Sea Star", K::Sea, 200, (0.95, 0.55, 0.35)), b(71, "Sea Urchin", K::Sea, 350, (0.35, 0.2, 0.45)), b(72, "Sea Slug", K::Sea, 500, (0.6, 0.85, 0.5)), b(73, "Octopus", K::Sea, 1200, (0.85, 0.35, 0.4)),
+    cl(67, "Straw Hat", 350, (0.9, 0.8, 0.45)), cl(68, "Beanie", 350, (0.3, 0.42, 0.8)), cl(69, "Flower Crown", 350, (0.95, 0.6, 0.72)),
     cl(63, "Sky Tee", 400, (0.45, 0.7, 0.95)), cl(64, "Sunflower Tee", 400, (0.98, 0.82, 0.3)), cl(65, "Forest Hoodie", 650, (0.25, 0.5, 0.32)), cl(66, "Berry Sweater", 650, (0.75, 0.25, 0.45)),
     tl(60, "Net", 0), tl(61, "Fishing Rod", 400), tl(62, "Shovel", 500),
 ];
@@ -129,7 +130,11 @@ pub const TOOL_DISPLAY: [u16; 2] = [62, 61];
 pub const COUNTER: [(i32, i32); 3] = [(2, 1), (3, 1), (4, 1)];
 /// Clothing rack in the shop (always stocked; provisional).
 pub const RACK: (i32, i32) = (1, 1);
-pub const CLOTHES: [u16; 4] = [63, 64, 65, 66];
+pub const CLOTHES: [u16; 7] = [63, 64, 65, 66, 67, 68, 69];
+pub fn is_hat(d: u16) -> bool { (67..=69).contains(&d) }
+/// Hairstyles (provisional): colour per index; odd indices add a bun.
+pub const HAIRS: [(f32, f32, f32); 4] = [(0.36, 0.2, 0.12), (0.12, 0.1, 0.1), (0.85, 0.68, 0.35), (0.7, 0.3, 0.15)];
+pub const HAIR_FEE: u32 = 150;
 /// Customization palettes (provisional): furniture tints multiply the item colour; home wallpaper/flooring colours.
 pub const TINTS: [(f32, f32, f32); 4] = [(1., 1., 1.), (1.2, 0.85, 0.65), (0.7, 0.9, 1.25), (0.55, 0.55, 0.6)];
 pub const TINT_NAMES: [&str; 4] = ["original", "warm", "cool", "dark"];

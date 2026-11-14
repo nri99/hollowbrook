@@ -93,10 +93,11 @@ pub fn draw_tool(r: &mut R, t: u16) {
 }
 /// Player: large head, hair, face, outfit; pose 0 stand/walk/run, 1 sit, 2 lie. Tool held in the right hand.
 fn shirt_base(id: usize) -> Color { if id == 0 { Color::new(0.95, 0.47, 0.36, 1.) } else { Color::new(0.3, 0.66, 0.48, 1.) } }
-pub fn human(r: &mut R, id: usize, worn: Option<u16>, pos: Vec3, yaw: f32, anim: f32, spd: f32, pose: u8, tool: Option<u16>, t: f32, swing: f32) {
+/// `look` = (shirt, hat, hairstyle index) from the player's profile.
+pub fn human(r: &mut R, id: usize, look: (Option<u16>, Option<u16>, u8), pos: Vec3, yaw: f32, anim: f32, spd: f32, pose: u8, tool: Option<u16>, t: f32, swing: f32) {
     let (skin, hair, shirt, pants, shoe) = if id == 0 { (Color::new(0.98, 0.82, 0.68, 1.), Color::new(0.36, 0.2, 0.12, 1.), Color::new(0.95, 0.47, 0.36, 1.), Color::new(0.27, 0.36, 0.62, 1.), Color::new(0.3, 0.2, 0.15, 1.)) }
         else { (Color::new(0.85, 0.66, 0.5, 1.), Color::new(0.12, 0.1, 0.1, 1.), Color::new(0.3, 0.66, 0.48, 1.), Color::new(0.35, 0.3, 0.26, 1.), Color::new(0.2, 0.2, 0.25, 1.)) };
-    let shirt = worn.map_or(shirt_base(id), |d| rgb(def(d).col)); let _ = shirt_base(id);
+    let shirt = look.0.map_or(shirt_base(id), |d| rgb(def(d).col)); let hair = if look.2 == 0 { hair } else { rgb(HAIRS[look.2 as usize % HAIRS.len()]) };
     let k = (spd / 3.).min(1.8); let sw = anim.sin() * 0.7 * k; let bob = (anim * 2.).sin().abs() * 0.05 * k + (t * 2.2).sin() * 0.01; let lean = if spd > 4. { 0.2 } else { 0. };
     let mut base = Mat4::from_rotation_translation(Quat::from_rotation_y(yaw), pos);
     if pose == 2 { base = base * Mat4::from_translation(vec3(0., 0.45, 0.55)) * Mat4::from_rotation_x(-FRAC_PI_2) }
@@ -112,6 +113,11 @@ pub fn human(r: &mut R, id: usize, worn: Option<u16>, pos: Vec3, yaw: f32, anim:
                     if s > 0. { if let Some(tl) = tool { r.with(Mat4::from_translation(vec3(0., -0.22, 0.03)), |r| draw_tool(r, tl)) } } }) }
             r.with(Mat4::from_translation(vec3(0., 0.6, 0.)) * Mat4::from_rotation_y((t * 0.6).sin() * 0.12 * (1. - k.min(1.))), |r| {
                 r.sphere(Vec3::ZERO, vec3(0.28, 0.27, 0.27), skin); r.sphere(vec3(0., 0.08, -0.03), vec3(0.295, 0.25, 0.28), hair); r.cube(vec3(0., 0.17, 0.19), vec3(0.2, 0.055, 0.07), hair);
+                if look.2 % 2 == 1 { r.sphere(vec3(0., 0.2, -0.27), Vec3::splat(0.11), hair) }
+                match look.1 { Some(67) => { r.cyl(vec3(0., 0.2, 0.), 0.42, 0.025, rgb(def(67).col)); r.cyl(vec3(0., 0.22, 0.), 0.24, 0.16, rgb(def(67).col)); r.cyl(vec3(0., 0.23, 0.), 0.245, 0.04, Color::new(0.8, 0.3, 0.3, 1.)) }
+                    Some(68) => { r.sphere(vec3(0., 0.12, -0.02), vec3(0.3, 0.24, 0.29), rgb(def(68).col)); r.sphere(vec3(0., 0.37, -0.02), Vec3::splat(0.06), WHITE) }
+                    Some(69) => { for k in 0..9 { let a = k as f32 / 9. * 2. * PI; r.sphere(vec3(a.cos() * 0.26, 0.2, a.sin() * 0.25), Vec3::splat(0.05), [PINK, YELLOW, WHITE][k % 3]) } }
+                    _ => {} }
                 for s in [-1f32, 1.] { r.sphere(vec3(s * 0.095, -0.01, 0.245), vec3(0.038, 0.055, 0.02), DARK); r.sphere(vec3(s * 0.09, 0.015, 0.262), Vec3::splat(0.012), WHITE); r.sphere(vec3(s * 0.165, -0.085, 0.215), vec3(0.045, 0.03, 0.02), Color::new(1., 0.62, 0.62, 1.)) }
                 r.cube(vec3(0., -0.12, 0.255), vec3(0.035, 0.01, 0.01), Color::new(0.6, 0.25, 0.25, 1.)); }) }) });
 }
@@ -299,7 +305,7 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
         resident_u(r, g.w.roster[i], vec3(n.pos.x, 0., n.pos.y), n.yaw, n.anim, n.moving, t, talking, n.happy, weather(g.w.day, now.month()) == Wx::Rain);
         if n.pos.distance(g.me.pos) < 4. { labels.push((vec3(n.pos.x, 1.75, n.pos.y), g.res(i).name.into(), Color::new(1., 0.95, 0.7, 1.))) } }
     let sy = if g.swimming() { for k in 0..10 { let a = k as f32 * 0.63 + t; r.sphere(vec3(g.me.pos.x + a.cos() * 0.38, -0.17, g.me.pos.y + a.sin() * 0.3), vec3(0.05, 0.015, 0.05), Color::new(0.9, 0.97, 1., 1.)) } -0.55 } else { 0. };
-    human(r, g.me.id, g.w.p.shirt, vec3(g.me.pos.x, sy, g.me.pos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, 0, g.w.p.equip, t, g.me.swing);
+    human(r, g.me.id, (g.w.p.shirt, g.w.p.hat, g.w.p.hair), vec3(g.me.pos.x, sy, g.me.pos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, 0, g.w.p.equip, t, g.me.swing);
     others(r, g, t);
     for b in &g.bugs { let c = rgb(def(b.0).col); let fl = (t * 20. + b.2).sin().abs(); let y = 0.6 + (t * 3. + b.2).sin() * 0.15;
         for s in [-1f32, 1.] { r.sphere(vec3(b.1.x + s * 0.07, y + fl * 0.04, b.1.y), vec3(0.07, 0.01 + fl * 0.03, 0.05), c) } r.sphere(vec3(b.1.x, y, b.1.y), Vec3::splat(0.03), DARK) }
@@ -320,7 +326,7 @@ fn others(r: &mut R, g: &Game, t: f32) {
         let p = if o.scene == Scene::Town { o.pos } else { o.ipos }; let pose = match o.pose { Pose::Stand => 0, Pose::Sit(_) => 1, Pose::Lie(_) => 2 };
         let tool = if o.scene == Scene::Town { g.w.others.iter().find(|pr| pr.id == o.id).and_then(|pr| pr.equip) } else { None };
         if pose == 0 { r.disc(vec3(p.x, 0.02, p.y), vec2(0.32, 0.26), Color::new(0., 0., 0., 0.22)) }
-        let shirt = g.w.others.iter().find(|pr| pr.id == o.id).and_then(|pr| pr.shirt);
+        let shirt = g.w.others.iter().find(|pr| pr.id == o.id).map_or((None, None, 0), |pr| (pr.shirt, pr.hat, pr.hair));
         let sy = if o.scene == Scene::Town && tile_at(&g.map, p.x.floor() as i32, p.y.floor() as i32) == SEA { -0.55 } else { 0. };
         human(r, o.id, shirt, vec3(p.x, sy, p.y), yaw_of(o.face), o.anim, o.spd, pose, tool, t, o.swing);
     }
@@ -381,7 +387,7 @@ fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, Strin
         furniture(r, p.f.def, fbase(&p.f), false, Game::tint_of(&g.w.p, p.f.uid)) }
     let pose = match g.me.pose { Pose::Stand => 0, Pose::Sit(_) => 1, Pose::Lie(_) => 2 };
     if pose == 0 { r.disc(vec3(g.me.ipos.x, 0.02, g.me.ipos.y), vec2(0.32, 0.26), Color::new(0., 0., 0., 0.2)) }
-    human(r, g.me.id, g.w.p.shirt, vec3(g.me.ipos.x, 0., g.me.ipos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, pose, None, t, 0.);
+    human(r, g.me.id, (g.w.p.shirt, g.w.p.hat, g.w.p.hair), vec3(g.me.ipos.x, 0., g.me.ipos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, pose, None, t, 0.);
     others(r, g, t);
     if g.me.ui == Ui::Play && g.me.placing.is_none() && g.me.trans.is_none() { if let Some(tg) = g.target() { indicator(r, g.tg_pos(tg), t) } }
 }
@@ -437,9 +443,9 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
             if items.is_empty() { txt("No letters yet.", sw / 2. - 250., 175., 22., GRAY) } list(&items[..items.len().min(8)], Some(*sel), sw / 2. - 250., 175.);
             if let Some(l) = g.w.p.mail.iter().rev().nth(*sel) { for (k, line) in wrap_txt(&l.text, 44).iter().enumerate() { txt(line, sw / 2. - 250., 400. + k as f32 * 24., 21., BLACK) } }
             txt(if g.me.pad { "Up/Down select  A open/claim  B close" } else { "W/S select  Enter open/claim  Esc close" }, sw / 2. - 260., 525., 19., DARKGRAY) }
-        Ui::Rack(sel) => { panel(sw / 2. - 260., 120., 520., 260.); txt("Clothing rack", sw / 2. - 240., 155., 28., Color::new(0.45, 0.3, 0.2, 1.));
-            let items: Vec<String> = CLOTHES.iter().map(|&d| format!("{}  -  {} coins", def(d).name, def(d).buy)).collect(); list(&items, Some(*sel), sw / 2. - 230., 195.);
-            txt(&format!("You have {} coins.", g.w.p.money), sw / 2. - 240., 320., 20., DARKGRAY); txt(if g.me.pad { "Up/Down select  A buy  B close" } else { "W/S select  Enter buy  Esc close" }, sw / 2. - 240., 350., 19., DARKGRAY) }
+        Ui::Rack(sel) => { panel(sw / 2. - 260., 120., 520., 380.); txt("Clothing rack", sw / 2. - 240., 155., 28., Color::new(0.45, 0.3, 0.2, 1.));
+            let mut items: Vec<String> = CLOTHES.iter().map(|&d| format!("{}  -  {} coins", def(d).name, def(d).buy)).collect(); items.push(format!("Change hairstyle  -  {} coins", HAIR_FEE)); list(&items, Some(*sel), sw / 2. - 230., 195.);
+            txt(&format!("You have {} coins.", g.w.p.money), sw / 2. - 240., 440., 20., DARKGRAY); txt(if g.me.pad { "Up/Down select  A buy  B close" } else { "W/S select  Enter buy  Esc close" }, sw / 2. - 240., 470., 19., DARKGRAY) }
         Ui::Journal => { panel(60., 80., sw - 120., sh - 160.); txt("Field Journal", 80., 115., 30., Color::new(0.45, 0.3, 0.2, 1.));
             for (col, (k, title)) in [(K::Fish, "Fish & sea"), (K::Bug, "Bugs"), (K::Shell, "Shells & finds")].iter().enumerate() { let x = 80. + col as f32 * 380.; txt(title, x, 155., 26., BLACK);
                 for (j, dd) in DEFS.iter().filter(|dd| dd.k == *k || (*k == K::Shell && matches!(dd.k, K::Treasure | K::Fruit | K::Fossil)) || (*k == K::Fish && dd.k == K::Sea)).enumerate() { let seen = g.w.p.seen.contains(&dd.id);

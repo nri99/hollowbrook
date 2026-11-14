@@ -41,6 +41,9 @@ pub struct Profile {
     pub npcs: Vec<NpcS>, pub seen: Vec<u16>, pub tools: Vec<u16>, pub equip: Option<u16>, pub pos: [f32; 2],
     /// worn shirt (item def); None = starting outfit
     #[serde(default)] pub shirt: Option<u16>,
+    #[serde(default)] pub hat: Option<u16>,
+    /// hairstyle index into HAIRS (None-default 0 keeps the player's starting look)
+    #[serde(default)] pub hair: u8,
     #[serde(default)] pub mail: Vec<Letter>,
     /// furniture/clothing ever owned, re-orderable at the shop counter
     #[serde(default)] pub catalog: Vec<u16>,
@@ -50,7 +53,7 @@ pub struct Profile {
     #[serde(default)] pub tints: Vec<(u32, u8)>, #[serde(default)] pub wall: u8, #[serde(default)] pub floor: u8,
 }
 impl Profile {
-    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false, visited: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, mail: vec![], catalog: vec![], fair_year: 0, tints: vec![], wall: 0, floor: 0 } }
+    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false, visited: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, hat: None, hair: 0, mail: vec![], catalog: vec![], fair_year: 0, tints: vec![], wall: 0, floor: 0 } }
 }
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct World {
@@ -533,7 +536,8 @@ impl Game {
     pub fn wear(&mut self, uid: u32) {
         let Some(i) = self.w.p.inv.iter().position(|s| s.uid == uid && def(s.def).k == K::Cloth) else { return };
         let d = self.w.p.inv[i].def;
-        match self.w.p.shirt.replace(d) { Some(old) => { self.w.p.inv[i].def = old } None => { self.w.p.inv.remove(i); } }
+        let slot = if is_hat(d) { &mut self.w.p.hat } else { &mut self.w.p.shirt };
+        match slot.replace(d) { Some(old) => { self.w.p.inv[i].def = old } None => { self.w.p.inv.remove(i); } }
         self.note(format!("You put on the {}.", def(d).name));
     }
 
@@ -829,7 +833,7 @@ impl Game {
             Ui::Tint(s) => { let len = self.tint_targets().len() + 2; let s = mv(s, len); self.me.ui = Ui::Tint(s); if esc { self.me.ui = Ui::Play } else if ok { match self.customize(s) { Ok(m) => { self.snd.push(Snd::Coin); self.note(m) } Err(e) => self.note(e) } } }
             Ui::Catalog(s) => { let s = mv(s, self.w.p.catalog.len()); self.me.ui = Ui::Catalog(s); if esc { self.me.ui = Ui::Play } else if ok && s < self.w.p.catalog.len() { let d = self.w.p.catalog[s]; match self.order(d) { Ok(()) => { self.snd.push(Snd::Coin); self.note(format!("Ordered a {}.", def(d).name)) } Err(e) => self.note(e) } } }
             Ui::Mail(s) => { let s = mv(s, self.w.p.mail.len()); self.me.ui = Ui::Mail(s); if esc { self.me.ui = Ui::Play } else if ok { self.open_letter(s) } }
-            Ui::Rack(s) => { let s = mv(s, CLOTHES.len()); self.me.ui = Ui::Rack(s); if esc { self.me.ui = Ui::Play } else if ok { match self.buy_cloth(CLOTHES[s]) { Ok(()) => { self.snd.push(Snd::Coin); self.note(format!("Bought the {}. Open your pockets to wear it.", def(CLOTHES[s]).name)) } Err(e) => self.note(e) } } }
+            Ui::Rack(s) => { let s = mv(s, CLOTHES.len() + 1); self.me.ui = Ui::Rack(s); if esc { self.me.ui = Ui::Play } else if ok && s == CLOTHES.len() { if self.w.p.money < HAIR_FEE { self.note("Not enough coins.") } else { self.w.p.money -= HAIR_FEE; self.w.p.hair = (self.w.p.hair + 1) % HAIRS.len() as u8; self.snd.push(Snd::Coin); self.note("New hairstyle!") } } else if ok { match self.buy_cloth(CLOTHES[s]) { Ok(()) => { self.snd.push(Snd::Coin); self.note(format!("Bought the {}. Open your pockets to wear it.", def(CLOTHES[s]).name)) } Err(e) => self.note(e) } } }
             _ => {}
         }
         true

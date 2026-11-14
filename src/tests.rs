@@ -257,3 +257,10 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     assert!(g.customize(1).is_ok()); assert_eq!(g.w.p.wall, 1); assert!(g.customize(2).is_ok()); assert_eq!(g.w.p.floor, 1); g.w.p.money = 0; assert_eq!(g.customize(2), Err("Not enough coins.")); assert_eq!(g.w.p.floor, 1);
     let g2 = reload(&g, "tint"); assert_eq!(Game::tint_of(&g2.w.p, uid), 1); assert_eq!((g2.w.p.wall, g2.w.p.floor), (1, 1));
 }
+#[test] fn hats_and_hair() {
+    let mut g = g0(at(11, 12, 0, 0)); g.w.p.money = 2000; g.buy_cloth(67).unwrap(); g.buy_cloth(68).unwrap(); g.buy_cloth(63).unwrap();
+    let u: Vec<u32> = g.w.p.inv.iter().map(|s| s.uid).collect(); g.wear(u[0]); g.wear(u[2]); assert_eq!((g.w.p.hat, g.w.p.shirt), (Some(67), Some(63))); assert_eq!(g.w.p.inv.len(), 1);
+    g.wear(u[1]); assert_eq!(g.w.p.hat, Some(68)); assert_eq!(g.w.p.inv[0].def, 67); // straw hat back in pockets
+    g.me.ui = Ui::Rack(CLOTHES.len()); let m = g.w.p.money; g.update(&Inp::keys(&[KeyCode::Enter], &[KeyCode::Enter]), 0.016, at(11, 12, 0, 1)); assert_eq!(g.w.p.hair, 1); assert_eq!(g.w.p.money, m - HAIR_FEE);
+    let g2 = reload(&g, "hat"); assert_eq!((g2.w.p.hat, g2.w.p.hair), (Some(68), 1));
+}

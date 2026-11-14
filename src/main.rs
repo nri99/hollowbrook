@@ -276,6 +276,16 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         go(g, c, door_stand(HOME), 0.12).await; face(g, c, door_face(HOME)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
         go(g, c, vec2(2.5, 3.5), 0.1).await; face(g, c, vec2(2.5, 1.)).await; press(g, c, KeyCode::I).await; press(g, c, KeyCode::Enter).await; press(g, c, KeyCode::A).await; press(g, c, KeyCode::W).await; press(g, c, KeyCode::Enter).await;
         log!("room={:?}", g.w.p.room); go(g, c, vec2(3.4, 3.3), 0.15).await; face(g, c, vec2(3.4, 4.)).await; shot!("c04_custom_home");
+    } else if phase == "18" {
+        // C-05: P1 buys and wears a hat and changes hairstyle at the rack; P2 joins (default look) for comparison
+        go(g, c, door_stand(SHOP), 0.12).await; face(g, c, door_face(SHOP)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
+        approach(g, c, tc(RACK)).await; press(g, c, KeyCode::E).await; for _ in 0..4 { press(g, c, KeyCode::S).await } press(g, c, KeyCode::Enter).await; // Straw Hat
+        for _ in 0..3 { press(g, c, KeyCode::S).await } press(g, c, KeyCode::Enter).await; press(g, c, KeyCode::Enter).await; press(g, c, KeyCode::Escape).await; // hairstyle x2
+        let idx = g.w.p.inv.iter().position(|s| is_hat(s.def)).unwrap_or(0); press(g, c, KeyCode::I).await; for _ in 0..idx { press(g, c, KeyCode::S).await } press(g, c, KeyCode::Enter).await;
+        log!("hat={:?} hair={} money={}", g.w.p.hat, g.w.p.hair, g.w.p.money);
+        go(g, c, vec2(3.5, 4.5), 0.12).await; for _ in 0..30 { if g.me.scene == Scene::Town { break } step(g, c, &[KeyCode::S], &[]).await } wait(g, c, 40).await;
+        g.join("Player 2"); g.activate(1); g.me.pos = g.ids().iter().map(|_| door_stand(SHOP) + vec2(1., 0.)).next().unwrap(); g.me.cam = g.me.pos; g.activate(0); log!("P2 placed beside P1 (test positioning)");
+        for _ in 0..10 { step2(g, c, Inp::none(), Inp::none()).await } face(g, c, door_stand(SHOP) + vec2(0., 2.)).await; shot!("c05_looks");
     } else if phase == "0" {
         log!("load-only check");
     } else if phase == "3" && c.now().hour() < 18 {

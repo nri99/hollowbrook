@@ -120,3 +120,7 @@ schedules, resume-outdoors policy, clock-rollback pause).
 ### 05:10 — C-04 done (customization)
 - [PROV] Counter "Customize": re-tint a furniture item in pockets (original/warm/cool/dark, 200c) or cycle home wallpaper/flooring palettes (4 each, 300c). Tints are stored per profile by item uid (`Profile.tints`, serde default), so they follow the item between pockets and room without touching item records; `Profile.wall/floor` drive the owner home room colours.
 - H: 47/47 (new: customize_tint_follows_item_and_decor). X: phase 17 (coins logged FIXTURE): bought Chair, tinted warm, wallpaper 1, floor 1 via counter menu, placed at home. S (inspected): c04_custom_home (blue wallpaper, grey floor, warm chair).
+
+### 05:30 — C-05 done (hats + hair)
+- [PROV] 3 hats (Straw Hat, Beanie, Flower Crown) on the rack, worn via pockets (swap like shirts); hairstyle cycles 4 looks for 150c at the rack (odd styles add a bun). `Profile.hat/hair` (serde default).
+- H: 48/48 (new: hats_and_hair). X: phase 18: P1 bought + wore Straw Hat, hairstyle x2 (P2 positioned beside P1 for the comparison shot = test positioning). S (inspected): c05_looks (P1 straw hat + blonde hair vs P2 default, both halves).
