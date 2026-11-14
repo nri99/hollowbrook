@@ -104,11 +104,15 @@ pub const MUSEUM_PED: [((i32, i32), u16); 4] = [((1, 0), 48), ((5, 0), 49), ((1,
 pub const FOSSILS: [u16; 4] = [43, 44, 48, 49];
 
 pub struct Res { pub name: &'static str, pub species: &'static str, pub fur: (f32, f32, f32), pub cloth: (f32, f32, f32), pub pers: usize, pub wake: u32, pub sleep: u32, pub bld: usize, pub home_h: [(u32, u32); 2] }
-pub const RES: [Res; 4] = [
+/// Character pool. Houses are slots (HOUSES); `World.roster[slot]` says which character lives there.
+pub const HOUSES: [usize; 4] = [2, 3, 4, 5];
+pub const CHARS: [Res; 6] = [
     Res { name: "Juniper", species: "fox", fur: (0.93, 0.5, 0.2), cloth: (0.2, 0.65, 0.6), pers: 0, wake: 7, sleep: 22, bld: 2, home_h: [(12, 13), (20, 22)] },
     Res { name: "Bramble", species: "badger", fur: (0.55, 0.55, 0.58), cloth: (0.62, 0.2, 0.25), pers: 1, wake: 9, sleep: 23, bld: 3, home_h: [(13, 14), (21, 23)] },
     Res { name: "Mossy", species: "frog", fur: (0.45, 0.75, 0.35), cloth: (0.95, 0.8, 0.3), pers: 2, wake: 8, sleep: 21, bld: 4, home_h: [(11, 12), (19, 21)] },
     Res { name: "Otto", species: "otter", fur: (0.55, 0.38, 0.25), cloth: (0.25, 0.4, 0.8), pers: 3, wake: 6, sleep: 20, bld: 5, home_h: [(14, 15), (18, 20)] },
+    Res { name: "Clover", species: "sheep", fur: (0.3, 0.28, 0.3), cloth: (0.95, 0.6, 0.7), pers: 0, wake: 7, sleep: 21, bld: 0, home_h: [(12, 13), (19, 21)] },
+    Res { name: "Basil", species: "hedgehog", fur: (0.62, 0.47, 0.32), cloth: (0.35, 0.6, 0.35), pers: 1, wake: 9, sleep: 23, bld: 0, home_h: [(13, 14), (21, 23)] },
 ];
 pub fn res_spot() -> Vec2 { vec2(1.5, 1.6) }
 /// Fixed furnishings of resident homes: (def, x, z, rot); z = -1 hangs on the back wall.

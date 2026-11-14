@@ -57,14 +57,17 @@ pub struct World {
     #[serde(default)] pub trampled: Vec<(i32, i32)>,
     /// museum donations shared by all players: (item def, donating player id)
     #[serde(default)] pub donated: Vec<(u16, usize)>,
+    /// house slot -> character index in CHARS (residents can move)
+    #[serde(default = "roster0")] pub roster: Vec<usize>,
     /// profile of the player currently being processed (swapped in by `Game::activate`)
     pub p: Profile,
     #[serde(default)] pub others: Vec<Profile>,
 }
+pub fn roster0() -> Vec<usize> { vec![0, 1, 2, 3] }
 impl World {
     pub fn fresh(name: String, day: i64, map: &[u8]) -> World {
         let trees = (0..W * H).filter(|&i| map[i] == TREE).map(|i| Tree { x: (i % W) as i32, z: (i / W) as i32, fruit: true, shaken: i64::MIN / 2 }).collect();
-        World { version: SAVE_VERSION, day, native: FRUITS[gen_range(0usize, 4)], trees, ground: vec![], weeds: vec![], holes: vec![], digs: vec![], stock: vec![], stock_day: i64::MIN, uid: 1, trampled: vec![], donated: vec![], p: Profile::new(0, name, door_stand(HOME)), others: vec![] }
+        World { version: SAVE_VERSION, day, native: FRUITS[gen_range(0usize, 4)], trees, ground: vec![], weeds: vec![], holes: vec![], digs: vec![], stock: vec![], stock_day: i64::MIN, uid: 1, trampled: vec![], donated: vec![], roster: roster0(), p: Profile::new(0, name, door_stand(HOME)), others: vec![] }
     }
 }
 
@@ -88,7 +91,7 @@ impl Inp {
     pub fn d(&self, k: KeyCode) -> bool { self.down.contains(&k) }
     pub fn p(&self, k: KeyCode) -> bool { self.pressed.contains(&k) }
 }
-pub fn where_(i: usize, hr: u32) -> Loc { let r = &RES[i]; if !(hr >= r.wake && hr < r.sleep) { Loc::Asleep } else if r.home_h.iter().any(|&(a, b)| hr >= a && hr < b) { Loc::Home } else { Loc::Out } }
+pub fn where_(r: &Res, hr: u32) -> Loc { if !(hr >= r.wake && hr < r.sleep) { Loc::Asleep } else if r.home_h.iter().any(|&(a, b)| hr >= a && hr < b) { Loc::Home } else { Loc::Out } }
 pub fn tile_of(p: Vec2) -> (i32, i32) { (p.x.floor() as i32, p.y.floor() as i32) }
 pub fn tc(t: (i32, i32)) -> Vec2 { vec2(t.0 as f32 + 0.5, t.1 as f32 + 0.5) }
 pub fn dir(rot: u8) -> Vec2 { [vec2(0., 1.), vec2(1., 0.), vec2(0., -1.), vec2(-1., 0.)][rot as usize % 4] }
@@ -128,7 +131,7 @@ impl Game {
     }
     pub fn from_world(w: World, map: Vec<u8>) -> Game {
         let pos = vec2(w.p.pos[0], w.p.pos[1]);
-        let npcs = (0..4).map(|i| NpcRt { pos: door_stand(RES[i].bld), path: vec![], wait: gen_range(0., 2.), yaw: 0., inside: true, happy: 0., moving: false, last_chat: 9, anim: 0. }).collect();
+        let npcs = (0..4).map(|i| NpcRt { pos: door_stand(HOUSES[i]), path: vec![], wait: gen_range(0., 2.), yaw: 0., inside: true, happy: 0., moving: false, last_chat: 9, anim: 0. }).collect();
         let mut g = Game { me: Player::new(w.p.id, pos), w, map, others: vec![], npcs, t: 0., log: vec![], rolled: false, shadows: vec![], bugs: vec![], shake: vec![], hearts: vec![], snd: vec![], hr: 12, mo: 6, curve: 0.01, dom: 1, yr: 2026, bubbles: vec![], visit: None, fx: vec![] };
         if !g.free(g.me.pos) { g.me.pos = door_stand(HOME); g.me.cam = g.me.pos }
         let map = &g.map; let open = |t: &(i32, i32)| tile_at(map, t.0, t.1) != BLD && *t != mailbox_tile(0) && *t != mailbox_tile(1); // objects saved before a building existed there
@@ -199,8 +202,8 @@ impl Game {
         for i in 0..4 { let s = &mut self.w.p.npcs[i]; s.talked = false; s.gifted = false; s.visited = false; s.req = if gen_range(0, 2) == 0 { Some(reqs[gen_range(0, reqs.len())]) } else { None };
             if letters && s.friend >= 10 && gen_range(0, 3) == 0 { let m = gen_range(2u32, 8) * 100;
                 const NOTES: [&str; 4] = ["Thinking of you! Here's a little something.", "Hmph. Found this. Don't make it weird.", "I dreamed you liked coins. So here are some.", "Training fund! Spend it on snacks!"];
-                self.w.p.mail.push(Letter { from: RES[i].name.into(), text: NOTES[RES[i].pers].into(), coins: m, item: None, read: false, claimed: false });
-                if mine { self.me.msgs.push((format!("You have a letter from {} in your mailbox.", RES[i].name), self.t)) } } }
+                self.w.p.mail.push(Letter { from: self.res(i).name.into(), text: NOTES[self.res(i).pers].into(), coins: m, item: None, read: false, claimed: false });
+                if mine { self.me.msgs.push((format!("You have a letter from {} in your mailbox.", self.res(i).name), self.t)) } } }
         while self.w.p.mail.len() > 20 { let Some(k) = self.w.p.mail.iter().position(|l| l.read && (l.claimed || (l.coins == 0 && l.item.is_none()))) else { break }; self.w.p.mail.remove(k); }
     }
     pub fn refresh_world(&mut self) {
@@ -222,6 +225,8 @@ impl Game {
     // ---- collision ----
     pub fn tile(&self, x: i32, z: i32) -> u8 { tile_at(&self.map, x, z) }
     pub fn fair(&self) -> bool { fair_active(self.mo, self.dom) }
+    /// Character living in house slot `slot`.
+    pub fn res(&self, slot: usize) -> &'static Res { &CHARS[self.w.roster[slot]] }
     pub fn walk_tile(&self, x: i32, z: i32) -> bool {
         if self.fair() && (x, z) == STALL { return false } matches!(self.tile(x, z), GRASS | PATH | SAND | BRIDGE | FLOWER) && !self.w.holes.contains(&(x, z)) && (x, z) != mailbox_tile(0) && (x, z) != mailbox_tile(1) }
     pub fn room_furn(&self, b: usize) -> Vec<Furn> {
@@ -283,7 +288,7 @@ impl Game {
                 if BLDS[b].kind == BK::Shop { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Counter, None); cand(vec2(3.5, 0.5), 2.6, 1.3, Tg::Keeper, None); for (i, &d) in DISPLAYS.iter().enumerate() { cand(tc(d), 1.5, 1., Tg::Display(i), None) } cand(tc(RACK), 1.5, 1., Tg::Rack, None) }
                 if BLDS[b].kind == BK::Museum { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Curator, None); cand(vec2(0.5, 2.5), 1.5, 1., Tg::Exhibit(0), None); cand(vec2(6.5, 2.5), 1.5, 1., Tg::Exhibit(1), None);
                     for (k, p) in MUSEUM_PED.iter().enumerate() { cand(tc(p.0), 1.5, 1., Tg::Exhibit(2 + k), None) } }
-                if let BK::Res(r) = BLDS[b].kind { if where_(r, self.hr) == Loc::Home { cand(res_spot(), 1.7, 0.9, Tg::Npc(r), None) } }
+                if let BK::Res(r) = BLDS[b].kind { if where_(self.res(r), self.hr) == Loc::Home { cand(res_spot(), 1.7, 0.9, Tg::Npc(r), None) } }
                 if let Some((r, vb, _)) = self.visit { if vb == b { cand(self.visit_spot(b), 1.7, 0.9, Tg::Npc(r), None) } }
             }
         }
@@ -301,7 +306,7 @@ impl Game {
     }
     pub fn tg_label(&self, tg: Tg) -> String {
         match tg {
-            Tg::Npc(i) => format!("Talk to {}", RES[i].name), Tg::Door(b) => format!("Enter {}", BLDS[b].name),
+            Tg::Npc(i) => format!("Talk to {}", self.res(i).name), Tg::Door(b) => format!("Enter {}", BLDS[b].name),
             Tg::Tree(i) => if self.w.trees[i].fruit { "Shake tree".into() } else { "Shake tree (no fruit)".into() },
             Tg::Item(i) => format!("Pick up {}", def(self.w.ground[i].def).name), Tg::Weed(_) => "Pull weed".into(),
             Tg::Furn(uid, d) => { let a = match def(d).act { Act::Sit => "Sit on", Act::Bed => "Lie on", Act::Lamp => "Toggle", Act::Storage => "Open", Act::None => "Look at" };
@@ -342,13 +347,13 @@ impl Game {
         match BLDS[b].kind {
             BK::Home(_) => self.go(Scene::Room(b)),
             BK::Shop => if shop_open(self.hr) { self.go(Scene::Room(b)) } else { self.note("The General Store is closed. Hours: 8:00-22:00.") },
-            BK::Res(r) => match where_(r, self.hr) { Loc::Home => self.go(Scene::Room(b)), Loc::Asleep => self.note(format!("It's late. {} is asleep.", RES[r].name)), Loc::Out => self.note(format!("{} isn't home right now.", RES[r].name)) },
+            BK::Res(r) => match where_(self.res(r), self.hr) { Loc::Home => self.go(Scene::Room(b)), Loc::Asleep => self.note(format!("It's late. {} is asleep.", self.res(r).name)), Loc::Out => self.note(format!("{} isn't home right now.", self.res(r).name)) },
             BK::Civic => self.note("The Town Hall isn't open yet. Maybe someday!"),
             BK::Museum => self.go(Scene::Room(b)),
         }
     }
     pub fn talk(&mut self, i: usize) {
-        let r = &RES[i]; let pers = r.pers; let hr = self.hr;
+        let r = &self.res(i); let pers = r.pers; let hr = self.hr;
         let slot = if !(5..21).contains(&hr) { 3 } else if hr < 12 { 0 } else if hr < 17 { 1 } else { 2 };
         let fruit = def(self.w.native).name.to_lowercase(); let fruits = if fruit.ends_with("ch") { format!("{fruit}es") } else { format!("{fruit}s") }; let name = self.w.p.name.clone();
         let fill = |s: &str, item: &str| s.replace("{p}", &name).replace("{fs}", &fruits).replace("{f}", &fruit).replace("{i}", item);
@@ -425,7 +430,7 @@ impl Game {
 
     /// Give one unit of pocket slot `slot` to resident `j` (once per resident per day per player).
     pub fn give_gift(&mut self, j: usize, slot: usize) {
-        let r = &RES[j]; let who = format!("{} the {}", r.name, r.species);
+        let r = &self.res(j); let who = format!("{} the {}", r.name, r.species);
         if self.w.p.npcs[j].gifted { self.me.ui = Ui::Talk { npc: Some(j), who, lines: vec!["You already gave me something today. Save it for tomorrow!".into()], i: 0 }; return }
         let Some(sl) = self.w.p.inv.get(slot).copied() else { return };
         if sl.uid != 0 { self.w.p.inv.remove(slot); } else if !self.remove_one(sl.def) { return }
@@ -450,7 +455,7 @@ impl Game {
     pub fn start_visit(&mut self, i: usize, b: usize) {
         if self.visit.is_some() { return } self.visit = Some((i, b, 120.)); self.npcs[i].inside = true; self.npcs[i].path.clear();
         self.snd.push(Snd::Door);
-        for pl in std::iter::once(&mut self.me).chain(self.others.iter_mut()) { if pl.scene == Scene::Room(b) { pl.msgs.push((format!("Knock knock! {} dropped by for a visit.", RES[i].name), self.t)) } }
+        let vname = self.res(i).name; for pl in std::iter::once(&mut self.me).chain(self.others.iter_mut()) { if pl.scene == Scene::Room(b) { pl.msgs.push((format!("Knock knock! {} dropped by for a visit.", vname), self.t)) } }
     }
     /// Visits (provisional): while a player is in their own home, a resident who is out, friendship >= 5, not yet visited
     /// that player today, may knock (about once every 10 s of eligible time). Ends after 120 s or when nobody is home.
@@ -464,7 +469,7 @@ impl Game {
         let hosts: Vec<usize> = std::iter::once(&self.me).chain(self.others.iter()).filter(|p| p.scene == Scene::Room(home_of(p.id))).map(|p| p.id).collect();
         for id in hosts {
             let pr = if self.w.p.id == id { &self.w.p } else { match self.w.others.iter().find(|p| p.id == id) { Some(p) => p, None => continue } };
-            if let Some(i) = (0..4).find(|&i| where_(i, self.hr) == Loc::Out && !self.npcs[i].inside && pr.npcs[i].friend >= 5 && !pr.npcs[i].visited) {
+            if let Some(i) = (0..4).find(|&i| where_(self.res(i), self.hr) == Loc::Out && !self.npcs[i].inside && pr.npcs[i].friend >= 5 && !pr.npcs[i].visited) {
                 if self.w.p.id == id { self.w.p.npcs[i].visited = true } else if let Some(p) = self.w.others.iter_mut().find(|p| p.id == id) { p.npcs[i].visited = true }
                 self.start_visit(i, home_of(id)); return;
             }
@@ -670,11 +675,11 @@ impl Game {
         let talkers: Vec<(usize, Vec2, bool)> = std::iter::once(&self.me).chain(self.others.iter()).filter_map(|p| if let Ui::Talk { npc: Some(j), .. } = p.ui { Some((j, p.pos, p.scene == Scene::Town)) } else { None }).collect();
         for i in 0..4 {
             if self.visit.is_some_and(|v| v.0 == i) { continue }
-            let loc = where_(i, self.hr);
+            let loc = where_(self.res(i), self.hr);
             { let n = &mut self.npcs[i]; n.happy = (n.happy - dt).max(0.); n.moving = false; }
             if let Some(&(_, pp, town)) = talkers.iter().find(|t| t.0 == i) { let d = pp - self.npcs[i].pos; if town && d.length() > 0.01 { self.npcs[i].yaw = yaw_of(d) } continue }
             if loc == Loc::Out {
-                if self.npcs[i].inside { let n = &mut self.npcs[i]; n.inside = false; n.pos = door_stand(RES[i].bld); n.path.clear(); n.wait = 1.; continue }
+                if self.npcs[i].inside { let n = &mut self.npcs[i]; n.inside = false; n.pos = door_stand(HOUSES[i]); n.path.clear(); n.wait = 1.; continue }
                 if self.npcs[i].wait > 0. { self.npcs[i].wait -= dt; continue }
                 if self.npcs[i].path.is_empty() {
                     let cur = tile_of(self.npcs[i].pos); let mut found = None;
@@ -684,7 +689,7 @@ impl Game {
                 }
                 if self.follow(i, dt) { self.npcs[i].wait = gen_range(1.5, 5.) } // idle pause between strolls
             } else if !self.npcs[i].inside {
-                let door = door_tile(RES[i].bld); let cur = tile_of(self.npcs[i].pos);
+                let door = door_tile(HOUSES[i]); let cur = tile_of(self.npcs[i].pos);
                 if cur == door { self.npcs[i].inside = true }
                 else if self.npcs[i].path.last() != Some(&door) { match self.bfs(cur, door, true) { Some(p) => self.npcs[i].path = p, None => self.npcs[i].inside = true } }
                 else { self.follow(i, dt); }

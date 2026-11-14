@@ -1,10 +1,10 @@
 # Progress log
 
 ## Current
-- Current task: C-03 resident moving out/in (provisional, with safeguards)
-- Last completed: R15 FX capture phase 15 (splash ring verified)
+- Current task: C-03b resident move-out/move-in rules (provisional)
+- Last completed: C-03a roster indirection (no behaviour change)
 - Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
-- Next action: C-03 resident moving needs a roster refactor (slot -> character mapping `World.roster`, 2 new original reserve characters, RES[i] call sites via accessor). Do it in two slices: (a) roster indirection with no behaviour change + tests; (b) move-out/in rules.
+- Next action: per-slot `moving: Option<i64>` (day the resident leaves) in World; at daily refresh: if max friendship over all profiles < 3 for a resident present >= 14 days (track `arrived: Vec<i64>`), announce (letters to all profiles + dialogue line), leave 2 days later unless any player chose "Please stay" (talk option, key S? use dialogue line + G-style key H/pad Y) -> cancel. On leaving: roster slot gets a reserve character not in roster (Clover/Basil), friendship entries for that slot reset in every profile, house label uses roster name. Render heads for sheep/hedgehog need a screenshot.
 
 ## Baseline verification (before this run)
 - 19 headless tests pass. Executable bot run (2 launches) completed the full loop; screenshots inspected:
@@ -107,3 +107,7 @@ schedules, resume-outdoors policy, clock-rollback pause).
 ### 04:10 — R15 done; pine occlusion
 - Dig puff recoloured (light tan, larger, rises higher). Inspected p3m/p3_dig_site.png: puff clearly distinct over the dark hole. R15 complete.
 - First rerun showed a pine fully hiding the player/hole (pines were not part of the occlusion fade). Pines between camera and player are now drawn translucent like trees (code + build only; not yet seen in a screenshot).
+
+### 04:30 — C-03a done (roster indirection)
+- `CHARS` (6 characters: 4 current + Clover the sheep, Basil the hedgehog, not yet in town), `HOUSES` slot -> building, `World.roster` slot -> character (serde default [0,1,2,3]), `Game::res(slot)`; `where_` takes a `&Res`; shopkeeper/curator draw ids moved to 10/11; head models for sheep (4) and hedgehog (5) added (not yet rendered in a screenshot).
+- H: 44/44 (new: roster_defaults_and_mapping). X/S: phase 9 rerun -> p7rain/p7_weather.png unchanged (Juniper fox with umbrella).

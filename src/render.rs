@@ -119,7 +119,7 @@ pub fn human(r: &mut R, id: usize, worn: Option<u16>, pos: Vec3, yaw: f32, anim:
 pub fn resident(r: &mut R, i: usize, pos: Vec3, yaw: f32, anim: f32, moving: bool, t: f32, talk: bool, happy: f32) { resident_u(r, i, pos, yaw, anim, moving, t, talk, happy, false) }
 /// `umbrella`: held over the head (outdoors in rain).
 pub fn resident_u(r: &mut R, i: usize, pos: Vec3, yaw: f32, anim: f32, moving: bool, t: f32, talk: bool, happy: f32, umbrella: bool) {
-    let (fur, cloth) = if i < 4 { (rgb(RES[i].fur), rgb(RES[i].cloth)) } else if i == 5 { (Color::new(0.93, 0.93, 0.96, 1.), Color::new(0.32, 0.34, 0.6, 1.)) } else { (Color::new(0.55, 0.65, 0.38, 1.), Color::new(0.92, 0.86, 0.7, 1.)) };
+    let (fur, cloth) = if i < CHARS.len() { (rgb(CHARS[i].fur), rgb(CHARS[i].cloth)) } else if i == 11 { (Color::new(0.93, 0.93, 0.96, 1.), Color::new(0.32, 0.34, 0.6, 1.)) } else { (Color::new(0.55, 0.65, 0.38, 1.), Color::new(0.92, 0.86, 0.7, 1.)) };
     let light = Color::new(0.97, 0.94, 0.88, 1.); let sw = if moving { anim.sin() * 0.6 } else { 0. };
     let jump = if happy > 0. { (t * 10.).sin().abs() * 0.18 } else { 0. }; let bob = (t * 2. + i as f32).sin() * 0.012;
     r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(yaw), pos + vec3(0., jump, 0.)), |r| {
@@ -127,7 +127,7 @@ pub fn resident_u(r: &mut R, i: usize, pos: Vec3, yaw: f32, anim: f32, moving: b
         r.with(Mat4::from_translation(vec3(0., 0.24 + bob, 0.)), |r| {
             r.cube(vec3(0., 0.15, 0.), vec3(0.17, 0.16, 0.12), cloth);
             if i == 3 { for y in [0.08, 0.2] { r.cube(vec3(0., y, 0.), vec3(0.175, 0.025, 0.125), WHITE) } }
-            if i == 4 { r.sphere(vec3(0., 0.2, -0.13), vec3(0.3, 0.26, 0.24), Color::new(0.45, 0.38, 0.22, 1.)) }
+            if i == 10 { r.sphere(vec3(0., 0.2, -0.13), vec3(0.3, 0.26, 0.24), Color::new(0.45, 0.38, 0.22, 1.)) }
             for s in [-1f32, 1.] { let wave = if talk && s > 0. { (t * 5.).sin() * 0.4 - 0.5 } else { 0. };
                 r.with(Mat4::from_translation(vec3(s * 0.21, 0.27, 0.)) * Mat4::from_rotation_x(-sw * s + wave), |r| r.cube(vec3(0., -0.1, 0.), vec3(0.05, 0.1, 0.05), fur)) }
             let wag = (t * 4.).sin();
@@ -135,16 +135,18 @@ pub fn resident_u(r: &mut R, i: usize, pos: Vec3, yaw: f32, anim: f32, moving: b
                 1 => r.sphere(vec3(0., 0.02, -0.15), Vec3::splat(0.07), fur),
                 3 => { r.sphere(vec3(wag * 0.03, 0., -0.22), vec3(0.08, 0.07, 0.16), fur); r.sphere(vec3(wag * 0.06, -0.05, -0.38), vec3(0.06, 0.05, 0.12), fur) } _ => {} }
             r.with(Mat4::from_translation(vec3(0., 0.58, 0.02)), |r| head(r, i, fur, light, t, talk, happy));
-            if umbrella { r.seg(vec3(0.2, 0.15, 0.08), vec3(0.08, 1.05, 0.02), 0.015, DARKGRAY); r.cone(vec3(0.08, 0.95, 0.02), 0.5, 0.22, rgb(RES[i.min(3)].cloth)); } }) });
+            if umbrella { r.seg(vec3(0.2, 0.15, 0.08), vec3(0.08, 1.05, 0.02), 0.015, DARKGRAY); r.cone(vec3(0.08, 0.95, 0.02), 0.5, 0.22, rgb(CHARS[i.min(CHARS.len() - 1)].cloth)); } }) });
 }
 fn head(r: &mut R, i: usize, fur: Color, light: Color, t: f32, talk: bool, happy: f32) {
-    let (hr, ey, ez) = match i { 2 => (vec3(0.3, 0.2, 0.26), 0.19, 0.13), 4 => (vec3(0.2, 0.19, 0.21), 0.02, 0.17), _ => (vec3(0.26, 0.24, 0.25), 0.03, 0.2) };
+    let (hr, ey, ez) = match i { 2 => (vec3(0.3, 0.2, 0.26), 0.19, 0.13), 10 => (vec3(0.2, 0.19, 0.21), 0.02, 0.17), _ => (vec3(0.26, 0.24, 0.25), 0.03, 0.2) };
     r.sphere(Vec3::ZERO, hr, fur);
     match i {
         0 => { r.sphere(vec3(0., -0.07, 0.18), vec3(0.11, 0.08, 0.14), light); r.sphere(vec3(0., -0.04, 0.32), Vec3::splat(0.035), DARK); for s in [-1f32, 1.] { r.cone(vec3(s * 0.14, 0.16, -0.02), 0.08, 0.2, fur); r.sphere(vec3(s * 0.13, -0.08, 0.16), vec3(0.06, 0.04, 0.05), light) } }
         1 => { r.cube(vec3(0., 0.13, 0.1), vec3(0.05, 0.11, 0.15), light); for s in [-1f32, 1.] { r.sphere(vec3(s * 0.09, 0.02, 0.17), vec3(0.075, 0.09, 0.06), DARK); r.sphere(vec3(s * 0.17, 0.17, -0.02), Vec3::splat(0.06), fur) } r.sphere(vec3(0., -0.08, 0.2), vec3(0.08, 0.06, 0.07), light); r.sphere(vec3(0., -0.06, 0.27), Vec3::splat(0.03), DARK) }
         2 => { for s in [-1f32, 1.] { r.sphere(vec3(s * 0.13, 0.16, 0.08), Vec3::splat(0.095), fur); r.sphere(vec3(s * 0.2, -0.06, 0.15), vec3(0.05, 0.03, 0.03), Color::new(1., 0.6, 0.6, 1.)) } }
-        5 => { r.with(Mat4::from_translation(vec3(0., -0.03, 0.2)) * Mat4::from_rotation_x(FRAC_PI_2), |r| r.cone(Vec3::ZERO, 0.055, 0.3, GOLD)); r.sphere(vec3(0., 0.2, -0.12), vec3(0.04, 0.12, 0.04), DARKGRAY) }
+        4 => { for (x, y, z) in [(0., 0.2, -0.02), (-0.15, 0.14, -0.04), (0.15, 0.14, -0.04), (-0.08, 0.24, 0.08), (0.08, 0.24, 0.08), (0., 0.12, -0.18)] { r.sphere(vec3(x, y, z), Vec3::splat(0.12), WHITE) } for s in [-1f32, 1.] { r.sphere(vec3(s * 0.25, 0.02, 0.), vec3(0.08, 0.04, 0.05), fur) } }
+        5 => { for k in 0..7 { let a = -1.2 + k as f32 * 0.4; r.with(Mat4::from_translation(vec3(a.sin() * 0.2, 0.1 + a.cos() * 0.05, -0.12)) * Mat4::from_rotation_x(-1.9), |r| r.cone(Vec3::ZERO, 0.07, 0.22, sh(fur, 0.6))) } r.sphere(vec3(0., -0.06, 0.2), vec3(0.08, 0.06, 0.1), light); r.sphere(vec3(0., -0.04, 0.29), Vec3::splat(0.03), DARK) }
+        11 => { r.with(Mat4::from_translation(vec3(0., -0.03, 0.2)) * Mat4::from_rotation_x(FRAC_PI_2), |r| r.cone(Vec3::ZERO, 0.055, 0.3, GOLD)); r.sphere(vec3(0., 0.2, -0.12), vec3(0.04, 0.12, 0.04), DARKGRAY) }
         3 => { r.sphere(vec3(0., -0.07, 0.17), vec3(0.12, 0.08, 0.1), light); r.sphere(vec3(0., -0.04, 0.27), Vec3::splat(0.035), DARK); for s in [-1f32, 1.] { r.sphere(vec3(s * 0.18, 0.13, -0.02), Vec3::splat(0.05), fur) } }
         _ => {}
     }
@@ -152,7 +154,7 @@ fn head(r: &mut R, i: usize, fur: Color, light: Color, t: f32, talk: bool, happy
         if happy > 0. { r.cube(vec3(ex, ey, ez + 0.06), vec3(0.035, 0.009, 0.012), if i == 1 { WHITE } else { DARK }) }
         else { r.sphere(vec3(ex, ey, ez + 0.05), vec3(0.03, 0.042, 0.02), if i == 1 { WHITE } else { DARK }); r.sphere(vec3(ex + 0.01, ey + 0.012, ez + 0.068), Vec3::splat(0.011), if i == 1 { DARK } else { WHITE }) } }
     let open = if talk { (t * 12.).sin().abs() * 0.028 } else { 0. } + 0.008;
-    let (my, mz, mw) = match i { 0 => (-0.14, 0.28, 0.035), 2 => (-0.05, 0.255, 0.14), 4 => (-0.08, 0.2, 0.03), 3 => (-0.13, 0.25, 0.035), _ => (-0.13, 0.24, 0.035) };
+    let (my, mz, mw) = match i { 0 => (-0.14, 0.28, 0.035), 2 => (-0.05, 0.255, 0.14), 10 => (-0.08, 0.2, 0.03), 3 => (-0.13, 0.25, 0.035), _ => (-0.13, 0.24, 0.035) };
     r.cube(vec3(0., my, mz), vec3(mw, open, 0.012), Color::new(0.45, 0.15, 0.15, 1.));
 }
 pub fn furniture(r: &mut R, d: u16, base: Mat4, on: bool) {
@@ -294,8 +296,8 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
     for it in &g.w.ground { let c = rgb(def(it.def).col); match def(it.def).k { K::Shell => { r.sphere(vec3(it.x, 0.05, it.z), vec3(0.14, 0.06, 0.12), c); r.cone(vec3(it.x, 0.05, it.z), 0.08, 0.1, sh(c, 0.9)) } _ => r.sphere(vec3(it.x, 0.11, it.z), Vec3::splat(0.11), c) } }
     for (i, n) in g.npcs.iter().enumerate() { if n.inside || !near(n.pos.x, n.pos.y) { continue }
         let talking = matches!(g.me.ui, Ui::Talk { npc: Some(j), .. } if j == i);
-        resident_u(r, i, vec3(n.pos.x, 0., n.pos.y), n.yaw, n.anim, n.moving, t, talking, n.happy, weather(g.w.day, now.month()) == Wx::Rain);
-        if n.pos.distance(g.me.pos) < 4. { labels.push((vec3(n.pos.x, 1.75, n.pos.y), RES[i].name.into(), Color::new(1., 0.95, 0.7, 1.))) } }
+        resident_u(r, g.w.roster[i], vec3(n.pos.x, 0., n.pos.y), n.yaw, n.anim, n.moving, t, talking, n.happy, weather(g.w.day, now.month()) == Wx::Rain);
+        if n.pos.distance(g.me.pos) < 4. { labels.push((vec3(n.pos.x, 1.75, n.pos.y), g.res(i).name.into(), Color::new(1., 0.95, 0.7, 1.))) } }
     let sy = if g.swimming() { for k in 0..10 { let a = k as f32 * 0.63 + t; r.sphere(vec3(g.me.pos.x + a.cos() * 0.38, -0.17, g.me.pos.y + a.sin() * 0.3), vec3(0.05, 0.015, 0.05), Color::new(0.9, 0.97, 1., 1.)) } -0.55 } else { 0. };
     human(r, g.me.id, g.w.p.shirt, vec3(g.me.pos.x, sy, g.me.pos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, 0, g.w.p.equip, t, g.me.swing);
     others(r, g, t);
@@ -340,7 +342,7 @@ fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, Strin
     if BLDS[b].kind != BK::Shop { let wx = if w > 3 { wf - 0.9 } else { wf / 2. }; r.cube(vec3(wx, 1.45, 0.04), vec3(0.42, 0.36, 0.04), WOOD); let u = r.unlit; r.unlit = true; r.cube(vec3(wx, 1.45, 0.07), vec3(0.34, 0.28, 0.02), Color::new(lt.sky.r * 0.9 + 0.1, lt.sky.g * 0.9 + 0.1, lt.sky.b * 0.9 + 0.1, 1.)); r.unlit = u }
     if BLDS[b].kind == BK::Museum {
         for &(x, z) in &MUSEUM_DESK { r.cube(vec3(x as f32 + 0.5, 0.45, z as f32 + 0.5), vec3(0.5, 0.45, 0.42), Color::new(0.4, 0.3, 0.25, 1.)) }
-        let talking = matches!(g.me.ui, Ui::Talk { npc: None, .. }); resident(r, 5, vec3(3.5, 0., 0.5), 0., 0., false, t, talking, 0.);
+        let talking = matches!(g.me.ui, Ui::Talk { npc: None, .. }); resident(r, 11, vec3(3.5, 0., 0.5), 0., 0., false, t, talking, 0.);
         r.cube(vec3(0.5, 0.15, 2.5), vec3(0.48, 0.15, 1.48), Color::new(0.35, 0.3, 0.28, 1.)); // tank base
         for (k, d) in g.w.donated.iter().filter(|x| matches!(def(x.0).k, K::Fish | K::Sea)).enumerate() { let ph = t * 0.6 + k as f32 * 1.7; let s = def(d.0).size * 0.35;
             r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(if ph.cos() > 0. { 0. } else { PI }), vec3(0.5, 0.55 + (k % 4) as f32 * 0.18, 2.5 + ph.sin() * 1.1)), |r| { r.sphere(Vec3::ZERO, vec3(s * 0.45, s * 0.5, s), rgb(def(d.0).col)); r.cone(vec3(0., 0., -s), s * 0.4, s * 0.6, rgb(def(d.0).col)) }) }
@@ -359,7 +361,7 @@ fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, Strin
         for (k, &d) in CLOTHES.iter().enumerate() { r.cube(rk + vec3(-0.3 + k as f32 * 0.2, 1.05, 0.), vec3(0.08, 0.28, 0.12), rgb(def(d).col)) }
         for k in 0..3 { r.cube(vec3(1.2 + k as f32 * 2.3, 1.4, 0.15), vec3(0.9, 0.04, 0.15), WOOD); for j in 0..4 { r.cube(vec3(0.6 + k as f32 * 2.3 + j as f32 * 0.38, 1.56, 0.15), vec3(0.12, 0.12, 0.1), rgb(DEFS[(j * 7 + k * 3) % 30].col)) } }
         let talking = matches!(g.me.ui, Ui::Sell(_) | Ui::Confirm(_)) || matches!(g.me.ui, Ui::Talk { npc: None, .. });
-        resident(r, 4, vec3(3.5, 0., 0.5), 0., 0., false, t, talking, 0.);
+        resident(r, 10, vec3(3.5, 0., 0.5), 0., 0., false, t, talking, 0.);
         for (i, &(x, z)) in DISPLAYS.iter().enumerate() { let p = vec3(x as f32 + 0.5, 0., z as f32 + 0.5); r.cyl(p, 0.4, 0.22, Color::new(0.85, 0.82, 0.75, 1.));
             let (txt, show) = if i < 5 { let s = g.w.stock[i]; (if s.sold { "SOLD OUT".to_string() } else { format!("{} {}", def(s.def).name, def(s.def).buy) }, (!s.sold).then_some(s.def)) }
                 else { let tl = TOOL_DISPLAY[i - 5]; (if g.w.p.tools.contains(&tl) { "Owned".into() } else { format!("{} {}", def(tl).name, def(tl).buy) }, Some(tl)) };
@@ -370,9 +372,9 @@ fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, Strin
     }
     for f in &furn { furniture(r, f.def, fbase(f), f.on); if f.def == 54 && f.on { let c = fcenter(f); r.disc(vec3(c.x, 0.012, c.y), vec2(0.9, 0.9), Color::new(1., 0.85, 0.4, 0.18)) } }
     if let Some((vi, vb, _)) = g.visit { if vb == b { let s = g.visit_spot(b); let talking = matches!(g.me.ui, Ui::Talk { npc: Some(j), .. } if j == vi);
-        r.disc(vec3(s.x, 0.02, s.y), vec2(0.3, 0.24), Color::new(0., 0., 0., 0.2)); resident(r, vi, vec3(s.x, 0., s.y), yaw_of(g.me.ipos - s), 0., false, t, talking, g.npcs[vi].happy) } }
-    if let BK::Res(i) = BLDS[b].kind { if where_(i, g.hr) == Loc::Home { let s = res_spot(); let talking = matches!(g.me.ui, Ui::Talk { npc: Some(j), .. } if j == i);
-        r.disc(vec3(s.x, 0.02, s.y), vec2(0.3, 0.24), Color::new(0., 0., 0., 0.2)); resident(r, i, vec3(s.x, 0., s.y), yaw_of(g.me.ipos - s), 0., false, t, talking, g.npcs[i].happy) } }
+        r.disc(vec3(s.x, 0.02, s.y), vec2(0.3, 0.24), Color::new(0., 0., 0., 0.2)); resident(r, g.w.roster[vi], vec3(s.x, 0., s.y), yaw_of(g.me.ipos - s), 0., false, t, talking, g.npcs[vi].happy) } }
+    if let BK::Res(i) = BLDS[b].kind { if where_(g.res(i), g.hr) == Loc::Home { let s = res_spot(); let talking = matches!(g.me.ui, Ui::Talk { npc: Some(j), .. } if j == i);
+        r.disc(vec3(s.x, 0.02, s.y), vec2(0.3, 0.24), Color::new(0., 0., 0., 0.2)); resident(r, g.w.roster[i], vec3(s.x, 0., s.y), yaw_of(g.me.ipos - s), 0., false, t, talking, g.npcs[i].happy) } }
     if let Some(p) = &g.me.placing { let ok = g.place_ok(&p.f).is_ok(); let c = if ok { Color::new(0.2, 0.9, 0.3, 0.45) } else { Color::new(0.95, 0.2, 0.2, 0.45) };
         if def(p.f.def).wall { r.disc(vec3(p.f.x as f32 + 0.5, 0.02, 0.3), vec2(0.45, 0.25), c) } else { for (x, z) in foot(p.f.def, p.f.x, p.f.z, p.f.rot) { r.disc(vec3(x as f32 + 0.5, 0.02, z as f32 + 0.5), vec2(0.48, 0.48), c) } }
         furniture(r, p.f.def, fbase(&p.f), false) }
@@ -419,7 +421,7 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         Ui::Storage(c, s) => { panel(sw / 2. - 380., 90., 760., 520.); txt("Pockets", sw / 2. - 360., 125., 28., BLACK); txt("Cabinet storage", sw / 2. + 20., 125., 28., BLACK);
             let a: Vec<String> = g.w.p.inv.iter().map(slot_name).collect(); let bb: Vec<String> = g.w.p.storage.iter().map(slot_name).collect();
             list(&a, (*c == 0).then_some(*s), sw / 2. - 350., 165.); list(&bb, (*c == 1).then_some(*s), sw / 2. + 30., 165.); txt(if g.me.pad { "Left/Right switch side  Up/Down select  A move item  B close" } else { "A/D switch side  W/S select  Enter move item  Esc close" }, sw / 2. - 360., 590., 19., DARKGRAY) }
-        Ui::Gift(j, sel) => { panel(sw / 2. - 260., 100., 520., 440.); txt(&format!("Give {} a gift", RES[*j].name), sw / 2. - 240., 135., 28., Color::new(0.45, 0.3, 0.2, 1.));
+        Ui::Gift(j, sel) => { panel(sw / 2. - 260., 100., 520., 440.); txt(&format!("Give {} a gift", g.res(*j).name), sw / 2. - 240., 135., 28., Color::new(0.45, 0.3, 0.2, 1.));
             let items: Vec<String> = g.w.p.inv.iter().map(slot_name).collect(); list(&items, Some(*sel), sw / 2. - 230., 175.);
             txt(if g.me.pad { "Up/Down select  A give  B cancel" } else { "W/S select  Enter give  Esc cancel" }, sw / 2. - 240., 525., 19., DARKGRAY) }
         Ui::Catalog(sel) => { panel(sw / 2. - 260., 100., 520., 440.); txt("Catalog", sw / 2. - 240., 135., 28., Color::new(0.45, 0.3, 0.2, 1.));
