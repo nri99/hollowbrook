@@ -311,6 +311,19 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         log!("stones={}", have(g, 81));
         if let Some(p) = g.w.project.clone() { approach(g, c, tc((p.x, p.z))).await; shot!("x01_site_before"); press(g, c, KeyCode::E).await; log!("after contribute: project={:?} built={:?} ui={:?}", g.w.project, g.w.built, g.me.ui); for _ in 0..4 { if g.me.ui == Ui::Play { break } press(g, c, KeyCode::E).await } }
         if let Some(b) = g.w.built.first().copied() { approach(g, c, tc((b.x, b.z))).await; press(g, c, KeyCode::E).await; log!("pose={:?}", g.me.pose); wait(g, c, 30).await; shot!("x01_bench_built") }
+    } else if phase == "28" {
+        // X-04: Saturday art stall purchase, art wing donation + labels, furniture collections in the home. Fixture: coins and room furniture set directly; dev clock set to Saturday 2026-11-21.
+        let c2 = Clock { dev: Some((chrono::NaiveDate::from_ymd_opt(2026, 11, 21).unwrap().and_hms_opt(12, 0, 0).unwrap(), std::time::Instant::now())) }; let c = &c2;
+        macro_rules! shotc { ($n:expr) => {{ wait(g, c, 2).await; render::draw(g, c.now(), None); screenshot(&format!("{dir}/{}.png", $n)); next_frame().await; log!("shot {}", $n); }} }
+        wait(g, c, 5).await;
+        g.w.p.money = 5000; log!("art_open={} week art={}", g.art_open(), def(art_of_week(g.w.day)).name);
+        approach(g, c, tc(STALL)).await; log!("target={:?}", g.target()); shotc!("x04_art_stall"); press(g, c, KeyCode::E).await; log!("money={} inv={:?}", g.w.p.money, g.w.p.inv.iter().map(|s| def(s.def).name).collect::<Vec<_>>());
+        let mb = BLDS.iter().position(|b| b.kind == BK::Museum).unwrap(); go(g, c, door_stand(mb), 0.12).await; face(g, c, door_face(mb)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
+        approach(g, c, vec2(3.5, 1.5)).await; press(g, c, KeyCode::E).await; for _ in 0..3 { press(g, c, KeyCode::E).await } press(g, c, KeyCode::Escape).await; log!("donated art={} ui={:?}", g.donated_of(K::Art), g.me.ui);
+        go(g, c, vec2(2.6, 2.4), 0.12).await; face(g, c, vec2(2.6, 0.5)).await; shotc!("x04_art_wing");
+        go(g, c, vec2(3.5, 4.4), 0.15).await; for _ in 0..40 { step(g, c, &[KeyCode::S], &[]).await } wait(g, c, 40).await; log!("scene={:?}", g.me.scene);
+        for (k, (d, x, z)) in [(90u16, 0, 3), (91, 1, 3), (92, 2, 3), (93, 0, 0), (94, 2, 0), (95, 3, 0)].into_iter().enumerate() { g.w.p.room.retain(|f| !foot(f.def, f.x, f.z, f.rot).iter().any(|t| foot(d, x, z, 0).contains(t))); g.w.p.room.push(Furn { uid: 5000 + k as u32, def: d, x, z, rot: 0, on: true }) }
+        log!("sets_done={:?}", g.sets_done()); go(g, c, door_stand(HOME), 0.12).await; face(g, c, door_face(HOME)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await; shotc!("x04_home_collections");
     } else if phase == "25" {
         // Town Hall interior + money project: pick at Hazel's desk, invalid/valid preview, partial funding, P2 tops up, rollover builds it.
         // Fixture: coins are set directly so the project can be funded within one run.

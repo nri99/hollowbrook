@@ -16,7 +16,7 @@ pub const FLOWER: u8 = b'*';
 pub const BLD: u8 = b'#';
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum K { Bug, Fish, Fruit, Shell, Treasure, Fossil, Furn, Tool, Cloth, Sea, Material }
+pub enum K { Bug, Fish, Fruit, Shell, Treasure, Fossil, Furn, Tool, Cloth, Sea, Material, Art }
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Act { None, Sit, Bed, Lamp, Storage }
 
@@ -30,7 +30,7 @@ const fn fu(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32), fp: (i3
 const fn cl(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32)) -> D { D { buy, ..b(id, name, K::Cloth, buy / 4, col) } }
 const fn tl(id: u16, name: &'static str, buy: u32) -> D { D { buy, ..b(id, name, K::Tool, 0, (0.6, 0.45, 0.3)) } }
 
-pub static DEFS: [D; 65] = [
+pub static DEFS: [D; 81] = [
     cr(0, "Cabbage White", K::Bug, 90, (1., 1., 0.95), 0.2, 0, 3, 10, 6, 17), cr(1, "Honeybee", K::Bug, 160, (1., 0.85, 0.2), 0.2, 0, 3, 7, 8, 17),
     cr(2, "Ladybug", K::Bug, 120, (0.9, 0.15, 0.1), 0.2, 0, 3, 6, 8, 17), cr(3, "Dragonfly", K::Bug, 230, (0.3, 0.8, 0.9), 0.2, 0, 5, 10, 8, 19),
     cr(4, "Cicada", K::Bug, 300, (0.4, 0.6, 0.3), 0.2, 0, 7, 8, 8, 17), cr(5, "Firefly", K::Bug, 450, (0.8, 1., 0.3), 0.2, 0, 6, 7, 19, 4),
@@ -41,6 +41,15 @@ pub static DEFS: [D; 65] = [
     cr(16, "Pike", K::Fish, 1800, (0.45, 0.55, 0.35), 0.75, 1, 9, 12, 0, 24), cr(17, "Koi", K::Fish, 3000, (1., 0.5, 0.3), 0.55, 1, 1, 12, 16, 9),
     cr(30, "Sardine", K::Fish, 100, (0.7, 0.75, 0.85), 0.25, 2, 1, 12, 0, 24), cr(31, "Sea Bass", K::Fish, 400, (0.5, 0.55, 0.6), 0.8, 2, 1, 12, 0, 24),
     cr(32, "Pufferfish", K::Fish, 900, (0.85, 0.8, 0.5), 0.45, 2, 6, 9, 0, 24),
+    // X-04 critters (original, provisional): hab 3 = river mouth (river tiles near the sea), hab 4 = Gullrock only; Rain Snail needs rain
+    cr(8, "Rain Snail", K::Bug, 250, (0.7, 0.55, 0.4), 0.2, 0, 3, 11, 0, 24), cr(9, "Dune Beetle", K::Bug, 600, (0.2, 0.55, 0.45), 0.2, 4, 1, 12, 8, 20),
+    cr(18, "Ice Smelt", K::Fish, 500, (0.8, 0.88, 0.95), 0.3, 1, 12, 2, 0, 24), cr(19, "Brackish Goby", K::Fish, 650, (0.55, 0.5, 0.35), 0.35, 3, 1, 12, 0, 24),
+    // X-04 furniture collections (original): Meadow set and Harbor set
+    fu(90, "Meadow Chair", 900, (0.62, 0.8, 0.45), (1, 1), true, false, Act::Sit), fu(91, "Meadow Table", 1100, (0.85, 0.75, 0.45), (1, 1), false, false, Act::None), fu(92, "Meadow Lamp", 1000, (0.95, 0.85, 0.55), (1, 1), false, false, Act::Lamp),
+    fu(93, "Harbor Bench", 1600, (0.3, 0.42, 0.6), (2, 1), true, false, Act::Sit), fu(94, "Harbor Crate", 1300, (0.6, 0.48, 0.32), (1, 1), true, false, Act::Storage), fu(95, "Harbor Lantern", 1200, (0.25, 0.3, 0.38), (1, 1), false, false, Act::Lamp),
+    // X-04 paintings (original procedural art; sold at the weekly art stall, donatable to the art wing)
+    b(100, "Morning Over Hollowbrook", K::Art, 600, (0.95, 0.8, 0.55)), b(101, "Gullrock at Low Tide", K::Art, 600, (0.4, 0.75, 0.85)), b(102, "The Cherry Lane", K::Art, 600, (0.95, 0.6, 0.7)),
+    b(103, "Lantern Night", K::Art, 600, (0.2, 0.22, 0.45)), b(104, "Pond in Summer", K::Art, 600, (0.4, 0.7, 0.4)), b(105, "First Snow", K::Art, 600, (0.85, 0.9, 0.98)),
     b(20, "Apple", K::Fruit, 100, (0.85, 0.15, 0.15)), b(21, "Pear", K::Fruit, 100, (0.8, 0.85, 0.25)), b(22, "Cherry", K::Fruit, 100, (0.7, 0.05, 0.2)), b(23, "Peach", K::Fruit, 100, (1., 0.65, 0.5)),
     b(40, "Scallop", K::Shell, 80, (0.98, 0.82, 0.72)), b(41, "Conch", K::Shell, 250, (0.98, 0.62, 0.55)), b(42, "Sand Dollar", K::Shell, 120, (0.92, 0.9, 0.78)),
     b(45, "Amber Stone", K::Treasure, 600, (0.95, 0.6, 0.1)), b(46, "Old Coin", K::Treasure, 1000, (0.85, 0.75, 0.3)),
@@ -61,7 +70,18 @@ pub static DEFS: [D; 65] = [
     tl(60, "Net", 0), tl(61, "Fishing Rod", 400), tl(62, "Shovel", 500),
 ];
 pub const FRUITS: [u16; 4] = [20, 21, 22, 23];
-pub const FURN_IDS: [u16; 8] = [50, 51, 52, 53, 54, 55, 56, 57];
+pub const FURN_IDS: [u16; 14] = [50, 51, 52, 53, 54, 55, 56, 57, 90, 91, 92, 93, 94, 95];
+/// Furniture collections: (name, members). Completing one in your home shows a note.
+pub const SETS: [(&str, [u16; 3]); 2] = [("Meadow collection", [90, 91, 92]), ("Harbor collection", [93, 94, 95])];
+/// Base model drawn for a furniture id (collections reuse a model with their own colors and accents).
+pub fn model(d: u16) -> u16 { match d { 90 => 50, 91 => 52, 92 | 95 => 54, 93 => 51, 94 => 55, _ => d } }
+pub const ARTS: [u16; 6] = [100, 101, 102, 103, 104, 105];
+/// Weekly art stall: open on Saturdays (when the fair isn't on) at STALL; price per painting (provisional).
+pub const ART_PRICE: u32 = 2500;
+pub fn weekday(day: i64) -> i64 { (day - 1).rem_euclid(7) } // 0 = Monday (day = days from CE)
+pub fn art_of_week(day: i64) -> u16 { ARTS[((day - 1).div_euclid(7) % ARTS.len() as i64) as usize] }
+/// Gallery slots on the museum's back wall (x positions), in ARTS order.
+pub const GALLERY_X: [f32; 6] = [0.55, 1.6, 2.65, 4.35, 5.4, 6.45];
 pub fn def(id: u16) -> &'static D { DEFS.iter().find(|d| d.id == id).unwrap_or(&DEFS[0]) }
 pub fn is_def(id: u16) -> bool { DEFS.iter().any(|d| d.id == id) }
 fn inr(v: u32, (a, b): (u32, u32), incl: bool) -> bool { let hi = if incl { v <= b } else { v < b }; if a <= b { v >= a && hi } else { v >= a || hi } }

@@ -398,3 +398,22 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     // reload mid-activity: activity not saved, reward flag saved, so restarting cannot pay twice
     let mut g2 = reload(&g, "edge_act"); assert!(g2.act.is_none()); g2.me.scene = Scene::Islet; g2.me.ipos = vec2(7.5, 10.5); g2.act_start(1).unwrap(); g2.act.as_mut().unwrap().score = 99; g2.sim_act(99.); let m = g2.w.p.mail.len(); g2.act_step(); assert_eq!(g2.w.p.mail.len(), m);
 }
+
+#[test] fn x04_collections_art_critters() {
+    let mut g = two(at(14, 12, 0, 0)); g.mo = 11; g.dom = 14; // 2026-11-14 is a Saturday, but the Harvest Fair (13-16) takes the stall
+    assert_eq!(weekday(g.w.day), 5); assert!(!g.art_open()); assert!(g.art_buy().is_err());
+    let mut g = two(at(21, 12, 0, 0)); g.mo = 11; g.dom = 21; assert!(g.art_open()); let d = art_of_week(g.w.day);
+    g.w.p.money = 100; assert_eq!(g.art_buy(), Err("Not enough coins."));
+    g.w.p.money = 6000; assert_eq!(g.art_buy(), Ok(def(d).name)); assert_eq!(g.w.p.money, 6000 - ART_PRICE); assert!(g.art_buy().is_err()); // once per week per player
+    g.activate(1); g.w.p.money = 3000; assert!(g.art_buy().is_ok()); assert_eq!(g.w.p.money, 500); g.activate(0);
+    let g2 = reload(&g, "art"); assert_eq!(g2.w.p.art_week, g.w.p.art_week);
+    g.donate(); assert!(g.w.donated.iter().any(|x| x.0 == d)); assert_eq!(g.donated_of(K::Art), 1);
+    assert_ne!(art_of_week(g.w.day), art_of_week(g.w.day + 7));
+    // collections: three pieces complete a set
+    for &(k, x) in &[(90u16, 0), (91, 1), (92, 2)] { g.w.p.room.retain(|f| f.x != x || f.z != 3); if k != 92 { g.w.p.room.push(Furn { uid: 900 + k as u32, def: k, x, z: 3, rot: 0, on: false }) } }
+    assert!(g.sets_done().is_empty()); g.w.p.room.push(Furn { uid: 992, def: 92, x: 2, z: 3, rot: 0, on: false }); assert_eq!(g.sets_done(), vec!["Meadow collection"]);
+    assert!(FURN_IDS.contains(&95) && def(92).act == Act::Lamp && model(93) == 51);
+    // critters: rain snail only in rain filter, Dune Beetle is islet-only, river-mouth goby, winter smelt
+    assert!(avail(def(18), 1, 12) && !avail(def(18), 6, 12)); assert_eq!(def(9).hab, 4); assert_eq!(def(19).hab, 3);
+    assert_eq!(DEFS.iter().filter(|d| d.k == K::Bug).count(), 10); assert_eq!(DEFS.iter().filter(|d| d.k == K::Fish).count(), 13);
+}

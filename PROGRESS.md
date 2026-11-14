@@ -180,3 +180,8 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - Items 2/3/4/7 milestone accepted by user. Awaiting human checklist results.
 - Unfinished: X-04 collections NOT STARTED; X-06 PARTIAL (animation/face polish, materials open); activity difficulty human assessment pending; physical controllers pending; split-screen "[E] next" dialogue hint not visible (known minor); leader fixed to P1.
 - Next action: wait for user feedback before new work.
+
+## 2026-11-14 continuation
+- Item 1 DONE: split-screen dialogue "[A]/[E] next" now anchored inside each viewport's panel (rendered: phase 22 screenshot). HUMAN_VERIFICATION.md now has the controller mapping table taken from src/pad.rs.
+- X-04 DONE: see DESIGN_SPEC. Test x04_collections_art_critters; autotest phase 28 (Saturday dev clock) screenshots inspected: art stall, art wing with donated painting, home with both collections.
+- Next: X-06 remaining (animation, facial readability, materials).

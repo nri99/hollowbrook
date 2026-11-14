@@ -167,7 +167,7 @@ fn head(r: &mut R, i: usize, fur: Color, light: Color, t: f32, talk: bool, happy
 }
 pub fn furniture(r: &mut R, d: u16, base: Mat4, on: bool, tint: u8) {
     let (c0, k) = (def(d).col, TINTS[tint as usize % TINTS.len()]); let c = Color::new((c0.0 * k.0).min(1.), (c0.1 * k.1).min(1.), (c0.2 * k.2).min(1.), 1.);
-    r.with(base, |r| match d {
+    r.with(base, |r| { match model(d) {
         50 => { r.cube(vec3(0., 0.4, 0.), vec3(0.3, 0.05, 0.3), c); for (x, z) in [(-0.25, -0.25), (0.25, -0.25), (-0.25, 0.25), (0.25, 0.25)] { r.cube(vec3(x, 0.18, z), vec3(0.04, 0.18, 0.04), sh(c, 0.8)) } r.cube(vec3(0., 0.72, -0.27), vec3(0.3, 0.28, 0.04), c) }
         51 => { r.cube(vec3(0., 0.22, 0.), vec3(0.95, 0.18, 0.4), c); for x in [-0.47, 0.47] { r.cube(vec3(x, 0.45, 0.05), vec3(0.44, 0.07, 0.33), sh(c, 1.15)) } r.cube(vec3(0., 0.6, -0.32), vec3(0.95, 0.25, 0.09), c); for x in [-0.92, 0.92] { r.cube(vec3(x, 0.45, 0.), vec3(0.07, 0.15, 0.4), sh(c, 0.85)) } }
         52 => { r.cyl(vec3(0., 0.68, 0.), 0.42, 0.06, c); r.cyl(Vec3::ZERO, 0.06, 0.68, sh(c, 0.8)); r.cyl(Vec3::ZERO, 0.25, 0.04, sh(c, 0.8)) }
@@ -179,7 +179,31 @@ pub fn furniture(r: &mut R, d: u16, base: Mat4, on: bool, tint: u8) {
         58 => { r.cyl(vec3(0., 0., 0.), 0.25, 0.38, sh(c, 0.85)); r.cyl(vec3(0., 0.38, 0.), 0.3, 0.06, c) }
         59 => { r.cyl(Vec3::ZERO, 0.2, 0.08, WOOD); r.sphere(vec3(0., 0.42, 0.), Vec3::splat(0.32), Color::new(c.r, c.g, c.b, 0.85)); for k in 0..6 { let a = k as f32; r.seg(vec3(a.cos() * 0.3, 0.3, a.sin() * 0.3), vec3(a.cos() * 0.15, 0.7, a.sin() * 0.15), 0.01, WOOD) } }
         _ => r.cube(vec3(0., 0.3, 0.), vec3(0.3, 0.3, 0.3), c),
-    });
+    }
+    match d { // collection accents
+        90 => for x in [-0.2f32, 0., 0.2] { r.sphere(vec3(x, 0.47, 0.22), Vec3::splat(0.05), [PINK, YELLOW, WHITE][((x + 0.2) * 5.) as usize % 3]) },
+        91 => { r.cyl(vec3(0., 0.74, 0.), 0.06, 0.12, Color::new(0.4, 0.6, 0.85, 1.)); for k in 0..3 { r.sphere(vec3(-0.03 + k as f32 * 0.03, 0.9, 0.), Vec3::splat(0.04), [PINK, YELLOW, WHITE][k]) } }
+        92 => for k in 0..5 { let a = k as f32 * 1.256; r.sphere(vec3(a.cos() * 0.18, 0.06, a.sin() * 0.18), Vec3::splat(0.04), PINK) },
+        93 | 94 => r.cube(vec3(0., 0.28, 0.), vec3(if d == 93 { 0.97 } else { 0.43 }, 0.025, if d == 93 { 0.42 } else { 0.36 }), Color::new(0.85, 0.8, 0.65, 1.)),
+        95 => r.cube(vec3(0., 0.72, 0.), vec3(0.22, 0.02, 0.22), Color::new(0.75, 0.6, 0.3, 1.)),
+        _ => {}
+    } });
+}
+/// Original procedural painting for art id `d`, drawn on a wall plane centred at `p` (facing +z).
+pub fn painting(r: &mut R, d: u16, p: Vec3, w: f32, h: f32) {
+    let k = (d - 100) as usize; let (sky, ground, acc) = [((1., 0.82, 0.6), (0.45, 0.7, 0.35), (1., 0.95, 0.6)), ((0.6, 0.85, 0.95), (0.95, 0.88, 0.65), (0.2, 0.55, 0.75)), ((0.85, 0.9, 1.), (0.5, 0.72, 0.4), (0.98, 0.65, 0.75)),
+        ((0.1, 0.12, 0.3), (0.2, 0.25, 0.3), (1., 0.85, 0.4)), ((0.7, 0.88, 0.95), (0.3, 0.6, 0.35), (0.3, 0.55, 0.85)), ((0.75, 0.8, 0.88), (0.95, 0.97, 1.), (0.35, 0.45, 0.4))][k];
+    r.cube(p, vec3(w / 2. + 0.05, h / 2. + 0.05, 0.02), Color::new(0.55, 0.4, 0.2, 1.));
+    let z = p.z + 0.025; r.cube(vec3(p.x, p.y + h * 0.15, z), vec3(w / 2., h * 0.35, 0.003), rgb(sky)); r.cube(vec3(p.x, p.y - h * 0.35, z), vec3(w / 2., h * 0.15, 0.003), rgb(ground));
+    let z2 = z + 0.004;
+    match k {
+        0 => { r.sphere(vec3(p.x + w * 0.25, p.y + h * 0.2, z2), vec3(h * 0.12, h * 0.12, 0.002), rgb(acc)); for i in 0..3 { r.cube(vec3(p.x - w * 0.3 + i as f32 * w * 0.2, p.y - h * 0.12, z2), vec3(w * 0.06, h * 0.08, 0.002), Color::new(0.9, 0.85, 0.75, 1.)) } }
+        1 => { r.sphere(vec3(p.x, p.y - h * 0.05, z2), vec3(w * 0.22, h * 0.14, 0.002), Color::new(0.55, 0.5, 0.48, 1.)); r.cube(vec3(p.x, p.y - h * 0.2, z2), vec3(w / 2., h * 0.04, 0.002), rgb(acc)) }
+        2 => for i in 0..4 { let x = p.x - w * 0.35 + i as f32 * w * 0.23; r.cube(vec3(x, p.y - h * 0.12, z2), vec3(0.012, h * 0.12, 0.002), Color::new(0.4, 0.25, 0.15, 1.)); r.sphere(vec3(x, p.y + h * 0.05, z2), vec3(w * 0.09, h * 0.1, 0.002), rgb(acc)) },
+        3 => for i in 0..5 { let x = p.x - w * 0.4 + i as f32 * w * 0.2; r.sphere(vec3(x, p.y + h * (0.1 + (i % 2) as f32 * 0.12), z2), vec3(0.025, 0.035, 0.002), rgb(acc)) },
+        4 => { r.sphere(vec3(p.x, p.y - h * 0.28, z2), vec3(w * 0.3, h * 0.08, 0.002), rgb(acc)); r.sphere(vec3(p.x - w * 0.1, p.y - h * 0.27, z2 + 0.001), vec3(0.03, 0.02, 0.001), Color::new(0.3, 0.75, 0.3, 1.)) }
+        _ => { for i in 0..3 { r.cone(vec3(p.x - w * 0.3 + i as f32 * w * 0.3, p.y - h * 0.2, z2), 0.06, h * 0.35, rgb(acc)) } for i in 0..8 { r.sphere(vec3(p.x - w * 0.4 + (i * 37 % 10) as f32 * w * 0.09, p.y + h * (0.05 + (i * 13 % 7) as f32 * 0.04), z2 + 0.001), Vec3::splat(0.012), WHITE) } }
+    }
 }
 pub fn fbase(f: &Furn) -> Mat4 { let c = if def(f.def).wall { vec2(f.x as f32 + 0.5, 0.) } else { fcenter(f) }; Mat4::from_rotation_translation(Quat::from_rotation_y(f.rot as f32 * FRAC_PI_2), vec3(c.x, 0., c.y)) }
 fn building(r: &mut R, bi: usize, night: f32) {
@@ -254,6 +278,7 @@ fn islet_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(Vec3, String, 
             for j in 0..14 { let an = j as f32 / 14. * 2. * PI; r.sphere(vec3(p.x + an.cos() * 0.55, 0.15 + an.sin() * 0.55, p.y), Vec3::splat(0.07), c) }
             if k == a.next || g.me.ipos.distance(*p) < 6. { labels.push((vec3(p.x, 1.1, p.y), format!("{}", k + 1), c)) } },
     } }
+    for b in &g.ibugs { let c = rgb(def(b.0).col); let fl = (t * 20. + b.2).sin().abs(); let y = 0.35 + (t * 3. + b.2).sin() * 0.1; for s in [-1f32, 1.] { r.sphere(vec3(b.1.x + s * 0.07, y + fl * 0.04, b.1.y), vec3(0.07, 0.01 + fl * 0.03, 0.05), c) } r.sphere(vec3(b.1.x, y, b.1.y), Vec3::splat(0.035), DARK) }
     let swim = g.swimming(); let sy = if swim { -0.55 } else { 0. }; if !swim { r.disc(vec3(g.me.ipos.x, 0.02, g.me.ipos.y), vec2(0.32, 0.26), shc) }
     human(r, g.me.id, (g.w.p.shirt, g.w.p.hat, g.w.p.hair), vec3(g.me.ipos.x, sy, g.me.ipos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, 0, None, t, g.me.swing);
     others(r, g, t);
@@ -356,6 +381,9 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
     for (i, tr) in g.w.trees.iter().enumerate() { let p = tc((tr.x, tr.z)); if near(p.x, p.y) && !fade_t.contains(&i) { let sk = g.shake.iter().find(|s| s.0 == i).map_or(0., |s| s.1); tree(r, p, tr.fruit.then(|| rgb(def(g.w.native).col)), sk, t, fol) } }
     for bi in 0..BLDS.len() { let b = &BLDS[bi]; if near(b.x as f32 + b.w as f32 / 2., b.z as f32 + b.d as f32 / 2.) && !fade_b.contains(&bi) { building(r, bi, lt.night) }
         if g.me.pos.distance(door_stand(bi)) < 3.5 { let p = door_face(bi); labels.push((vec3(p.x, 2.7, p.y), g.bname(bi), WHITE)) } }
+    if g.art_open() { let c = tc(STALL); r.cube(vec3(c.x, 0.4, c.y), vec3(0.5, 0.4, 0.35), Color::new(0.35, 0.3, 0.45, 1.)); r.cube(vec3(c.x, 1.3, c.y), vec3(0.6, 0.04, 0.45), Color::new(0.85, 0.3, 0.4, 1.));
+        for x in [-0.55f32, 0.55] { r.cube(vec3(c.x + x, 0.65, c.y + 0.4), vec3(0.03, 0.65, 0.03), WOOD) } painting(r, art_of_week(g.w.day), vec3(c.x, 1.0, c.y + 0.37), 0.5, 0.36);
+        if g.me.pos.distance(c) < 4. { labels.push((vec3(c.x, 1.7, c.y), "Saturday art stall".into(), Color::new(1., 0.85, 0.9, 1.))) } }
     if fair_active(now.month(), now.day()) { let c = tc(STALL);
         r.cube(vec3(c.x, 0.45, c.y), vec3(0.48, 0.45, 0.4), WOOD); for k in 0..5 { r.cube(vec3(c.x - 0.4 + k as f32 * 0.2, 1.25, c.y + 0.25), vec3(0.1, 0.03, 0.35), if k % 2 == 0 { Color::new(0.95, 0.55, 0.2, 1.) } else { WHITE }) }
         for x in [-0.45, 0.45] { r.cube(vec3(c.x + x, 0.62, c.y + 0.3), vec3(0.03, 0.62, 0.03), WOOD) } for (k, f) in [20u16, 21, 22, 23].iter().enumerate() { r.sphere(vec3(c.x - 0.3 + k as f32 * 0.2, 0.98, c.y + 0.1), Vec3::splat(0.08), rgb(def(*f).col)) }
@@ -421,7 +449,7 @@ fn others(r: &mut R, g: &Game, t: f32) {
 fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, String, Color)>) {
     let (w, d) = g.rdims(b); let (wf, df) = (w as f32, d as f32); let t = g.t;
     let (fl, wl) = match BLDS[b].kind { BK::Shop => ((0.72, 0.76, 0.66), (0.93, 0.95, 0.86)), BK::Civic => ((0.5, 0.36, 0.28), (0.9, 0.87, 0.78)), BK::Res(i) => THEME[i], BK::Home(o) => { let pr = g.owner(o); (FLOORS[pr.floor as usize % 4], WALLS[pr.wall as usize % 4]) } _ => ((0.78, 0.6, 0.42), (0.97, 0.93, 0.84)) };
-    let (floor, wall) = (rgb(fl), rgb(wl)); let furn = g.room_furn(b); let lamp = furn.iter().any(|f| f.def == 54 && f.on);
+    let (floor, wall) = (rgb(fl), rgb(wl)); let furn = g.room_furn(b); let lamp = furn.iter().any(|f| def(f.def).act == Act::Lamp && f.on);
     let dim = lt.night > 0.6 && !lamp;
     r.sun = vec3(0.35, 0.85, 0.5).normalize();
     r.amb = if dim { vec3(0.3, 0.32, 0.48) } else if lamp && lt.night > 0.3 { vec3(0.68, 0.57, 0.42) } else { vec3(0.56, 0.56, 0.56) };
@@ -432,7 +460,7 @@ fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, Strin
     for x in [-0.08, wf + 0.08] { r.cube(vec3(x, 0.5, df / 2. - 0.04), vec3(0.08, 0.5, df / 2. + 0.04), sh(wall, 0.85)) } // cut-away side walls
     let dxw = (w / 2) as f32; r.cube(vec3(dxw / 2., 0.12, df + 0.06), vec3(dxw / 2., 0.12, 0.06), sh(wall, 0.8)); r.cube(vec3((dxw + 1. + wf) / 2., 0.12, df + 0.06), vec3((wf - dxw - 1.) / 2., 0.12, 0.06), sh(wall, 0.8));
     r.cube(vec3(dxw + 0.5, 0.005, df - 0.4), vec3(0.4, 0.005, 0.3), Color::new(0.7, 0.3, 0.3, 1.)); // door mat
-    if BLDS[b].kind != BK::Shop { let wx = if w > 3 { wf - 0.9 } else { wf / 2. }; r.cube(vec3(wx, 1.45, 0.04), vec3(0.42, 0.36, 0.04), WOOD); let u = r.unlit; r.unlit = true; r.cube(vec3(wx, 1.45, 0.07), vec3(0.34, 0.28, 0.02), Color::new(lt.sky.r * 0.9 + 0.1, lt.sky.g * 0.9 + 0.1, lt.sky.b * 0.9 + 0.1, 1.)); r.unlit = u }
+    if !matches!(BLDS[b].kind, BK::Shop | BK::Museum) { let wx = if w > 3 { wf - 0.9 } else { wf / 2. }; r.cube(vec3(wx, 1.45, 0.04), vec3(0.42, 0.36, 0.04), WOOD); let u = r.unlit; r.unlit = true; r.cube(vec3(wx, 1.45, 0.07), vec3(0.34, 0.28, 0.02), Color::new(lt.sky.r * 0.9 + 0.1, lt.sky.g * 0.9 + 0.1, lt.sky.b * 0.9 + 0.1, 1.)); r.unlit = u }
     if BLDS[b].kind == BK::Civic {
         r.cube(vec3(3.5, 0.005, 3.2), vec3(0.6, 0.005, 1.6), Color::new(0.55, 0.15, 0.18, 1.)); // carpet
         for &(x, z) in &CIVIC_DESK { r.cube(vec3(x as f32 + 0.5, 0.3, z as f32 + 0.5), vec3(0.5, 0.3, 0.42), Color::new(0.42, 0.28, 0.2, 1.)); r.cube(vec3(x as f32 + 0.5, 0.62, z as f32 + 0.5), vec3(0.52, 0.03, 0.45), Color::new(0.3, 0.45, 0.35, 1.)) }
@@ -447,6 +475,12 @@ fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, Strin
         labels.push((vec3(3.5, 2.5, 0.1), format!("Policy: {}", g.pol().map_or("none", |p| p.name)), Color::new(0.8, 1., 0.85, 1.)));
     }
     if BLDS[b].kind == BK::Museum {
+        let me = g.me.ipos;
+        for (k, &d) in ARTS.iter().enumerate() { let p = vec3(GALLERY_X[k], 1.85, 0.05); if g.w.donated.iter().any(|x| x.0 == d) { painting(r, d, p, 0.7, 0.5); if me.distance(vec2(p.x, 0.8)) < 1.6 { labels.push((vec3(p.x, 2.25, 0.1), def(d).name.into(), Color::new(1., 0.95, 0.75, 1.))) } } else { r.cube(p, vec3(0.37, 0.27, 0.01), Color::new(0.82, 0.8, 0.75, 1.)) } }
+        labels.push((vec3(3.5, 2.45, 0.1), format!("Art wing  {}/{}", g.donated_of(K::Art), ARTS.len()), Color::new(0.85, 0.9, 1., 1.)));
+        if me.distance(vec2(0.9, 2.5)) < 1.6 { labels.push((vec3(0.5, 1.4, 2.5), format!("Aquarium: {} fish & sea life", g.w.donated.iter().filter(|x| matches!(def(x.0).k, K::Fish | K::Sea)).count()), Color::new(0.75, 0.95, 1., 1.))) }
+        if me.distance(vec2(6.1, 2.5)) < 1.6 { labels.push((vec3(6.5, 1.3, 2.5), format!("Insect case: {} bugs", g.donated_of(K::Bug)), Color::new(0.9, 1., 0.8, 1.))) }
+        for &((x, z), fd) in &MUSEUM_PED { if me.distance(vec2(x as f32 + 0.5, z as f32 + 0.5)) < 1.5 { labels.push((vec3(x as f32 + 0.5, 1.15, z as f32 + 0.5), if g.w.donated.iter().any(|y| y.0 == fd) { def(fd).name.to_string() } else { "(empty pedestal)".into() }, Color::new(1., 0.92, 0.8, 1.))) } }
         for &(x, z) in &MUSEUM_DESK { r.cube(vec3(x as f32 + 0.5, 0.45, z as f32 + 0.5), vec3(0.5, 0.45, 0.42), Color::new(0.4, 0.3, 0.25, 1.)) }
         let talking = matches!(g.me.ui, Ui::Talk { npc: None, .. }); resident(r, 11, vec3(3.5, 0., 0.5), 0., 0., false, t, talking, 0.);
         r.cube(vec3(0.5, 0.15, 2.5), vec3(0.48, 0.15, 1.48), Color::new(0.35, 0.3, 0.28, 1.)); // tank base
@@ -477,7 +511,7 @@ fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, Strin
             if g.me.ipos.distance(vec2(p.x, p.z)) < 2.2 { labels.push((p + vec3(0., 1.15, 0.), txt, if i < 5 && g.w.stock[i].sold { Color::new(1., 0.5, 0.5, 1.) } else { Color::new(1., 0.95, 0.6, 1.) })) } }
     }
     let owner = if let BK::Home(o) = BLDS[b].kind { Some(g.owner(o)) } else { None };
-    for f in &furn { furniture(r, f.def, fbase(f), f.on, owner.map_or(0, |pr| Game::tint_of(pr, f.uid))); if f.def == 54 && f.on { let c = fcenter(f); r.disc(vec3(c.x, 0.012, c.y), vec2(0.9, 0.9), Color::new(1., 0.85, 0.4, 0.18)) } }
+    for f in &furn { furniture(r, f.def, fbase(f), f.on, owner.map_or(0, |pr| Game::tint_of(pr, f.uid))); if def(f.def).act == Act::Lamp && f.on { let c = fcenter(f); r.disc(vec3(c.x, 0.012, c.y), vec2(0.9, 0.9), Color::new(1., 0.85, 0.4, 0.18)) } }
     if let Some((vi, vb, _)) = g.visit { if vb == b { let s = g.visit_spot(b); let talking = matches!(g.me.ui, Ui::Talk { npc: Some(j), .. } if j == vi);
         r.disc(vec3(s.x, 0.02, s.y), vec2(0.3, 0.24), Color::new(0., 0., 0., 0.2)); resident(r, g.w.roster[vi], vec3(s.x, 0., s.y), yaw_of(g.me.ipos - s), 0., false, t, talking, g.npcs[vi].happy) } }
     if let BK::Res(i) = BLDS[b].kind { if g.loc(i) == Loc::Home { let s = res_spot(); let talking = matches!(g.me.ui, Ui::Talk { npc: Some(j), .. } if j == i);
@@ -520,7 +554,7 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
     match &g.me.ui {
         Ui::Play => {}
         Ui::Talk { who, lines, i, .. } => { let pw = (sw - 24.).min(860.); let x0 = sw / 2. - pw / 2.; panel(x0, sh - 200., pw, 140.); txt(who, x0 + 20., sh - 168., 26., Color::new(0.55, 0.3, 0.15, 1.)); for (k, l) in wrap_txt(lines.get(*i).map_or("", |s| s.as_str()), ((pw - 40.) / 12.5) as usize).iter().take(2).enumerate() { txt(l, x0 + 20., sh - 128. + k as f32 * 26., 24., BLACK) } if let Ui::Talk { npc: Some(j), .. } = g.me.ui { let mv = g.w.moving.get(j).is_some_and(|&m| m != 0); txt(&format!("{}{}", if g.me.pad { "[LB] give gift" } else { "[G] give gift" }, if mv { if g.me.pad { "   [Y] ask to stay" } else { "   [X] ask to stay" } } else { "" }), x0 + 20., sh - 75., 20., GRAY) }
-            txt(if g.me.pad { "[A] next" } else { "[E] next" }, sw / 2. + 330., sh - 75., 20., GRAY) }
+            txt(if g.me.pad { "[A] next" } else { "[E] next" }, x0 + pw - 100., sh - 72., 20., Color::new(0.45, 0.3, 0.2, 1.)) }
         Ui::Inv(s) | Ui::Sell(s) => { let sell = matches!(g.me.ui, Ui::Sell(_)); panel(sw / 2. - 260., 90., 520., 520.);
             txt(if sell { "Sell to Mr. Tumble" } else { "Pockets" }, sw / 2. - 240., 125., 30., Color::new(0.45, 0.3, 0.2, 1.));
             let mut items: Vec<String> = g.w.p.inv.iter().map(|it| if sell { format!("{}  -  {}c", slot_name(it), def(it.def).sell * it.qty as u32) } else { slot_name(it) }).collect();

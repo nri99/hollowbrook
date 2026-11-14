@@ -3,6 +3,21 @@
 Run from the project folder: `cargo run --release`. Your save lives in the project root and is backed up to
 `save_backups/` on every launch.
 
+## Controller mapping (from src/pad.rs; labels are Xbox-layout names of the gilrs buttons)
+| Pad button (gilrs) | Game action (keyboard equivalent) |
+|---|---|
+| A (South) | interact / confirm / next (E, Enter) |
+| B (East) | cancel / close (Esc) |
+| X (West) | use tool / dive (Space) |
+| Y (North) | pockets; in journal: mute music (I, X) |
+| RB (RightTrigger) | cycle tool / rotate furniture (Tab, R) |
+| LB (LeftTrigger) | pick up furniture (G) |
+| LT / RT (Trigger2) | run (Shift) |
+| View/Back (Select) | move furniture (F) |
+| Menu (Start) | journal (J); also claims the pad |
+| D-pad / left stick | move, menu navigation (arrows) |
+On PlayStation-style pads the same positions apply (Cross = A, Circle = B, Square = X, Triangle = Y). Not physically verified.
+
 ## H1 Keyboard, single player (R14)
 1. Walk with WASD and arrows; hold Shift to run. Diagonals should not be faster than straight lines.
 2. Face your home door and press **E** → fade into your room. Press **I** → pockets open; **Esc** closes.
@@ -33,7 +48,7 @@ Expected: all of the above works without stuck keys.
 Record results (pass/fail + notes) at the bottom of this file.
 
 ## Items 3/4/7 (2026-11-14)
-- Notice board as P1: start a funded project, walk the green/red preview, place; donate from both players; check it appears the next morning.
+- Town Hall as P1: talk to Hazel (A / E), choose "Start a funded public project", walk the green/red preview, place (A / Enter); donate from both players; check it appears the next morning.
 - Town Hall door: desk opens; enact Dawn/Lantern/Tidy as P1 (P2 cannot); check store hours sign and residents' hours.
 - Gullrock board: play Crab Corral, Beacon Dash, Ring Swim solo and with both players on the islet; check thresholds feel fair with real controllers (provisional values).
 - Town Hall interior: walk in, talk to Hazel with keyboard and each gamepad; check menus in split-screen.
