@@ -1,10 +1,10 @@
 # Progress log
 
 ## Current
-- Current task: X-06 atmosphere, then X-04 collections
-- Last completed: X-05 social depth
+- Current task: X-04 collections
+- Last completed: X-06 (partial) atmosphere
 - Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
-- Next action: X-06: procedural looping music (day/evening/night variants generated as WAV, played looped at low volume), surface-dependent footstep sounds (grass/path/sand/wood/indoor), seasonal particles (spring petals, autumn leaves, summer-night fireflies) per view; then X-04.
+- Next action: X-04: two themed furniture sets (e.g. Meadow set: 3 items, Harbor set: 3 items) in shop stock pool + set-completion note; +4 critters with habitat/season (river mouth, rain-only bug, winter fish, islet bug); art wing in museum (procedural original paintings: 6, donated from a weekly art stall), museum labels (projected names over exhibits). Then X-06 remainder.
 
 ## Baseline verification (before this run)
 - 19 headless tests pass. Executable bot run (2 launches) completed the full loop; screenshots inspected:
@@ -146,3 +146,9 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - Resident-to-resident chats with speech bubbles (residents sometimes walk toward a neighbour); birthdays (letters, dialogue, gift bonus); parcel-delivery requests between residents.
 - H: 52/52 (new: parcels_birthdays_and_chats). X: phase 21 — first run no chat in 2 min (residents too spread out) -> residents now sometimes stroll toward a neighbour; rerun: chat started within ~13 s. S (inspected): x05_resident_chat (Juniper bubble beside Otto).
 - Remaining: X-04 collections (themed furniture sets, more critters with habitat/season, art wing, museum labels), X-06 atmosphere (music, surface footsteps, seasonal particles, animation polish).
+
+### X-06 partial (atmosphere)
+- Procedural music (3 moods by hour), surface footsteps, seasonal particles, dialogue box fits split-screen views (wraps 2 lines), narrow debug panel moved to the top.
+- H: 53/53 (new: footstep_surfaces). X: [audio] 3 music tracks, 12 sound effects loaded (log). Audio output NOT heard (no audio verification possible for the agent).
+- S (inspected): x06/p7_weather.png (autumn leaves), x06/x06_split_dialogue.png (dialogue inside P1 half; "[E] next" hint not visible -> small open issue).
+- Open: X-04 collections; X-06 remainder (animation/face polish, materials).

@@ -9,6 +9,7 @@ use std::f32::consts::{FRAC_PI_2, PI};
 
 pub fn rgb(c: (f32, f32, f32)) -> Color { Color::new(c.0, c.1, c.2, 1.) }
 fn sh(c: Color, k: f32) -> Color { Color::new(c.r * k, c.g * k, c.b * k, c.a) }
+fn dark(now: NaiveDateTime) -> f32 { light(now.hour() as f32 + now.minute() as f32 / 60., false).night }
 fn hash(x: i32, z: i32) -> u32 { ((x as u32).wrapping_mul(73856093) ^ (z as u32).wrapping_mul(19349663)).wrapping_mul(2654435761) >> 16 }
 const DARK: Color = Color::new(0.09, 0.07, 0.07, 1.);
 const WOOD: Color = Color::new(0.58, 0.4, 0.26, 1.);
@@ -287,6 +288,12 @@ fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(f32, f32)>)
     for (p, s, c) in labels { let d2 = (p.x - c0.x).powi(2) + (p.z - c0.y).powi(2); let q = m * vec4(p.x, p.y - curve * d2, p.z, 1.); if q.w <= 0. { continue }
         let (x, y) = ((q.x / q.w + 1.) * 0.5 * vw(), (1. - q.y / q.w) * 0.5 * vh()); let tw = measure_text(&s, None, 20, 1.).width;
         draw_rectangle(x - tw / 2. - 5., y - 17., tw + 10., 23., Color::new(0., 0., 0., 0.55)); draw_text(&s, x - tw / 2., y, 20., c); }
+    if !matches!(g.me.scene, Scene::Room(_)) { let (mo, w, h, t) = (now.month(), vw(), vh(), g.t);
+        match mo { 3..=5 => for i in 0..40 { let x = ((i * 131) as f32 + (t * 0.6 + i as f32).sin() * 40. + t * 25.) % w; let y = ((i * 71) as f32 + t * 35.) % h; draw_circle(x, y, 3., Color::new(1., 0.75, 0.85, 0.85)); draw_circle(x + 2., y + 1., 2., Color::new(1., 0.85, 0.9, 0.85)) },
+            9..=11 => for i in 0..30 { let x = ((i * 157) as f32 + (t * 0.9 + i as f32 * 1.3).sin() * 60. + t * 18.) % w; let y = ((i * 89) as f32 + t * 42.) % h; let c = [Color::new(0.9, 0.45, 0.15, 0.9), Color::new(0.8, 0.25, 0.15, 0.9), Color::new(0.95, 0.7, 0.2, 0.9)][i % 3];
+                draw_rectangle_ex(x, y, 9., 5., DrawRectangleParams { rotation: t * 2. + i as f32, offset: vec2(0.5, 0.5), color: c }) },
+            6..=8 if dark(now) > 0.5 => for i in 0..35 { let x = ((i * 97) as f32 + (t * 0.5 + i as f32).sin() * 30.) % w; let y = h * 0.35 + ((i * 53) as f32 + (t * 0.4 + i as f32).cos() * 25.) % (h * 0.6); let a = ((t * 3. + i as f32).sin() * 0.5 + 0.5) * 0.9; draw_circle(x, y, 2.5, Color::new(0.9, 1., 0.4, a)); draw_circle(x, y, 6., Color::new(0.9, 1., 0.4, a * 0.2)) },
+            _ => {} } }
     if wx == Wx::Snow && g.me.scene == Scene::Town { for i in 0..160 { let x = ((i * 97) as f32 + (g.t * 0.7 + i as f32).sin() * 25. + g.t * 15.) % vw(); let y = ((i * 53) as f32 + g.t * 70.) % vh(); draw_circle(x, y, 2. + (i % 3) as f32, Color::new(1., 1., 1., 0.85)) } }
     else if rain && g.me.scene == Scene::Town { for i in 0..140 { let x = ((i * 97) as f32 + g.t * 40.) % vw(); let y = ((i * 53) as f32 + g.t * 520.) % vh(); draw_line(x, y, x - 3., y + 12., 1., Color::new(0.8, 0.85, 1., 0.45)) } }
     hud(g, now, dbg);
@@ -477,7 +484,7 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
     txt(hint, 12., sh - 14., 19., WHITE);
     match &g.me.ui {
         Ui::Play => {}
-        Ui::Talk { who, lines, i, .. } => { panel(sw / 2. - 430., sh - 200., 860., 140.); txt(who, sw / 2. - 410., sh - 168., 26., Color::new(0.55, 0.3, 0.15, 1.)); txt(lines.get(*i).map_or("", |s| s.as_str()), sw / 2. - 410., sh - 128., 24., BLACK); if let Ui::Talk { npc: Some(j), .. } = g.me.ui { let mv = g.w.moving.get(j).is_some_and(|&m| m != 0); txt(&format!("{}{}", if g.me.pad { "[LB] give gift" } else { "[G] give gift" }, if mv { if g.me.pad { "   [Y] ask to stay" } else { "   [X] ask to stay" } } else { "" }), sw / 2. - 410., sh - 75., 20., GRAY) }
+        Ui::Talk { who, lines, i, .. } => { let pw = (sw - 24.).min(860.); let x0 = sw / 2. - pw / 2.; panel(x0, sh - 200., pw, 140.); txt(who, x0 + 20., sh - 168., 26., Color::new(0.55, 0.3, 0.15, 1.)); for (k, l) in wrap_txt(lines.get(*i).map_or("", |s| s.as_str()), ((pw - 40.) / 12.5) as usize).iter().take(2).enumerate() { txt(l, x0 + 20., sh - 128. + k as f32 * 26., 24., BLACK) } if let Ui::Talk { npc: Some(j), .. } = g.me.ui { let mv = g.w.moving.get(j).is_some_and(|&m| m != 0); txt(&format!("{}{}", if g.me.pad { "[LB] give gift" } else { "[G] give gift" }, if mv { if g.me.pad { "   [Y] ask to stay" } else { "   [X] ask to stay" } } else { "" }), x0 + 20., sh - 75., 20., GRAY) }
             txt(if g.me.pad { "[A] next" } else { "[E] next" }, sw / 2. + 330., sh - 75., 20., GRAY) }
         Ui::Inv(s) | Ui::Sell(s) => { let sell = matches!(g.me.ui, Ui::Sell(_)); panel(sw / 2. - 260., 90., 520., 520.);
             txt(if sell { "Sell to Mr. Tumble" } else { "Pockets" }, sw / 2. - 240., 125., 30., Color::new(0.45, 0.3, 0.2, 1.));
@@ -524,7 +531,7 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         let lines = [format!("[{src} clock] {}", now.format("%a %Y-%m-%d %H:%M:%S")), format!("gameplay day {} last processed {}", crate::clock::day_id(now), g.w.day),
             format!("scene {:?} pos ({:.2},{:.2}) curve {}", g.me.scene, g.ppos().x, g.ppos().y, g.curve), format!("target {:?}", g.target()),
             format!("stock {:?}", g.w.stock.iter().map(|s| (def(s.def).name, s.sold)).collect::<Vec<_>>())];
-        let (px, py, pw) = if narrow { (10., sh - 190., sw - 20.) } else { (sw - 560., 10., 550.) };
+        let (px, py, pw) = if narrow { (10., 150., sw - 20.) } else { (sw - 560., 10., 550.) };
         panel(px, py, pw, 30. + 22. * (lines.len() + g.log.len().min(3)) as f32);
         for (k, l) in lines.iter().chain(g.log.iter().rev().take(3)).enumerate() { txt(l, px + 12., py + 22. + k as f32 * 22., 17., BLACK) }
     }

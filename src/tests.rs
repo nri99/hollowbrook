@@ -302,3 +302,4 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     g.talk(3); if let Ui::Talk { lines, .. } = &g.me.ui { assert!(lines.iter().any(|l| l.contains("birthday"))) } g.me.ui = Ui::Play;
     for k in 0..4 { g.npcs[k].inside = false; g.npcs[k].pos = vec2(30.5 + k as f32 * 0.8, 9.5) } let mut n = 0; while g.chats.is_empty() && n < 20000 { g.sim_chats(0.016); n += 1 } assert!(!g.chats.is_empty());
 }
+#[test] fn footstep_surfaces() { let mut g = g0(at(16, 12, 0, 0)); g.me.pos = vec2(13.5, 17.5); assert_eq!(g.step_sound(), Snd::StepPath); g.me.pos = vec2(14.5, 24.5); assert_eq!(g.step_sound(), Snd::StepSand); g.me.pos = vec2(24.5, 9.5); assert_eq!(g.step_sound(), Snd::StepWood); g.swap(Scene::Room(HOME)); assert_eq!(g.step_sound(), Snd::StepFloor); }

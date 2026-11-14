@@ -99,7 +99,7 @@ impl World {
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Scene { Town, Room(usize), Islet }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Pose { Stand, Sit(u32), Lie(u32) }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Loc { Out, Home, Asleep }
-#[derive(Clone, Copy, PartialEq, Debug)] pub enum Snd { Step, Blip, Splash, Coin, Dig, Rustle, Door }
+#[derive(Clone, Copy, PartialEq, Debug)] pub enum Snd { Step, Blip, Splash, Coin, Dig, Rustle, Door, StepPath, StepSand, StepWood, StepFloor, Swim }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize), Stall, Site, Board, Built(usize), Dock, Pell, IItem(usize), IStall }
 #[derive(Clone, PartialEq, Debug)]
 pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize), Tint(usize), Travel(bool), IStall(usize) }
@@ -314,9 +314,16 @@ impl Game {
         let nz = p + vec2(0., d.y * s);
         if self.free(nz) { p = nz } else if let Scene::Room(b) = self.me.scene { let (w, dd) = self.rdims(b); if d.y > 0. && p.x.floor() as i32 == w / 2 && p.y > dd as f32 - 0.5 { self.set_ppos(p); self.go(Scene::Town); return } }
         self.set_ppos(p); let moved = (p - p0).length(); self.me.spd = moved / dt.max(1e-4); self.me.step_acc += moved;
-        if self.me.step_acc > if run { 0.9 } else { 0.6 } { self.me.step_acc = 0.; self.snd.push(Snd::Step) }
+        if self.me.step_acc > if run { 0.9 } else { 0.6 } { self.me.step_acc = 0.; let st = self.step_sound(); self.snd.push(st) }
         if run && self.me.scene == Scene::Town { self.bugs.retain(|b| b.1.distance(p) > 2.5);
             let t = tile_of(p); if self.tile(t.0, t.1) == FLOWER && !self.w.trampled.contains(&t) && gen_range(0, 25) == 0 { self.w.trampled.push(t); self.note("Oops, you trampled a flower. It'll perk up by morning.") } }
+    }
+    /// Footstep sound for the surface under the active player.
+    pub fn step_sound(&self) -> Snd {
+        let t = tile_of(self.ppos());
+        let c = match self.me.scene { Scene::Town => self.tile(t.0, t.1), Scene::Islet => tile_at_i(&self.imap, t.0, t.1), Scene::Room(_) => return Snd::StepFloor };
+        if self.w.built.iter().any(|b| b.kind == PK_BRIDGE && ptiles(b.kind, b.x, b.z).contains(&t)) { return Snd::StepWood }
+        match c { PATH => Snd::StepPath, SAND => Snd::StepSand, BRIDGE => Snd::StepWood, SEA | RIVER => Snd::Swim, _ => Snd::Step }
     }
     pub fn go(&mut self, to: Scene) { if self.me.trans.is_none() { self.me.trans = Some((0., to, false)); self.snd.push(Snd::Door) } }
     pub fn swap(&mut self, to: Scene) {
