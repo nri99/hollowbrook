@@ -164,3 +164,10 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     let mut g = two(at(11, 12, 0, 0)); g.activate(1); g.add(40); g.w.p.money = 77; g.activate(0); g.leave(1); assert_eq!(g.ids(), vec![0]);
     let w = g.persist(); assert_eq!(w.others[0].money, 77); assert_eq!(w.others[0].inv[0].def, 40); g.join("again"); g.activate(1); assert_eq!(g.w.p.money, 77);
 }
+#[test] fn separate_homes_owner_only_furniture() {
+    let mut g = two(at(11, 12, 0, 0)); g.activate(1); assert_eq!(g.home(), 7); g.swap(Scene::Room(7)); g.add_furn(50); let uid = g.w.p.inv[0].uid;
+    g.start_place(uid); { let p = g.me.placing.as_mut().unwrap(); p.f.x = 0; p.f.z = 0; } g.place_confirm().unwrap(); assert_eq!(g.room_furn(7).len(), 1); assert!(g.room_furn(HOME).is_empty());
+    g.activate(0); g.swap(Scene::Room(7)); assert_eq!(g.room_furn(7).len(), 1); g.me.ipos = vec2(0.5, 1.5); g.me.face = vec2(0., -1.);
+    assert!(matches!(g.target(), Some(Tg::Furn(u, _)) if u == uid)); g.update(&Inp::keys(&[KeyCode::G], &[KeyCode::G]), 0.016, at(11, 12, 0, 1)); assert_eq!(g.room_furn(7).len(), 1); assert!(g.w.p.inv.is_empty()); // visitor cannot take it
+    let w = g.persist(); assert_eq!(w.others[0].room.len(), 1); assert!(w.p.room.is_empty());
+}

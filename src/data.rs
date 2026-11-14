@@ -65,17 +65,19 @@ pub fn rainy(d: i64) -> bool { (d as u64).wrapping_mul(2654435761) >> 8 & 7 == 0
 pub fn shop_open(hr: u32) -> bool { (8..22).contains(&hr) }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum BK { Shop, Home, Res(usize), Civic }
+pub enum BK { Shop, Home(usize), Res(usize), Civic }
 pub struct Bld { pub x: i32, pub z: i32, pub w: i32, pub d: i32, pub kind: BK, pub name: &'static str, pub wall: (f32, f32, f32), pub roof: (f32, f32, f32) }
-/// Stable building ids = index. 1 is the player's home (same id as earlier saves).
-pub const BLDS: [Bld; 7] = [
+/// Stable building ids = index. 1 = player 1's home (same id as earlier saves), 7 = player 2's home.
+pub fn home_of(player: usize) -> usize { if player == 0 { 1 } else { 7 } }
+pub const BLDS: [Bld; 8] = [
     Bld { x: 4, z: 3, w: 5, d: 4, kind: BK::Shop, name: "General Store", wall: (0.96, 0.9, 0.78), roof: (0.25, 0.55, 0.7) },
-    Bld { x: 12, z: 12, w: 3, d: 3, kind: BK::Home, name: "Your Home", wall: (0.98, 0.95, 0.88), roof: (0.78, 0.32, 0.3) },
+    Bld { x: 12, z: 12, w: 3, d: 3, kind: BK::Home(0), name: "Player 1's Home", wall: (0.98, 0.95, 0.88), roof: (0.78, 0.32, 0.3) },
     Bld { x: 4, z: 12, w: 3, d: 3, kind: BK::Res(0), name: "Juniper's House", wall: (0.98, 0.88, 0.75), roof: (0.92, 0.52, 0.2) },
     Bld { x: 29, z: 4, w: 3, d: 3, kind: BK::Res(1), name: "Bramble's House", wall: (0.85, 0.85, 0.85), roof: (0.4, 0.4, 0.52) },
     Bld { x: 31, z: 13, w: 3, d: 3, kind: BK::Res(2), name: "Mossy's House", wall: (0.88, 0.95, 0.82), roof: (0.35, 0.65, 0.35) },
     Bld { x: 17, z: 4, w: 3, d: 3, kind: BK::Res(3), name: "Otto's House", wall: (0.85, 0.9, 0.98), roof: (0.3, 0.45, 0.82) },
     Bld { x: 10, z: 3, w: 5, d: 4, kind: BK::Civic, name: "Town Hall", wall: (0.92, 0.86, 0.74), roof: (0.52, 0.3, 0.25) },
+    Bld { x: 16, z: 12, w: 3, d: 3, kind: BK::Home(1), name: "Player 2's Home", wall: (0.9, 0.96, 0.9), roof: (0.3, 0.6, 0.5) },
 ];
 /// Outdoor tile directly in front of the door.
 pub fn door_tile(b: usize) -> (i32, i32) { let b = &BLDS[b]; (b.x + b.w / 2, b.z + b.d) }

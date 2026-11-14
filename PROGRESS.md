@@ -1,10 +1,10 @@
 # Progress log
 
 ## Current
-- Current task: MP-02 two players in the live loop (input routing per player, NPC talk focus per player)
-- Last completed: MP-01 profiles + runtime players (save v4)
+- Current task: MP-04 gamepads (gilrs), assignment, prompts, reconnect
+- Last completed: MP-02, MP-03, MP-05 (two players live, split-screen, second home)
 - Known blockers: P0-03 physical input (needs user); P4 civic design (needs user decision)
-- Next action: main loop updates every joined player with its own Inp (keyboard = player 0 for now), sim once per frame; NPC talk focus checks all players; then MP-03 split-screen viewports.
+- Next action: add src/pad.rs (gilrs polling, pad->Inp mapping on arrow keys, dead zone 0.35, edges, menu repeat, slot assignment + reconnect), unit tests with virtual pad state; HUD button prompts per input type.
 
 ## Baseline verification (before this run)
 - 19 headless tests pass. Executable bot run (2 launches) completed the full loop; screenshots inspected:
@@ -39,3 +39,10 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - `World` = shared state + `p: Profile` (active) + `others`; runtime `Player` in `Game.me`/`Game.others`; `Game::activate(id)` swaps state (no copies). `join`/`leave` keep profiles. Daily refresh runs relationship reset for every profile, shared refresh once. Save v4; `save::upgrade` turns v3 JSON into profile 0.
 - H: 28/28 incl. v3_json_upgrades_to_profiles, two_profiles_independent_and_persist, last_stock_and_pickup_only_once, different_scenes_and_independent_ui, rollover_with_players_in_different_scenes, leave_keeps_possessions.
 - X: real v3 save upgraded in test_output/mig (backup written, Peach x2 kept). Phase-1 single-player loop still passes (chair bought/placed).
+
+### 23:40 — MP-02, MP-03, MP-05 done
+- `Game::tick` (shared, once per frame) + `Game::update_player` (per player after `activate`). Main loop routes keyboard to P1; F2 joins/leaves P2 (pads: MP-04). NPC talk focus and wildlife anchors consider all players.
+- Split-screen: per-player Camera3D viewport + Camera2D HUD viewport; narrow HUD layout with P1/P2 tag. Other players drawn when in the same scene, distinct outfits.
+- Second home building id 7 (Home(1)) on free grass; homes are owner-aware; only the owner can move/pick up furniture; objects saved on tiles that are now buildings are dropped on load.
+- H: 29/29 (new: separate_homes_owner_only_furniture). X: autotest phase 4 (two virtual inputs): P1 entered home while P2 walked outside; P2 inventory opened, P1 Esc did not close it, P2 Esc did.
+- S (inspected): mp_split_home_and_town, mp_p2_inventory, mp_same_scene, mp_together (both players visible in both halves).

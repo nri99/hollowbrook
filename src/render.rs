@@ -92,8 +92,9 @@ pub fn draw_tool(r: &mut R, t: u16) {
     }
 }
 /// Player: large head, hair, face, outfit; pose 0 stand/walk/run, 1 sit, 2 lie. Tool held in the right hand.
-pub fn human(r: &mut R, pos: Vec3, yaw: f32, anim: f32, spd: f32, pose: u8, tool: Option<u16>, t: f32, swing: f32) {
-    let (skin, hair, shirt, pants, shoe) = (Color::new(0.98, 0.82, 0.68, 1.), Color::new(0.36, 0.2, 0.12, 1.), Color::new(0.95, 0.47, 0.36, 1.), Color::new(0.27, 0.36, 0.62, 1.), Color::new(0.3, 0.2, 0.15, 1.));
+pub fn human(r: &mut R, id: usize, pos: Vec3, yaw: f32, anim: f32, spd: f32, pose: u8, tool: Option<u16>, t: f32, swing: f32) {
+    let (skin, hair, shirt, pants, shoe) = if id == 0 { (Color::new(0.98, 0.82, 0.68, 1.), Color::new(0.36, 0.2, 0.12, 1.), Color::new(0.95, 0.47, 0.36, 1.), Color::new(0.27, 0.36, 0.62, 1.), Color::new(0.3, 0.2, 0.15, 1.)) }
+        else { (Color::new(0.85, 0.66, 0.5, 1.), Color::new(0.12, 0.1, 0.1, 1.), Color::new(0.3, 0.66, 0.48, 1.), Color::new(0.35, 0.3, 0.26, 1.), Color::new(0.2, 0.2, 0.25, 1.)) };
     let k = (spd / 3.).min(1.8); let sw = anim.sin() * 0.7 * k; let bob = (anim * 2.).sin().abs() * 0.05 * k + (t * 2.2).sin() * 0.01; let lean = if spd > 4. { 0.2 } else { 0. };
     let mut base = Mat4::from_rotation_translation(Quat::from_rotation_y(yaw), pos);
     if pose == 2 { base = base * Mat4::from_translation(vec3(0., 0.45, 0.55)) * Mat4::from_rotation_x(-FRAC_PI_2) }
@@ -192,23 +193,37 @@ fn pine(r: &mut R, x: f32, z: f32, s: f32) { r.cyl(vec3(x, 0., z), 0.1 * s, 0.5 
 fn indicator(r: &mut R, p: Vec3, t: f32) { let u = r.unlit; r.unlit = true; let y = p.y + (t * 4.).sin() * 0.06; r.with(Mat4::from_translation(vec3(p.x, y, p.z)) * Mat4::from_rotation_x(PI), |r| r.cone(Vec3::ZERO, 0.1, 0.18, Color::new(1., 0.85, 0.2, 1.))); r.unlit = u }
 
 // ---- scenes ----
-pub fn draw(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
+thread_local! { static VIEW: std::cell::Cell<(f32, f32)> = const { std::cell::Cell::new((1280., 720.)) }; }
+fn vw() -> f32 { VIEW.with(|v| v.get().0) }
+fn vh() -> f32 { VIEW.with(|v| v.get().1) }
+/// Draw every player's view: full screen for one player, side-by-side split-screen for two.
+pub fn draw(g: &mut Game, now: NaiveDateTime, dbg: Option<&str>) {
+    let ids = g.ids(); let act = g.me.id; let n = ids.len() as f32; let (sw, sh) = (screen_width(), screen_height());
+    if n > 1. { clear_background(BLACK) }
+    for (k, &id) in ids.iter().enumerate() { g.activate(id); VIEW.with(|v| v.set((sw / n, sh))); view(g, now, dbg, (n > 1.).then(|| (k as f32 * sw / n, sw / n))) }
+    g.activate(act); VIEW.with(|v| v.set((sw, sh)));
+    if n > 1. { set_default_camera(); draw_rectangle(sw / 2. - 2., 0., 4., sh, BLACK) }
+}
+fn hud_cam(vp: Option<(f32, f32)>) { match vp { Some((x, w)) => set_camera(&Camera2D { target: vec2(w / 2., vh() / 2.), zoom: vec2(2. / w, 2. / vh()), viewport: Some((x as i32, 0, w as i32, vh() as i32)), ..Default::default() }), None => set_default_camera() } }
+fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(f32, f32)>) {
     let hf = now.hour() as f32 + now.minute() as f32 / 60.; let rain = rainy(g.w.day); let lt = light(hf, rain);
     let (cam, curve, c0) = match g.me.scene {
         Scene::Town => (Camera3D { position: vec3(g.me.cam.x, 7.4, g.me.cam.y + 7.6), target: vec3(g.me.cam.x, 0.5, g.me.cam.y - 0.8), up: Vec3::Y, fovy: 40f32.to_radians(), ..Default::default() }, g.curve, g.me.cam),
         Scene::Room(b) => { let (w, d) = room_dims(b); let s = w.max(d) as f32 / 4.; (Camera3D { position: vec3(w as f32 / 2., 5.4 * s, d as f32 + 3.4 * s), target: vec3(w as f32 / 2., 0.3, d as f32 / 2. + 0.1), up: Vec3::Y, fovy: 45f32.to_radians(), ..Default::default() }, 0., Vec2::ZERO) }
     };
-    clear_background(if g.me.scene == Scene::Town { lt.sky } else { Color::new(0.08, 0.06, 0.06, 1.) });
+    let bg = if g.me.scene == Scene::Town { lt.sky } else { Color::new(0.08, 0.06, 0.06, 1.) };
+    let cam = Camera3D { viewport: vp.map(|(x, w)| (x as i32, 0, w as i32, vh() as i32)), aspect: Some(vw() / vh()), ..cam };
+    if vp.is_some() { hud_cam(vp); draw_rectangle(0., 0., vw(), vh(), bg) } else { clear_background(bg) }
     set_camera(&cam);
     let mut r = R::new(curve, c0, &lt, if g.me.scene == Scene::Town { (12., 21.) } else { (100., 200.) });
     let mut labels: Vec<(Vec3, String, Color)> = vec![];
     match g.me.scene { Scene::Town => town(&mut r, g, &lt, now, &mut labels), Scene::Room(b) => room(&mut r, g, b, &lt, &mut labels) }
-    r.flush(); set_default_camera();
+    r.flush(); hud_cam(vp);
     let m = cam.matrix();
     for (p, s, c) in labels { let d2 = (p.x - c0.x).powi(2) + (p.z - c0.y).powi(2); let q = m * vec4(p.x, p.y - curve * d2, p.z, 1.); if q.w <= 0. { continue }
-        let (x, y) = ((q.x / q.w + 1.) * 0.5 * screen_width(), (1. - q.y / q.w) * 0.5 * screen_height()); let tw = measure_text(&s, None, 20, 1.).width;
+        let (x, y) = ((q.x / q.w + 1.) * 0.5 * vw(), (1. - q.y / q.w) * 0.5 * vh()); let tw = measure_text(&s, None, 20, 1.).width;
         draw_rectangle(x - tw / 2. - 5., y - 17., tw + 10., 23., Color::new(0., 0., 0., 0.55)); draw_text(&s, x - tw / 2., y, 20., c); }
-    if rain && g.me.scene == Scene::Town { for i in 0..140 { let x = ((i * 97) as f32 + g.t * 40.) % screen_width(); let y = ((i * 53) as f32 + g.t * 520.) % screen_height(); draw_line(x, y, x - 3., y + 12., 1., Color::new(0.8, 0.85, 1., 0.45)) } }
+    if rain && g.me.scene == Scene::Town { for i in 0..140 { let x = ((i * 97) as f32 + g.t * 40.) % vw(); let y = ((i * 53) as f32 + g.t * 520.) % vh(); draw_line(x, y, x - 3., y + 12., 1., Color::new(0.8, 0.85, 1., 0.45)) } }
     hud(g, now, dbg);
 }
 fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(Vec3, String, Color)>) {
@@ -263,7 +278,8 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
         let talking = matches!(g.me.ui, Ui::Talk { npc: Some(j), .. } if j == i);
         resident(r, i, vec3(n.pos.x, 0., n.pos.y), n.yaw, n.anim, n.moving, t, talking, n.happy);
         if n.pos.distance(g.me.pos) < 4. { labels.push((vec3(n.pos.x, 1.75, n.pos.y), RES[i].name.into(), Color::new(1., 0.95, 0.7, 1.))) } }
-    human(r, vec3(g.me.pos.x, 0., g.me.pos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, 0, g.w.p.equip, t, g.me.swing);
+    human(r, g.me.id, vec3(g.me.pos.x, 0., g.me.pos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, 0, g.w.p.equip, t, g.me.swing);
+    others(r, g, t);
     for b in &g.bugs { let c = rgb(def(b.0).col); let fl = (t * 20. + b.2).sin().abs(); let y = 0.6 + (t * 3. + b.2).sin() * 0.15;
         for s in [-1f32, 1.] { r.sphere(vec3(b.1.x + s * 0.07, y + fl * 0.04, b.1.y), vec3(0.07, 0.01 + fl * 0.03, 0.05), c) } r.sphere(vec3(b.1.x, y, b.1.y), Vec3::splat(0.03), DARK) }
     if let Some(f) = &g.me.fish { let y = -0.15 - f.dip * 0.1; r.sphere(vec3(f.bob.x, y, f.bob.y), Vec3::splat(0.06), RED); r.sphere(vec3(f.bob.x, y + 0.05, f.bob.y), Vec3::splat(0.04), WHITE);
@@ -276,6 +292,15 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
     } }
     for h in &g.hearts { if h.1 > 0. { r.sphere(h.0, Vec3::splat(0.06), Color::new(1., 0.4, 0.55, 1.)) } }
     if g.me.ui == Ui::Play && g.me.trans.is_none() { if let Some(tg) = g.target() { indicator(r, g.tg_pos(tg), t) } }
+}
+/// Other local players who are in the same scene as the viewing player.
+fn others(r: &mut R, g: &Game, t: f32) {
+    for o in g.others.iter().filter(|o| o.scene == g.me.scene) {
+        let p = if o.scene == Scene::Town { o.pos } else { o.ipos }; let pose = match o.pose { Pose::Stand => 0, Pose::Sit(_) => 1, Pose::Lie(_) => 2 };
+        let tool = if o.scene == Scene::Town { g.w.others.iter().find(|pr| pr.id == o.id).and_then(|pr| pr.equip) } else { None };
+        if pose == 0 { r.disc(vec3(p.x, 0.02, p.y), vec2(0.32, 0.26), Color::new(0., 0., 0., 0.22)) }
+        human(r, o.id, vec3(p.x, 0., p.y), yaw_of(o.face), o.anim, o.spd, pose, tool, t, o.swing);
+    }
 }
 fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, String, Color)>) {
     let (w, d) = room_dims(b); let (wf, df) = (w as f32, d as f32); let t = g.t;
@@ -314,7 +339,8 @@ fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, Strin
         furniture(r, p.f.def, fbase(&p.f), false) }
     let pose = match g.me.pose { Pose::Stand => 0, Pose::Sit(_) => 1, Pose::Lie(_) => 2 };
     if pose == 0 { r.disc(vec3(g.me.ipos.x, 0.02, g.me.ipos.y), vec2(0.32, 0.26), Color::new(0., 0., 0., 0.2)) }
-    human(r, vec3(g.me.ipos.x, 0., g.me.ipos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, pose, None, t, 0.);
+    human(r, g.me.id, vec3(g.me.ipos.x, 0., g.me.ipos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, pose, None, t, 0.);
+    others(r, g, t);
     if g.me.ui == Ui::Play && g.me.placing.is_none() && g.me.trans.is_none() { if let Some(tg) = g.target() { indicator(r, g.tg_pos(tg), t) } }
 }
 
@@ -324,7 +350,7 @@ fn panel(x: f32, y: f32, w: f32, h: f32) { draw_rectangle(x, y, w, h, Color::new
 fn slot_name(s: &Slot) -> String { if s.qty > 1 { format!("{} x{}", def(s.def).name, s.qty) } else { def(s.def).name.to_string() } }
 fn list(items: &[String], sel: Option<usize>, x: f32, y: f32) { for (k, s) in items.iter().enumerate() { let on = sel == Some(k); if on { draw_rectangle(x - 6., y + k as f32 * 26. - 19., 330., 25., Color::new(1., 0.85, 0.4, 0.6)) } txt(s, x, y + k as f32 * 26., 22., BLACK) } }
 fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
-    let (sw, sh) = (screen_width(), screen_height());
+    let (sw, sh) = (vw(), vh());
     let season = match now.month() { 3..=5 => "Spring", 6..=8 => "Summer", 9..=11 => "Autumn", _ => "Winter" };
     draw_rectangle(10., 10., 540., 62., Color::new(0., 0., 0., 0.45));
     const MON: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -333,7 +359,9 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
     for (k, (m, _)) in g.me.msgs.iter().rev().filter(|m| g.t - m.1 < 5.).take(4).enumerate() { txt(m, 14., 100. + k as f32 * 24., 22., WHITE) }
     if g.me.ui == Ui::Play && g.me.placing.is_none() && g.me.trans.is_none() { if let Some(tg) = g.target() { let s = format!("[E] {}", g.tg_label(tg)); let tw = measure_text(&s, None, 24, 1.).width; draw_rectangle(sw / 2. - tw / 2. - 10., sh - 92., tw + 20., 32., Color::new(0., 0., 0., 0.55)); txt(&s, sw / 2. - tw / 2., sh - 69., 24., WHITE) } }
     if g.me.fish.as_ref().is_some_and(|f| f.bite) { txt("!", sw / 2. - 10., sh / 2. - 80., 90., Color::new(1., 0.3, 0.2, 1.)) }
-    let hint = if g.me.placing.is_some() { "Placing:  WASD/Arrows move   R rotate   Enter place   Esc cancel" } else { "WASD move  Shift run  E interact  Space use tool  Tab tool  I inventory  J journal  F/G move/pick up furniture  Esc cancel" };
+    let narrow = sw < 900.;
+    if narrow { draw_rectangle(sw - 62., 14., 50., 30., if g.me.id == 0 { Color::new(0.2, 0.45, 0.9, 0.9) } else { Color::new(0.9, 0.35, 0.3, 0.9) }); txt(&format!("P{}", g.me.id + 1), sw - 52., 38., 26., WHITE) }
+    let hint = if narrow { if g.me.placing.is_some() { "Move  R rotate  Enter place  Esc cancel" } else { "Move  E act  Space tool  Tab tool  I bag  J journal" } } else if g.me.placing.is_some() { "Placing:  WASD/Arrows move   R rotate   Enter place   Esc cancel" } else { "WASD move  Shift run  E interact  Space use tool  Tab tool  I inventory  J journal  F/G move/pick up furniture  Esc cancel" };
     txt(hint, 12., sh - 14., 19., WHITE);
     match &g.me.ui {
         Ui::Play => {}
@@ -359,8 +387,9 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         let lines = [format!("[{src} clock] {}", now.format("%a %Y-%m-%d %H:%M:%S")), format!("gameplay day {} last processed {}", crate::clock::day_id(now), g.w.day),
             format!("scene {:?} pos ({:.2},{:.2}) curve {}", g.me.scene, g.ppos().x, g.ppos().y, g.curve), format!("target {:?}", g.target()),
             format!("stock {:?}", g.w.stock.iter().map(|s| (def(s.def).name, s.sold)).collect::<Vec<_>>())];
-        panel(sw - 560., 10., 550., 30. + 22. * (lines.len() + g.log.len().min(3)) as f32);
-        for (k, l) in lines.iter().chain(g.log.iter().rev().take(3)).enumerate() { txt(l, sw - 548., 32. + k as f32 * 22., 17., BLACK) }
+        let (px, py, pw) = if narrow { (10., sh - 190., sw - 20.) } else { (sw - 560., 10., 550.) };
+        panel(px, py, pw, 30. + 22. * (lines.len() + g.log.len().min(3)) as f32);
+        for (k, l) in lines.iter().chain(g.log.iter().rev().take(3)).enumerate() { txt(l, px + 12., py + 22. + k as f32 * 22., 17., BLACK) }
     }
     if let Some((t, _, _)) = g.me.trans { draw_rectangle(0., 0., sw, sh, Color::new(0., 0., 0., 1. - ((t - 0.22).abs() / 0.22).min(1.))) }
 }

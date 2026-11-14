@@ -16,10 +16,10 @@ Status: `[ ]` open · `[x]` done · `[B]` blocked (reason given)
 
 ## MP — local multiplayer (priority 2, before P3+)
 - [x] **MP-01 Profiles.** `Profile` (name, money, house level, pockets, storage, home room, tools, equip, journal, relationships, outdoor pos) separate from shared world; runtime `Player` (scene, position, facing, pose, UI, placing, fishing, transition). Save v4 with profiles; v3 migrates into profile 1. *AC:* H tests: v3→v4 keeps everything; two profiles independent; save/reload.
-- [ ] **MP-02 Two players in the simulation.** Join player 2 (new profile, own home), per-player update with its own input; NPC talk focus per player; shared transactions safe. *AC:* H: simultaneous pickup, last stock, different scenes, rollover with both.
-- [ ] **MP-03 Split-screen rendering.** Two viewports, independent cameras/HUD/menus/transitions. *AC:* X + S screenshot with one player outdoors and one indoors.
+- [x] **MP-02 Two players in the simulation.** Join player 2 (new profile, own home), per-player update with its own input; NPC talk focus per player; shared transactions safe. *AC:* H: simultaneous pickup, last stock, different scenes, rollover with both.
+- [x] **MP-03 Split-screen rendering.** Two viewports, independent cameras/HUD/menus/transitions. *AC:* X + S screenshot with one player outdoors and one indoors.
 - [ ] **MP-04 Gamepads.** gilrs input: assignment (press Start to join, slot per pad), dead zone, edges, menu navigation, button prompts, disconnect/reconnect. *AC:* H with virtual pad state; P physical NOT RUN until human verifies.
-- [ ] **MP-05 Second home.** Player 2 home building on free grass with its own room. *AC:* H + S.
+- [x] **MP-05 Second home.** Player 2 home building on free grass with its own room. *AC:* H + S.
 
 ## Blocked pending an original design approved by the user (recreation-sensitive feature sets)
 - [B] Civic leader permit, donation-funded public construction, town policies.

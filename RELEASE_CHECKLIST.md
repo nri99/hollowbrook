@@ -11,10 +11,10 @@ when every listed evidence type exists and is recorded in PROGRESS.md.
 | R03 | Daily rollover at 06:00 once, also across interiors and multi-day absence | H X | done |
 | R04 | Two local profiles: separate money, pockets, home room, storage, tools, journal, relationships | H | done (H) |
 | R05 | Two-profile save/reload; v3 single-player save migrates to profile 1 | H X | done (H; X v3→v4 upgrade) |
-| R06 | Split-screen: independent cameras, HUD, prompts, menus, transitions per half | X S | open |
-| R07 | Players in different scenes at once (one outdoors, one indoors), both updated + rendered | H X S | open |
+| R06 | Split-screen: independent cameras, HUD, prompts, menus, transitions per half | X S | done (X S; P pending) |
+| R07 | Players in different scenes at once (one outdoors, one indoors), both updated + rendered | H X S | done |
 | R08 | Shared world transactions: one pickup, one last-stock purchase, no double spend | H | done (H) |
-| R09 | Independent dialogue/menus: one player's input never drives the other's UI | H X | open |
+| R09 | Independent dialogue/menus: one player's input never drives the other's UI | H X | done |
 | R10 | Gamepad support (2 pads): explicit assignment, dead zone, edges, menu navigation, prompts | H (virtual) P | open |
 | R11 | Controller disconnect/reconnect/reassign without progress loss; join/leave safely | H P | open |
 | R12 | Daily rollover with players in different scenes | H | done (H) |

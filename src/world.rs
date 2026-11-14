@@ -110,6 +110,8 @@ impl Game {
         let npcs = (0..4).map(|i| NpcRt { pos: door_stand(RES[i].bld), path: vec![], wait: gen_range(0., 2.), yaw: 0., inside: true, happy: 0., moving: false, last_chat: 9, anim: 0. }).collect();
         let mut g = Game { me: Player::new(w.p.id, pos), w, map, others: vec![], npcs, t: 0., log: vec![], rolled: false, shadows: vec![], bugs: vec![], shake: vec![], hearts: vec![], snd: vec![], hr: 12, mo: 6, curve: 0.01, fx: vec![] };
         if !g.free(g.me.pos) { g.me.pos = door_stand(HOME); g.me.cam = g.me.pos }
+        let map = &g.map; let open = |t: &(i32, i32)| tile_at(map, t.0, t.1) != BLD; // objects saved before a building existed there
+        g.w.weeds.retain(open); g.w.digs.retain(open); g.w.holes.retain(open); g.w.ground.retain(|i| open(&tile_of(vec2(i.x, i.z))));
         if g.w.stock.is_empty() { g.refresh_world() } // migrated saves get shop stock, shells and dig sites
         g
     }
@@ -123,7 +125,7 @@ impl Game {
     /// Add the second local player: a fresh profile, or the saved one if it already exists. Returns its id.
     pub fn join(&mut self, name: &str) -> usize {
         let id = 1; if self.ids().contains(&id) { return id }
-        let start = door_stand(HOME) + vec2(1., 0.);
+        let start = door_stand(home_of(id));
         if self.w.p.id != id && !self.w.others.iter().any(|p| p.id == id) { self.w.others.push(Profile::new(id, name.into(), start)) }
         let pr = if self.w.p.id == id { &self.w.p } else { self.w.others.iter().find(|p| p.id == id).unwrap() };
         let mut pl = Player::new(id, vec2(pr.pos[0], pr.pos[1])); if !self.free_town(pl.pos) { pl.pos = start; pl.cam = start } pl.face = vec2(0., -1.);
@@ -138,6 +140,8 @@ impl Game {
     }
     fn free_town(&self, p: Vec2) -> bool { [(-PR, -PR), (PR, -PR), (-PR, PR), (PR, PR)].iter().all(|&(dx, dz)| { let (x, z) = tile_of(p + vec2(dx, dz)); self.walk_tile(x, z) }) }
     pub fn note(&mut self, s: impl Into<String>) { self.me.msgs.push((s.into(), self.t)) }
+    /// Building id of the active player's own home.
+    pub fn home(&self) -> usize { home_of(self.me.id) }
     pub fn ppos(&self) -> Vec2 { if self.me.scene == Scene::Town { self.me.pos } else { self.me.ipos } }
     fn set_ppos(&mut self, p: Vec2) { if self.me.scene == Scene::Town { self.me.pos = p } else { self.me.ipos = p } }
     fn uid(&mut self) -> u32 { self.w.uid += 1; self.w.uid }
@@ -194,7 +198,7 @@ impl Game {
     pub fn tile(&self, x: i32, z: i32) -> u8 { tile_at(&self.map, x, z) }
     pub fn walk_tile(&self, x: i32, z: i32) -> bool { matches!(self.tile(x, z), GRASS | PATH | SAND | BRIDGE | FLOWER) && !self.w.holes.contains(&(x, z)) }
     pub fn room_furn(&self, b: usize) -> Vec<Furn> {
-        match BLDS[b].kind { BK::Home => self.w.p.room.clone(), BK::Res(r) => TEMPL[r].iter().map(|&(def, x, z, rot)| Furn { uid: 0, def, x, z, rot, on: true }).collect(), _ => vec![] }
+        match BLDS[b].kind { BK::Home(o) => if self.w.p.id == o { self.w.p.room.clone() } else { self.w.others.iter().find(|p| p.id == o).map(|p| p.room.clone()).unwrap_or_default() }, BK::Res(r) => TEMPL[r].iter().map(|&(def, x, z, rot)| Furn { uid: 0, def, x, z, rot, on: true }).collect(), _ => vec![] }
     }
     pub fn room_block(&self, b: usize, x: i32, z: i32, skip: u32) -> bool {
         let (w, d) = room_dims(b); if x < 0 || z < 0 || x >= w || z >= d { return true }
@@ -268,7 +272,7 @@ impl Game {
             Tg::Tree(i) => if self.w.trees[i].fruit { "Shake tree".into() } else { "Shake tree (no fruit)".into() },
             Tg::Item(i) => format!("Pick up {}", def(self.w.ground[i].def).name), Tg::Weed(_) => "Pull weed".into(),
             Tg::Furn(uid, d) => { let a = match def(d).act { Act::Sit => "Sit on", Act::Bed => "Lie on", Act::Lamp => "Toggle", Act::Storage => "Open", Act::None => "Look at" };
-                if uid != 0 && self.me.scene == Scene::Room(HOME) { format!("{a} {}   [F] Move  [G] Pick up", def(d).name) } else { format!("{a} {}", def(d).name) } }
+                if uid != 0 && self.me.scene == Scene::Room(self.home()) { format!("{a} {}   [F] Move  [G] Pick up", def(d).name) } else { format!("{a} {}", def(d).name) } }
             Tg::Counter => "Sell items".into(), Tg::Keeper => "Talk to Mr. Tumble".into(),
             Tg::Display(i) => if i < 5 { let s = self.w.stock[i]; if s.sold { "Sold out".into() } else { format!("Buy {} ({} coins)", def(s.def).name, def(s.def).buy) } } else { let t = TOOL_DISPLAY[i - 5]; format!("Buy {} ({} coins)", def(t).name, def(t).buy) },
         }
@@ -295,7 +299,7 @@ impl Game {
     }
     fn door(&mut self, b: usize) {
         match BLDS[b].kind {
-            BK::Home => self.go(Scene::Room(b)),
+            BK::Home(_) => self.go(Scene::Room(b)),
             BK::Shop => if shop_open(self.hr) { self.go(Scene::Room(b)) } else { self.note("The General Store is closed. Hours: 8:00-22:00.") },
             BK::Res(r) => match where_(r, self.hr) { Loc::Home => self.go(Scene::Room(b)), Loc::Asleep => self.note(format!("It's late. {} is asleep.", RES[r].name)), Loc::Out => self.note(format!("{} isn't home right now.", RES[r].name)) },
             BK::Civic => self.note("The Town Hall isn't open yet. Maybe someday!"),
@@ -387,7 +391,7 @@ impl Game {
     pub fn start_move(&mut self, uid: u32) { if let Some(i) = self.w.p.room.iter().position(|f| f.uid == uid) { let f = self.w.p.room.remove(i); self.me.placing = Some(Placing { f, orig: Some(f), slot_uid: None }) } }
     pub fn place_cancel(&mut self) { if let Some(p) = self.me.placing.take() { if let Some(o) = p.orig { self.w.p.room.push(o) } } }
     pub fn place_ok(&self, f: &Furn) -> Result<(), &'static str> {
-        let (w, d) = room_dims(HOME); let df = def(f.def);
+        let (w, d) = room_dims(self.home()); let df = def(f.def);
         if df.wall {
             if f.z != -1 || f.x < 0 || f.x >= w { return Err("Wall items go on the back wall.") }
             if self.w.p.room.iter().any(|o| def(o.def).wall && o.x == f.x && o.uid != f.uid) { return Err("Something already hangs there.") }
@@ -396,7 +400,7 @@ impl Game {
         let fp = foot(f.def, f.x, f.z, f.rot);
         if fp.iter().any(|&(x, z)| x < 0 || z < 0 || x >= w || z >= d) { return Err("It doesn't fit there.") }
         if fp.contains(&(w / 2, d - 1)) { return Err("Keep the doorway clear.") }
-        if fp.iter().any(|&t| self.room_block(HOME, t.0, t.1, f.uid)) { return Err("Something is in the way.") }
+        if fp.iter().any(|&t| self.room_block(self.home(), t.0, t.1, f.uid)) { return Err("Something is in the way.") }
         let me: Vec<(i32, i32)> = [(-PR, -PR), (PR, -PR), (-PR, PR), (PR, PR)].iter().map(|&(a, b)| tile_of(self.me.ipos + vec2(a, b))).collect();
         if fp.iter().any(|t| me.contains(t)) { return Err("You're standing there.") }
         if !self.reach(tile_of(self.me.ipos), (w / 2, d - 1), &fp) { return Err("That would block your way out.") }
@@ -405,7 +409,7 @@ impl Game {
     fn reach(&self, a: (i32, i32), b: (i32, i32), extra: &[(i32, i32)]) -> bool {
         let mut seen = HashSet::from([a]); let mut q = VecDeque::from([a]);
         while let Some(c) = q.pop_front() { if c == b { return true }
-            for d in [(1, 0), (-1, 0), (0, 1), (0, -1)] { let n = (c.0 + d.0, c.1 + d.1); if !seen.contains(&n) && !self.room_block(HOME, n.0, n.1, 0) && !extra.contains(&n) { seen.insert(n); q.push_back(n) } } }
+            for d in [(1, 0), (-1, 0), (0, 1), (0, -1)] { let n = (c.0 + d.0, c.1 + d.1); if !seen.contains(&n) && !self.room_block(self.home(), n.0, n.1, 0) && !extra.contains(&n) { seen.insert(n); q.push_back(n) } } }
         false
     }
     pub fn place_confirm(&mut self) -> Result<(), &'static str> {
@@ -463,15 +467,6 @@ impl Game {
     }
 
     // ---- simulation ----
-    fn sim(&mut self, dt: f32) {
-        self.me.swing = (self.me.swing - dt).max(0.); for e in &mut self.fx { e.1 += dt } self.fx.retain(|e| e.1 < 0.8);
-        for s in &mut self.shake { s.1 -= dt } self.shake.retain(|s| s.1 > 0.);
-        for h in &mut self.hearts { h.1 += dt; if h.1 > 0. { h.0.y += dt * 0.8 } } self.hearts.retain(|h| h.1 < 1.6);
-        if self.me.spd > 0.1 { self.me.anim += dt * self.me.spd * 3.2 }
-        self.sim_npcs(dt);
-        if self.me.scene == Scene::Town { self.sim_life(dt) }
-        self.sim_fish(dt);
-    }
     fn sim_fish(&mut self, dt: f32) {
         let Some(mut f) = self.me.fish.take() else { return };
         f.t += dt; f.dip = (f.dip - dt * 2.5).max(0.); let mut keep = true;
@@ -485,17 +480,20 @@ impl Game {
         if keep { self.me.fish = Some(f) }
     }
     fn sim_life(&mut self, dt: f32) {
-        let (p, mo, hr, t) = (self.me.pos, self.mo, self.hr, self.t); let map = &self.map;
-        if self.me.fish.is_none() { self.shadows.retain(|s| s.pos.distance(p) < 18.) }
-        self.bugs.retain(|b| b.1.distance(p) < 16.);
+        let anchors: Vec<Vec2> = std::iter::once(&self.me).chain(self.others.iter()).filter(|p| p.scene == Scene::Town).map(|p| p.pos).collect();
+        if anchors.is_empty() { return }
+        let fishing = std::iter::once(&self.me).chain(self.others.iter()).any(|p| p.fish.is_some());
+        let (p, mo, hr, t) = (anchors[gen_range(0, anchors.len())], self.mo, self.hr, self.t); let map = &self.map;
+        if !fishing { self.shadows.retain(|s| anchors.iter().any(|a| s.pos.distance(*a) < 18.)) }
+        self.bugs.retain(|b| anchors.iter().any(|a| b.1.distance(*a) < 16.));
         if self.shadows.len() < 4 && gen_range(0, 30) == 0 {
             let tt = tile_of(p + vec2(gen_range(-11., 11.), gen_range(-11., 11.))); let c = tile_at(map, tt.0, tt.1);
             if matches!(c, RIVER | SEA) { let hab = if c == SEA { 2 } else { 1 };
                 let av: Vec<u16> = DEFS.iter().filter(|d| d.k == K::Fish && d.hab == hab && avail(d, mo, hr)).map(|d| d.id).collect();
                 if !av.is_empty() { let d = loop { let d = av[gen_range(0, av.len())]; if def(d).sell < 1000 || gen_range(0, 4) == 0 { break d } }; self.shadows.push(Shadow { pos: tc(tt), def: d, vel: Vec2::ZERO }) } }
         }
-        let att = self.me.fish.as_ref().and_then(|f| f.fish);
-        for (i, s) in self.shadows.iter_mut().enumerate() { if Some(i) == att { continue }
+        let att: Vec<usize> = std::iter::once(&self.me).chain(self.others.iter()).filter_map(|p| p.fish.as_ref().and_then(|f| f.fish)).collect();
+        for (i, s) in self.shadows.iter_mut().enumerate() { if att.contains(&i) { continue }
             if gen_range(0, 60) == 0 { s.vel = vec2(gen_range(-0.5, 0.5), gen_range(-0.5, 0.5)) }
             let n = s.pos + s.vel * dt; let nt = tile_of(n); if matches!(tile_at(map, nt.0, nt.1), RIVER | SEA) { s.pos = n } else { s.vel = -s.vel } }
         if self.bugs.len() < 4 && gen_range(0, if rainy(self.w.day) { 400 } else { 90 }) == 0 {
@@ -506,11 +504,11 @@ impl Game {
         for b in &mut self.bugs { b.1 += vec2((t * 2. + b.2).sin(), (t * 1.3 + b.2).cos()) * 0.5 * dt }
     }
     fn sim_npcs(&mut self, dt: f32) {
-        let talk_with = if let Ui::Talk { npc: Some(j), .. } = self.me.ui { Some(j) } else { None };
+        let talkers: Vec<(usize, Vec2, bool)> = std::iter::once(&self.me).chain(self.others.iter()).filter_map(|p| if let Ui::Talk { npc: Some(j), .. } = p.ui { Some((j, p.pos, p.scene == Scene::Town)) } else { None }).collect();
         for i in 0..4 {
             let loc = where_(i, self.hr);
             { let n = &mut self.npcs[i]; n.happy = (n.happy - dt).max(0.); n.moving = false; }
-            if talk_with == Some(i) { let d = self.ppos() - self.npcs[i].pos; if self.me.scene == Scene::Town && d.length() > 0.01 { self.npcs[i].yaw = yaw_of(d) } continue }
+            if let Some(&(_, pp, town)) = talkers.iter().find(|t| t.0 == i) { let d = pp - self.npcs[i].pos; if town && d.length() > 0.01 { self.npcs[i].yaw = yaw_of(d) } continue }
             if loc == Loc::Out {
                 if self.npcs[i].inside { let n = &mut self.npcs[i]; n.inside = false; n.pos = door_stand(RES[i].bld); n.path.clear(); n.wait = 1.; continue }
                 if self.npcs[i].wait > 0. { self.npcs[i].wait -= dt; continue }
@@ -549,31 +547,43 @@ impl Game {
     }
 
     // ---- per-frame update through the input layer ----
-    pub fn update(&mut self, inp: &Inp, dt: f32, now: NaiveDateTime) -> bool {
+    /// Single-player convenience: shared tick + update of the active player.
+    pub fn update(&mut self, inp: &Inp, dt: f32, now: NaiveDateTime) -> bool { let f = self.tick(dt, now); self.update_player(inp, dt); f }
+    /// Shared per-frame simulation (clock, daily refresh, residents, wildlife, effects). Call once per frame.
+    pub fn tick(&mut self, dt: f32, now: NaiveDateTime) -> bool {
         self.t += dt; self.hr = now.hour(); self.mo = now.month();
         let fresh = self.catch_up(now);
-        self.sim(dt);
+        for e in &mut self.fx { e.1 += dt } self.fx.retain(|e| e.1 < 0.8);
+        for s in &mut self.shake { s.1 -= dt } self.shake.retain(|s| s.1 > 0.);
+        for h in &mut self.hearts { h.1 += dt; if h.1 > 0. { h.0.y += dt * 0.8 } } self.hearts.retain(|h| h.1 < 1.6);
+        self.sim_npcs(dt); self.sim_life(dt);
+        fresh
+    }
+    /// Per-player update for the active player (`activate` first): its own input, camera, UI, movement, actions.
+    pub fn update_player(&mut self, inp: &Inp, dt: f32) {
+        self.me.swing = (self.me.swing - dt).max(0.);
+        if self.me.spd > 0.1 { self.me.anim += dt * self.me.spd * 3.2 }
+        self.sim_fish(dt);
         let pp = self.ppos(); self.me.cam = self.me.cam.lerp(pp, 1. - (-12. * dt).exp());
         if let Some((t, to, done)) = self.me.trans {
             let t = t + dt; let mut done = done; if t >= 0.22 && !done { self.swap(to); done = true }
-            self.me.trans = if t >= 0.45 { None } else { Some((t, to, done)) }; self.me.spd = 0.; return fresh
+            self.me.trans = if t >= 0.45 { None } else { Some((t, to, done)) }; self.me.spd = 0.; return
         }
-        if self.ui_input(inp) { self.me.spd = 0.; return fresh }
-        if self.me.placing.is_some() { self.place_input(inp); self.me.spd = 0.; return fresh }
+        if self.ui_input(inp) { self.me.spd = 0.; return }
+        if self.me.placing.is_some() { self.place_input(inp); self.me.spd = 0.; return }
         use KeyCode::*;
         let mut d = Vec2::ZERO;
         if inp.d(W) || inp.d(Up) { d.y -= 1. } if inp.d(S) || inp.d(Down) { d.y += 1. }
         if inp.d(A) || inp.d(Left) { d.x -= 1. } if inp.d(D) || inp.d(Right) { d.x += 1. }
         self.step_move(d, inp.d(LeftShift) || inp.d(RightShift), dt);
-        if self.me.trans.is_some() { return fresh }
+        if self.me.trans.is_some() { return }
         if inp.p(E) { self.interact() }
         if inp.p(Space) { self.use_tool() }
         if inp.p(Tab) || inp.p(Q) { self.cycle_tool() }
         if inp.p(I) { self.me.ui = Ui::Inv(0) }
         if inp.p(J) { self.me.ui = Ui::Journal }
-        if inp.p(F) || inp.p(G) { match self.target() { Some(Tg::Furn(uid, _)) if self.me.scene == Scene::Room(HOME) && uid != 0 => if inp.p(F) { self.start_move(uid) } else { self.pick_furn(uid) }, _ => self.note("Face your own furniture to move (F) or pick it up (G).") } }
+        if inp.p(F) || inp.p(G) { match self.target() { Some(Tg::Furn(uid, _)) if self.me.scene == Scene::Room(self.home()) && uid != 0 => if inp.p(F) { self.start_move(uid) } else { self.pick_furn(uid) }, _ => self.note("Face your own furniture to move (F) or pick it up (G).") } }
         if inp.p(Escape) && self.me.fish.is_some() { self.me.fish = None; self.note("You reel in your line.") }
-        fresh
     }
     fn ui_input(&mut self, inp: &Inp) -> bool {
         use KeyCode::*;
@@ -588,7 +598,7 @@ impl Game {
                 if esc || inp.p(I) { self.me.ui = Ui::Play }
                 else if ok && s < n { let sl = self.w.p.inv[s];
                     if def(sl.def).k != crate::data::K::Furn { self.note(format!("{} sells for {} coins at the shop.", def(sl.def).name, def(sl.def).sell)) }
-                    else if self.me.scene == Scene::Room(HOME) { self.me.ui = Ui::Play; self.start_place(sl.uid) } else { self.note("Furniture can be placed inside your home.") } } }
+                    else if self.me.scene == Scene::Room(self.home()) { self.me.ui = Ui::Play; self.start_place(sl.uid) } else { self.note("Furniture can be placed inside your home.") } } }
             Ui::Sell(s) => { let s = mv(s, n); self.me.ui = Ui::Sell(s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.sell_slot(s) } else if inp.p(A) { self.sell_all() } }
             Ui::Confirm(d) => { if ok || inp.p(Y) { self.me.ui = Ui::Play; match self.buy(d) { Ok(()) => { self.snd.push(Snd::Coin); self.note("Thank you for your purchase!") } Err(e) => self.note(e) } } else if esc || inp.p(N) { self.me.ui = Ui::Play } }
             Ui::Storage(c, s) => { let c = if left { 0 } else if right { 1 } else { c }; let len = if c == 0 { n } else { self.w.p.storage.len() }; let s = mv(s, len); self.me.ui = Ui::Storage(c, s);
@@ -600,11 +610,11 @@ impl Game {
     }
     fn place_input(&mut self, inp: &Inp) {
         use KeyCode::*;
-        let Some(p) = self.me.placing.as_mut() else { return };
+        let hb = self.home(); let Some(p) = self.me.placing.as_mut() else { return };
         let df = def(p.f.def);
         if inp.p(A) || inp.p(Left) { p.f.x -= 1 } if inp.p(D) || inp.p(Right) { p.f.x += 1 }
         if !df.wall { if inp.p(W) || inp.p(Up) { p.f.z -= 1 } if inp.p(S) || inp.p(Down) { p.f.z += 1 } if inp.p(R) && df.rot { p.f.rot = (p.f.rot + 1) % 4 } }
-        let (w, d) = room_dims(HOME); p.f.x = p.f.x.clamp(-1, w); p.f.z = if df.wall { -1 } else { p.f.z.clamp(-1, d) };
+        let (w, d) = room_dims(hb); p.f.x = p.f.x.clamp(-1, w); p.f.z = if df.wall { -1 } else { p.f.z.clamp(-1, d) };
         if inp.p(Enter) || inp.p(KpEnter) { match self.place_confirm() { Ok(()) => { self.snd.push(Snd::Blip); self.note("Placed!") } Err(e) => self.note(e) } }
         else if inp.p(Escape) { self.place_cancel(); self.note("Cancelled.") }
     }

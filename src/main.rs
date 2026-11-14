@@ -75,9 +75,12 @@ async fn main() {
     if let Some(dir) = auto { autotest(&mut g, &clock, &dir).await; save::save(&g.persist(), SAVE); return }
     let (mut st, mut shots) = (0., 0);
     loop {
-        let dt = get_frame_time().min(0.05); let now = clock.now(); let inp = Inp { down: get_keys_down(), pressed: get_keys_pressed() };
-        if g.update(&inp, dt, now) { save::save(&g.persist(), SAVE) } // persist a refresh immediately
-        render::draw(&g, now, dbg.then(|| clock.source()));
+        let dt = get_frame_time().min(0.05); let now = clock.now(); let kb = Inp { down: get_keys_down(), pressed: get_keys_pressed() };
+        if g.tick(dt, now) { save::save(&g.persist(), SAVE) } // persist a refresh immediately
+        for id in g.ids() { g.activate(id); let inp = if id == 0 { &kb } else { &Inp::none() }; g.update_player(inp, dt) } // pads: MP-04
+        g.activate(0);
+        if kb.p(KeyCode::F2) { if g.ids().len() == 1 { g.join("Player 2"); g.note("Player 2 joined (split-screen).") } else { g.leave(1); g.note("Player 2 left; their progress is saved.") } save::save(&g.persist(), SAVE) }
+        render::draw(&mut g, now, dbg.then(|| clock.source()));
         sounds.play(&mut g.snd);
         if dbg && is_key_pressed(KeyCode::F12) { shots += 1; screenshot(&format!("shot_{shots}.png")); eprintln!("[shot] shot_{shots}.png") }
         st += dt; if st > 15. { save::save(&g.persist(), SAVE); st = 0. }
@@ -88,6 +91,7 @@ async fn main() {
 
 // ---- dev-only end-to-end bot: injects key events into the same Inp -> Game::update path the keyboard uses ----
 async fn step(g: &mut Game, c: &Clock, down: &[KeyCode], pressed: &[KeyCode]) { let now = c.now(); if g.update(&Inp::keys(down, pressed), 1. / 60., now) { save::save(&g.persist(), SAVE) } render::draw(g, now, Some(c.source())); g.snd.clear(); next_frame().await }
+async fn step2(g: &mut Game, c: &Clock, i0: Inp, i1: Inp) { let now = c.now(); if g.tick(1. / 60., now) { save::save(&g.persist(), SAVE) } g.activate(0); g.update_player(&i0, 1. / 60.); g.activate(1); g.update_player(&i1, 1. / 60.); g.activate(0); render::draw(g, now, Some(c.source())); g.snd.clear(); next_frame().await }
 async fn press(g: &mut Game, c: &Clock, k: KeyCode) { step(g, c, &[k], &[k]).await; step(g, c, &[], &[]).await }
 async fn wait(g: &mut Game, c: &Clock, n: usize) { for _ in 0..n { step(g, c, &[], &[]).await } }
 fn keys_toward(d: Vec2) -> Vec<KeyCode> { let mut k = vec![]; if d.y < -0.06 { k.push(KeyCode::W) } if d.y > 0.06 { k.push(KeyCode::S) } if d.x < -0.06 { k.push(KeyCode::A) } if d.x > 0.06 { k.push(KeyCode::D) } k }
@@ -157,6 +161,19 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
                 if g.me.ui != Ui::Play { press(g, c, KeyCode::Escape).await } if g.me.pose != Pose::Stand { step(g, c, &[KeyCode::S], &[]).await } log!("stood up: pose={:?}", g.me.pose); go(g, c, vec2(3.4, 3.3), 0.15).await; face(g, c, vec2(3.4, 4.)).await; shot!("10_furnished_home"); }
         }
         log!("phase 1 end | {}", state(g));
+    } else if phase == "4" {
+        // MP-02/03: two players with independent virtual inputs; one goes indoors, the other stays outside
+        g.join("Player 2"); log!("joined: ids={:?}", g.ids());
+        let k = |d: &[KeyCode], p: &[KeyCode]| Inp::keys(d, p);
+        for _ in 0..20 { step2(g, c, k(&[], &[]), k(&[], &[])).await } shot!("mp_same_scene"); for _ in 0..45 { step2(g, c, k(&[], &[]), k(&[KeyCode::A], &[])).await } shot!("mp_together");
+        step2(g, c, k(&[KeyCode::W], &[]), k(&[], &[])).await; step2(g, c, k(&[KeyCode::E], &[KeyCode::E]), k(&[], &[])).await;
+        for _ in 0..50 { step2(g, c, k(&[], &[]), k(&[KeyCode::D, KeyCode::S], &[])).await }
+        let st = |g: &mut Game, id: usize| { g.activate(id); let s = format!("P{} scene={:?} pos=({:.2},{:.2}) ipos=({:.2},{:.2}) ui={:?}", id + 1, g.me.scene, g.me.pos.x, g.me.pos.y, g.me.ipos.x, g.me.ipos.y, g.me.ui); g.activate(0); s };
+        log!("{} | {}", st(g, 0), st(g, 1)); shot!("mp_split_home_and_town");
+        step2(g, c, k(&[], &[]), k(&[KeyCode::I], &[KeyCode::I])).await; step2(g, c, k(&[], &[]), k(&[], &[])).await;
+        log!("after P2 pressed I: {} | {}", st(g, 0), st(g, 1)); shot!("mp_p2_inventory");
+        step2(g, c, k(&[KeyCode::Escape], &[KeyCode::Escape]), k(&[], &[])).await; log!("P1 Esc does not close P2 menu: {}", st(g, 1));
+        step2(g, c, k(&[], &[]), k(&[KeyCode::Escape], &[KeyCode::Escape])).await; log!("P2 Esc: {}", st(g, 1));
     } else if phase == "0" {
         log!("load-only check");
     } else if phase == "3" && c.now().hour() < 18 {
