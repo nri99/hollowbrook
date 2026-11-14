@@ -352,3 +352,49 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     g.act = None; g.act_start(0).unwrap(); let pen = vec2(PEN.0, PEN.1); g.act.as_mut().unwrap().ents[0] = pen + vec2(PEN.2 + 0.2, 0.); g.me.ipos = pen + vec2(PEN.2 + 0.5, 0.); g.act_step(); assert!(Game::in_pen(g.act.as_ref().unwrap().ents[0]));
     g.swap(Scene::Town); assert!(!g.act.as_ref().unwrap().players.contains(&0));
 }
+
+#[test] fn housing_migration_independent_balances_relaunch() {
+    // a pre-balance save: P1 already at the largest home with furniture, P2 mid-size; no `debt` field anywhere
+    let mut g = two(at(11, 12, 0, 0)); g.w.p.home = 2; g.w.p.room.push(Furn { uid: 77, def: 50, x: 1, z: 1, rot: 0, on: false }); g.w.p.money = 5000;
+    g.activate(1); g.w.p.home = 1; g.w.p.money = 20000; g.activate(0);
+    let mut v = serde_json::to_value(g.persist()).unwrap(); v["p"].as_object_mut().unwrap().remove("debt"); for o in v["others"].as_array_mut().unwrap() { o.as_object_mut().unwrap().remove("debt"); }
+    let p = tmp("predebt"); std::fs::write(&p, v.to_string()).unwrap(); let mut g = Game::from_world(save::load(&p).unwrap(), town());
+    assert_eq!((g.w.p.home, g.w.p.debt, g.w.p.money), (2, 0, 5000)); assert!(g.w.p.room.iter().any(|f| f.uid == 77)); assert!(g.expand_home().is_err()); // already max, no retroactive debt
+    g.activate(1); assert_eq!((g.w.p.home, g.w.p.debt), (1, 0));
+    g.expand_home().unwrap(); assert_eq!((g.w.p.home, g.w.p.debt), (2, EXPAND_COST[1]));
+    g.activate(0); assert_eq!((g.w.p.debt, g.w.p.money), (0, 5000)); g.activate(1);
+    g.pay_debt(); assert_eq!((g.w.p.money, g.w.p.debt), (5000, 0)); g.activate(0); assert_eq!(g.w.p.money, 5000); // only P2 paid
+    // P1 on a fresh profile path: unpaid debt blocks, clearing unlocks
+    g.w.p.home = 0; g.expand_home().unwrap(); assert_eq!(g.expand_home(), Err("Pay off your current balance first.")); g.w.p.money = EXPAND_COST[0]; g.pay_debt(); assert_eq!(g.w.p.debt, 0); g.expand_home().unwrap(); assert_eq!((g.w.p.home, g.w.p.debt), (2, EXPAND_COST[1]));
+    let g2 = reload(&g, "housing2"); assert_eq!((g2.w.p.home, g2.w.p.debt, g2.w.p.money), (2, EXPAND_COST[1], 0)); assert!(g2.w.p.room.iter().any(|f| f.uid == 77));
+    let o = g2.w.others.iter().find(|o| o.id == 1).unwrap(); assert_eq!((o.home, o.debt, o.money), (2, 0, 5000));
+}
+#[test] fn town_hall_interior_and_civic_menu() {
+    let mut g = two(at(11, 12, 0, 0)); let th = BLDS.iter().position(|b| b.kind == BK::Civic).unwrap();
+    g.swap(Scene::Room(th)); assert_eq!(g.rdims(th), (7, 5)); assert!(g.room_block(th, 3, 1, 0)); g.me.ipos = vec2(3.5, 2.4); g.me.face = vec2(0., -1.); assert_eq!(g.target(), Some(Tg::Hazel));
+    let ent = |g: &mut Game| g.update_player(&Inp::keys(&[KeyCode::Enter], &[KeyCode::Enter]), 0.016); let down = |g: &mut Game| g.update_player(&Inp::keys(&[KeyCode::Down], &[KeyCode::Down]), 0.016);
+    g.me.ui = Ui::Civic(0); ent(&mut g); assert_eq!(g.me.ui, Ui::Policy(0));
+    g.me.ui = Ui::Civic(0); down(&mut g); ent(&mut g); assert_eq!(g.me.ui, Ui::MPick(0)); ent(&mut g); assert_eq!(g.me.mplace, Some(0)); assert!(g.me.trans.is_some()); // heads outside to place
+    g.activate(1); g.swap(Scene::Room(th)); g.me.ui = Ui::Civic(1); ent(&mut g); assert_eq!(g.me.ui, Ui::Play); assert_eq!(g.me.mplace, None); // P2 not leader
+}
+#[test] fn funding_and_activity_edge_cases() {
+    let mut g = two(at(11, 12, 0, 0)); let cost = MPROJECTS[0].1;
+    g.me.pos = vec2(16.5, 20.5); g.me.face = vec2(1., 0.); g.mp_start(0).unwrap();
+    g.w.p.money = cost - 400; assert_eq!(g.mp_fund(cost), Ok(cost - 400)); assert_eq!(g.w.p.money, 0);
+    g.activate(1); g.w.p.money = 700; assert_eq!(g.mp_fund(DONATE_STEP), Ok(400)); assert_eq!(g.w.p.money, 300); // remaining < 1000 is capped
+    assert!(g.mp_fund(DONATE_STEP).is_err()); assert_eq!(g.w.p.money, 300);
+    // fewer than 1000 coins donates what you have; simultaneous presses in one frame never overpay
+    g.w.mproject.as_mut().unwrap().funded = cost - 1500; g.w.p.money = 600; g.activate(0); g.w.p.money = 5000;
+    g.w.p.inv.clear(); g.me.ui = Ui::Fund; g.activate(1); g.me.ui = Ui::Fund; g.activate(0);
+    let e = || Inp::keys(&[KeyCode::Enter], &[KeyCode::Enter]); g.activate(0); g.update_player(&e(), 0.016); g.activate(1); g.update_player(&e(), 0.016);
+    assert_eq!(g.w.mproject.as_ref().unwrap().funded, cost); assert_eq!(g.w.p.money, 600 - 500); g.activate(0); assert_eq!(g.w.p.money, 5000 - 1000);
+    // late join, one leaves while the other stays
+    g.me.scene = Scene::Islet; g.me.ipos = vec2(7.5, 10.5); g.act_start(1).unwrap(); assert_eq!(g.act.as_ref().unwrap().players, vec![0]);
+    g.activate(1); g.me.scene = Scene::Islet; g.me.ipos = vec2(7.5, 10.5); g.act_step(); assert_eq!(g.act.as_ref().unwrap().players, vec![0, 1]);
+    g.swap(Scene::Town); g.activate(0); assert_eq!(g.act.as_ref().unwrap().players, vec![0]); g.sim_act(1.); assert!(g.act.is_some() && !g.act.as_ref().unwrap().done);
+    // full pockets: Sea Glass goes to the mailbox, not lost
+    g.w.p.inv = (0..INV_CAP).map(|k| Slot { def: 20 + (k % 3) as u16, qty: STACK, uid: 0 }).collect(); let mail0 = g.w.p.mail.len();
+    g.act.as_mut().unwrap().score = 99; g.sim_act(99.); g.act_step(); assert_eq!(g.w.p.mail.len() - mail0, ACT_REWARD[2] as usize); assert!(g.w.p.mail.iter().rev().take(4).all(|l| l.item == Some(85)));
+    // reload mid-activity: activity not saved, reward flag saved, so restarting cannot pay twice
+    let mut g2 = reload(&g, "edge_act"); assert!(g2.act.is_none()); g2.me.scene = Scene::Islet; g2.me.ipos = vec2(7.5, 10.5); g2.act_start(1).unwrap(); g2.act.as_mut().unwrap().score = 99; g2.sim_act(99.); let m = g2.w.p.mail.len(); g2.act_step(); assert_eq!(g2.w.p.mail.len(), m);
+}

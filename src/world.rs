@@ -111,9 +111,9 @@ impl World {
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Pose { Stand, Sit(u32), Lie(u32) }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Loc { Out, Home, Asleep }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Snd { Step, Blip, Splash, Coin, Dig, Rustle, Door, StepPath, StepSand, StepWood, StepFloor, Swim }
-#[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize), Stall, Site, Board, Built(usize), Dock, Pell, IItem(usize), IStall, MSite, ActBoard }
+#[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize), Stall, Site, Board, Built(usize), Dock, Pell, IItem(usize), IStall, MSite, ActBoard, Hazel }
 #[derive(Clone, PartialEq, Debug)]
-pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize), Tint(usize), Travel(bool), IStall(usize), ConfirmExpand, MPick(usize), Fund, Policy(usize), PolicyOk(usize), Act(usize) }
+pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize), Tint(usize), Travel(bool), IStall(usize), ConfirmExpand, MPick(usize), Fund, Policy(usize), PolicyOk(usize), Act(usize), Civic(usize) }
 pub struct Placing { pub f: Furn, pub orig: Option<Furn>, pub slot_uid: Option<u32> }
 pub struct Fishing { pub bob: Vec2, pub fish: Option<usize>, pub t: f32, pub nib: u8, pub need: u8, pub bite: bool, pub dip: f32 }
 pub struct Shadow { pub pos: Vec2, pub def: u16, pub vel: Vec2 }
@@ -330,6 +330,7 @@ impl Game {
     pub fn room_block(&self, b: usize, x: i32, z: i32, skip: u32) -> bool {
         let (w, d) = self.rdims(b); if x < 0 || z < 0 || x >= w || z >= d { return true }
         if BLDS[b].kind == BK::Shop { return COUNTER.contains(&(x, z)) || DISPLAYS.contains(&(x, z)) || (x, z) == RACK }
+        if BLDS[b].kind == BK::Civic { return CIVIC_DESK.contains(&(x, z)) || CIVIC_PLANTS.contains(&(x, z)) || CIVIC_BENCH.contains(&(x, z)) }
         if BLDS[b].kind == BK::Museum { return MUSEUM_DESK.contains(&(x, z)) || MUSEUM_TANK.contains(&(x, z)) || MUSEUM_CASE.contains(&(x, z)) || MUSEUM_PED.iter().any(|p| p.0 == (x, z)) }
         self.room_furn(b).iter().filter(|f| !def(f.def).wall && !(skip != 0 && f.uid == skip)).any(|f| foot(f.def, f.x, f.z, f.rot).contains(&(x, z)))
     }
@@ -399,6 +400,7 @@ impl Game {
             Scene::Room(b) => {
                 for fu in self.room_furn(b) { cand(fcenter(&fu), 1.5, 1., Tg::Furn(fu.uid, fu.def), None) }
                 if BLDS[b].kind == BK::Shop { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Counter, None); cand(vec2(3.5, 0.5), 2.6, 1.3, Tg::Keeper, None); for (i, &d) in DISPLAYS.iter().enumerate() { cand(tc(d), 1.5, 1., Tg::Display(i), None) } cand(tc(RACK), 1.5, 1., Tg::Rack, None) }
+                if BLDS[b].kind == BK::Civic { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Hazel, None) }
                 if BLDS[b].kind == BK::Museum { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Curator, None); cand(vec2(0.5, 2.5), 1.5, 1., Tg::Exhibit(0), None); cand(vec2(6.5, 2.5), 1.5, 1., Tg::Exhibit(1), None);
                     for (k, p) in MUSEUM_PED.iter().enumerate() { cand(tc(p.0), 1.5, 1., Tg::Exhibit(2 + k), None) } }
                 if let BK::Res(r) = BLDS[b].kind { if self.loc(r) == Loc::Home { cand(res_spot(), 1.7, 0.9, Tg::Npc(r), None) } }
@@ -413,7 +415,7 @@ impl Game {
         match tg {
             Tg::Npc(i) => v(match self.me.scene { Scene::Town => self.npcs[i].pos, Scene::Room(b) if self.visit.is_some_and(|x| x.0 == i && x.1 == b) => self.visit_spot(b), _ => res_spot() }, 1.5), Tg::Door(b) => v(door_face(b), 1.3),
             Tg::Tree(i) => v(tc((self.w.trees[i].x, self.w.trees[i].z)), 2.15), Tg::Item(i) => vec3(self.w.ground[i].x, 0.45, self.w.ground[i].z),
-            Tg::Weed(i) => v(tc(self.w.weeds[i]), 0.55), Tg::Rack => vec3(1.5, 1.8, 1.5), Tg::Mailbox(o) => v(tc(mailbox_tile(o)), 1.4), Tg::Stall => v(tc(STALL), 1.9), Tg::Board => v(tc(BOARD), 1.9), Tg::MSite => self.w.mproject.as_ref().map_or(Vec3::ZERO, |m| v(tc((m.x, m.z)), 1.6)), Tg::Dock => vec3(DOCK.0 as f32 + 0.5, 1.6, DOCK.1 as f32 + 0.3), Tg::ActBoard => v(tc(ACT_BOARD), 1.5), Tg::Pell => vec3(PELL_I.0, 1.6, PELL_I.1), Tg::IStall => v(tc(ISTALL), 1.5), Tg::IItem(i) => vec3(self.w.iground[i].x, 0.45, self.w.iground[i].z), Tg::Built(i) => v(tc((self.w.built[i].x, self.w.built[i].z)), 1.2), Tg::Site => self.w.project.as_ref().map_or(Vec3::ZERO, |p| v(tc((p.x, p.z)), 1.6)), Tg::Curator => vec3(3.5, 1.3, 1.5), Tg::Exhibit(k) => match k { 0 => vec3(0.5, 1.5, 2.5), 1 => vec3(6.5, 1.5, 2.5), _ => { let p = tc(MUSEUM_PED[k - 2].0); vec3(p.x, 1.2, p.y) } }, Tg::Counter => vec3(3.5, 1.3, 1.5), Tg::Keeper => vec3(3.5, 1.7, 0.5), Tg::Display(i) => v(tc(DISPLAYS[i]), 1.3),
+            Tg::Weed(i) => v(tc(self.w.weeds[i]), 0.55), Tg::Rack => vec3(1.5, 1.8, 1.5), Tg::Mailbox(o) => v(tc(mailbox_tile(o)), 1.4), Tg::Stall => v(tc(STALL), 1.9), Tg::Board => v(tc(BOARD), 1.9), Tg::MSite => self.w.mproject.as_ref().map_or(Vec3::ZERO, |m| v(tc((m.x, m.z)), 1.6)), Tg::Dock => vec3(DOCK.0 as f32 + 0.5, 1.6, DOCK.1 as f32 + 0.3), Tg::ActBoard => v(tc(ACT_BOARD), 1.5), Tg::Pell => vec3(PELL_I.0, 1.6, PELL_I.1), Tg::IStall => v(tc(ISTALL), 1.5), Tg::IItem(i) => vec3(self.w.iground[i].x, 0.45, self.w.iground[i].z), Tg::Built(i) => v(tc((self.w.built[i].x, self.w.built[i].z)), 1.2), Tg::Site => self.w.project.as_ref().map_or(Vec3::ZERO, |p| v(tc((p.x, p.z)), 1.6)), Tg::Curator | Tg::Hazel => vec3(3.5, 1.3, 1.5), Tg::Exhibit(k) => match k { 0 => vec3(0.5, 1.5, 2.5), 1 => vec3(6.5, 1.5, 2.5), _ => { let p = tc(MUSEUM_PED[k - 2].0); vec3(p.x, 1.2, p.y) } }, Tg::Counter => vec3(3.5, 1.3, 1.5), Tg::Keeper => vec3(3.5, 1.7, 0.5), Tg::Display(i) => v(tc(DISPLAYS[i]), 1.3),
             Tg::Furn(uid, d) => { let c = self.room_furn(match self.me.scene { Scene::Room(b) => b, _ => HOME }).into_iter().find(|f| f.uid == uid && f.def == d).map(|f| fcenter(&f)).unwrap_or_default(); v(c, if def(d).wall { 1.9 } else { 1.2 }) }
         }
     }
@@ -424,7 +426,7 @@ impl Game {
             Tg::Item(i) => format!("Pick up {}", def(self.w.ground[i].def).name), Tg::Weed(_) => "Pull weed".into(),
             Tg::Furn(uid, d) => { let a = match def(d).act { Act::Sit => "Sit on", Act::Bed => "Lie on", Act::Lamp => "Toggle", Act::Storage => "Open", Act::None => "Look at" };
                 if uid != 0 && self.me.scene == Scene::Room(self.home()) { format!("{a} {}   [F] Move  [G] Pick up", def(d).name) } else { format!("{a} {}", def(d).name) } }
-            Tg::Counter => "Sell items".into(), Tg::Keeper => "Talk to Mr. Tumble".into(), Tg::Curator => "Donate / identify fossils".into(), Tg::Rack => "Browse clothes".into(), Tg::Site => self.w.project.as_ref().map_or(String::new(), |p| format!("Contribute to the {}", PROJECTS[p.kind as usize].0)), Tg::Board => "Read the town notice board".into(), Tg::MSite => self.w.mproject.as_ref().map_or(String::new(), |m| format!("Fund the {}", MPROJECTS[m.idx].0)), Tg::Dock => format!("Sail to Gullrock Islet ({FARE} coins)"), Tg::ActBoard => "Timed activities board".into(), Tg::Pell => "Talk to Captain Pell".into(), Tg::IStall => "Sea Glass stall".into(), Tg::IItem(i) => format!("Pick up {}", def(self.w.iground[i].def).name), Tg::Built(_) => "Sit on the bench".into(),
+            Tg::Counter => "Sell items".into(), Tg::Keeper => "Talk to Mr. Tumble".into(), Tg::Hazel => "Talk to Hazel Quill (civic desk)".into(), Tg::Curator => "Donate / identify fossils".into(), Tg::Rack => "Browse clothes".into(), Tg::Site => self.w.project.as_ref().map_or(String::new(), |p| format!("Contribute to the {}", PROJECTS[p.kind as usize].0)), Tg::Board => "Read the town notice board".into(), Tg::MSite => self.w.mproject.as_ref().map_or(String::new(), |m| format!("Fund the {}", MPROJECTS[m.idx].0)), Tg::Dock => format!("Sail to Gullrock Islet ({FARE} coins)"), Tg::ActBoard => "Timed activities board".into(), Tg::Pell => "Talk to Captain Pell".into(), Tg::IStall => "Sea Glass stall".into(), Tg::IItem(i) => format!("Pick up {}", def(self.w.iground[i].def).name), Tg::Built(_) => "Sit on the bench".into(),
             Tg::Stall => if self.w.p.fair_year == self.yr { "Harvest Fair stall (prize claimed)".into() } else { "Claim a Harvest Fair prize".into() }, Tg::Mailbox(o) => if o == self.me.id { let n = self.w.p.mail.iter().filter(|l| !l.read).count(); if n > 0 { format!("Check mailbox ({n} new)") } else { "Check mailbox".into() } } else { format!("Player {}'s mailbox", o + 1) },
             Tg::Exhibit(k) => match k { 0 => "Look at the fish tank".into(), 1 => "Look at the bug case".into(), _ => format!("Look at the {} pedestal", def(MUSEUM_PED[k - 2].1).name) },
             Tg::Display(i) => if i < 5 { let s = self.w.stock[i]; if s.sold { "Sold out".into() } else { format!("Buy {} ({} coins)", def(s.def).name, def(s.def).buy) } } else { let t = TOOL_DISPLAY[i - 5]; format!("Buy {} ({} coins)", def(t).name, def(t).buy) },
@@ -444,6 +446,7 @@ impl Game {
             Tg::Furn(uid, d) => self.use_furn(uid, d),
             Tg::Counter => self.me.ui = Ui::Sell(0),
             Tg::Curator => self.donate(),
+            Tg::Hazel => self.me.ui = Ui::Civic(0),
             Tg::Rack => self.me.ui = Ui::Rack(0),
             Tg::Stall => self.fair_prize(),
             Tg::Site => self.contribute(),
@@ -452,7 +455,7 @@ impl Game {
             Tg::IStall => self.me.ui = Ui::IStall(0),
             Tg::ActBoard => if self.act.is_some() { self.note("An activity is already running.") } else { self.me.ui = Ui::Act(0) },
             Tg::IItem(i) => { let it = self.w.iground[i]; if self.add(it.def) { self.w.iground.retain(|g| g.uid != it.uid) } }
-            Tg::Board => if self.me.id == LEADER && self.w.mproject.is_none() { self.me.ui = Ui::MPick(0) } else { let lines = self.board_lines(); self.me.ui = Ui::Talk { npc: None, who: "Town notice board".into(), lines, i: 0 } },
+            Tg::Board => { let lines = self.board_lines(); self.me.ui = Ui::Talk { npc: None, who: "Town notice board".into(), lines, i: 0 } }
             Tg::MSite => self.me.ui = Ui::Fund,
             Tg::Built(i) => { let b = self.w.built[i]; self.me.stand_from = self.me.pos; self.me.pos = tc((b.x, b.z)); self.me.face = vec2(0., 1.); self.me.pose = Pose::Sit(0); self.note("You sit on the bench. Move to stand up.") }
             Tg::Mailbox(o) => if o == self.me.id { self.me.ui = Ui::Mail(0) } else { self.note(format!("That's Player {}'s mailbox. Better not peek.", o + 1)) },
@@ -471,7 +474,7 @@ impl Game {
             BK::Home(_) => self.go(Scene::Room(b)),
             BK::Shop => if self.shop_is_open() { self.go(Scene::Room(b)) } else { let (a, c) = self.shop_hours(); self.note(format!("The General Store is closed. Hours: {a}:00-{c}:00.")) },
             BK::Res(r) => match self.loc(r) { Loc::Home => self.go(Scene::Room(b)), Loc::Asleep => self.note(format!("It's late. {} is asleep.", self.res(r).name)), Loc::Out => self.note(format!("{} isn't home right now.", self.res(r).name)) },
-            BK::Civic => self.me.ui = Ui::Policy(0),
+            BK::Civic => self.go(Scene::Room(b)),
             BK::Museum => self.go(Scene::Room(b)),
         }
     }
@@ -667,6 +670,7 @@ impl Game {
     pub fn act_step(&mut self) {
         let id = self.me.id; let (p, face, swim) = (self.me.ipos, self.me.face, self.swimming());
         let Some(mut a) = self.act.take() else { return };
+        if !a.done && self.me.scene == Scene::Islet && !a.players.contains(&id) { a.players.push(id); self.note(format!("You joined {} in progress!", ACTS[a.kind].0)) }
         if !a.done && self.me.scene == Scene::Islet && a.players.contains(&id) {
             let mut gain = 0;
             match a.kind {
@@ -679,7 +683,7 @@ impl Game {
         if a.done && a.players.contains(&id) && !a.paid.contains(&id) { a.paid.push(id); let tier = Self::act_tier(a.kind, a.score); let name = ACTS[a.kind].0;
             if tier == 0 { self.note(format!("{name} over: score {}. No reward this time.", a.score)) }
             else if self.w.p.act_day[a.kind] == self.w.day { self.note(format!("{name} over: score {}. (Already rewarded for this one today.)", a.score)) }
-            else { let mut got = 0; for _ in 0..ACT_REWARD[tier - 1] { if self.add(85) { got += 1 } } self.w.p.act_day[a.kind] = self.w.day; self.snd.push(Snd::Coin); self.note(format!("{name} over: score {} ({}). +{got} Sea Glass!", a.score, ["", "bronze", "silver", "gold"][tier])) } }
+            else { let n = ACT_REWARD[tier - 1]; let mut got = 0; for _ in 0..n { if self.add(85) { got += 1 } } for _ in got..n { self.w.p.mail.push(Letter { from: "Captain Pell".into(), text: "Your pockets were full, so here is the Sea Glass you earned.".into(), coins: 0, item: Some(85), read: false, claimed: false }) } if got < n { self.note(format!("Pockets full: {} Sea Glass sent to your mailbox.", n - got)) } self.w.p.act_day[a.kind] = self.w.day; self.snd.push(Snd::Coin); self.note(format!("{name} over: score {} ({}). +{got} Sea Glass!", a.score, ["", "bronze", "silver", "gold"][tier])) } }
         self.act = Some(a);
     }
     // ---- Gullrock Islet ----
@@ -714,6 +718,7 @@ impl Game {
     pub fn board_lines(&self) -> Vec<String> {
         let mut v = vec![format!("Town liveliness: {} / 100 ({}).", self.liveliness(), Game::live_word(self.liveliness()))];
         if let Some(p) = &self.w.project { v.push(format!("Current project: a {} proposed by {}. {}", PROJECTS[p.kind as usize].0, self.res(p.by).name, Game::remaining(p))) }
+        v.push("Funded public projects are started by the town leader at the Town Hall civic desk.".into());
         if let Some(m) = &self.w.mproject { v.push(format!("Funded project: a {} ({} / {} coins). It is built the morning after it is fully funded.", MPROJECTS[m.idx].0, m.funded, MPROJECTS[m.idx].1)) }
         v.push(if self.w.built.is_empty() { "Built so far: nothing yet.".into() } else { format!("Built so far: {}.", self.w.built.iter().map(|b| PROJECTS[b.kind as usize].0).collect::<Vec<_>>().join(", ")) }); v
     }
@@ -731,7 +736,7 @@ impl Game {
     pub fn mp_start(&mut self, idx: usize) -> Result<(), &'static str> {
         if self.me.id != LEADER { return Err("Only the town leader can start public projects.") }
         if self.w.mproject.is_some() { return Err("A funded project is already underway.") }
-        let t = self.mp_front(); if !self.mp_site_ok(t) { return Err("That spot won't work: it must be open grass that keeps every path clear.") }
+        let t = self.mp_front(); if !self.mp_site_ok(t) { return Err("Can't build there: needs open grass, paths clear.") }
         self.w.mproject = Some(MProject { idx, x: t.0, z: t.1, funded: 0, log: vec![] }); Ok(())
     }
     /// Donate up to `amount` of the active player's own coins (capped by what is still needed).
@@ -1060,7 +1065,7 @@ impl Game {
         }
         if self.ui_input(inp) { self.me.spd = 0.; return }
         if self.me.placing.is_some() { self.place_input(inp); self.me.spd = 0.; return }
-        if let Some(idx) = self.me.mplace { if inp.p(KeyCode::Escape) { self.me.mplace = None; self.note("Placement cancelled.") } else if inp.p(KeyCode::Enter) || inp.p(KeyCode::KpEnter) { match self.mp_start(idx) { Ok(()) => { self.me.mplace = None; self.snd.push(Snd::Blip); self.note(format!("The {} site is set! Anyone can donate at its sign.", MPROJECTS[idx].0)) } Err(e) => self.note(e) } } }
+        if let Some(idx) = self.me.mplace { if inp.p(KeyCode::Escape) { self.me.mplace = None; self.note("Placement cancelled.") } else if self.me.scene == Scene::Town && (inp.p(KeyCode::Enter) || inp.p(KeyCode::KpEnter)) { match self.mp_start(idx) { Ok(()) => { self.me.mplace = None; self.snd.push(Snd::Blip); self.note(format!("The {} site is set! Anyone can donate at its sign.", MPROJECTS[idx].0)) } Err(e) => self.note(e) } } }
         use KeyCode::*;
         let mut d = Vec2::ZERO;
         if inp.d(W) || inp.d(Up) { d.y -= 1. } if inp.d(S) || inp.d(Down) { d.y += 1. }
@@ -1104,11 +1109,15 @@ impl Game {
                 self.music_vol = (self.music_vol * 10.).round() / 10.; self.sfx_vol = (self.sfx_vol * 10.).round() / 10.;
                 if (mv0, sv0, mu0) != (self.music_vol, self.sfx_vol, self.muted) { self.settings_dirty = true } }
             Ui::Gift(j, s) => { let s = mv(s, n); self.me.ui = Ui::Gift(j, s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.give_gift(j, s) } }
-            Ui::MPick(s) => { let s = mv(s, MPROJECTS.len()); self.me.ui = Ui::MPick(s); if esc { self.me.ui = Ui::Play } else if ok { self.me.ui = Ui::Play; self.me.mplace = Some(s); self.note("Walk to the spot and face it, then press Enter to place. Esc cancels.") } }
+            Ui::MPick(s) => { let s = mv(s, MPROJECTS.len()); self.me.ui = Ui::MPick(s); if esc { self.me.ui = Ui::Play } else if ok { self.me.ui = Ui::Play; self.me.mplace = Some(s); if self.me.scene != Scene::Town { self.go(Scene::Town) } self.note("Face a spot outside (green = OK), Enter places.") } }
+            Ui::Civic(s) => { let s = mv(s, 3); self.me.ui = Ui::Civic(s); if esc { self.me.ui = Ui::Play } else if ok { match s {
+                0 => self.me.ui = Ui::Policy(0),
+                1 => if self.me.id != LEADER { self.me.ui = Ui::Play; self.note("Only the town leader can start public projects.") } else if self.w.mproject.is_some() { self.me.ui = Ui::Play; self.note("A funded project is already underway.") } else { self.me.ui = Ui::MPick(0) },
+                _ => { let lines = self.board_lines(); self.me.ui = Ui::Talk { npc: None, who: ADMIN.into(), lines, i: 0 } } } } }
             Ui::Policy(s) => { let s = mv(s, POLICIES.len() + 1); self.me.ui = Ui::Policy(s); if esc { self.me.ui = Ui::Play } else if ok { self.me.ui = Ui::PolicyOk(s) } }
             Ui::PolicyOk(s) => { if esc { self.me.ui = Ui::Policy(s) } else if ok { let r = self.enact((s < POLICIES.len()).then_some(s)); self.me.ui = Ui::Play;
                 match r { Ok(()) => { self.snd.push(Snd::Coin); self.note(self.pol().map_or("Policy repealed. Normal hours apply.".to_string(), |p| format!("{} is now in effect.", p.name))) } Err(e) => self.note(e) } } }
-            Ui::Act(s) => { let s = mv(s, ACTS.len()); self.me.ui = Ui::Act(s); if esc { self.me.ui = Ui::Play } else if ok { self.me.ui = Ui::Play; match self.act_start(s) { Ok(()) => { self.snd.push(Snd::Blip); self.note(format!("{} started! {}", ACTS[s].0, ACTS[s].1)) } Err(e) => self.note(e) } } }
+            Ui::Act(s) => { let s = mv(s, ACTS.len()); self.me.ui = Ui::Act(s); if esc { self.me.ui = Ui::Play } else if ok { self.me.ui = Ui::Play; match self.act_start(s) { Ok(()) => { self.snd.push(Snd::Blip); self.note(format!("{} started!", ACTS[s].0)) } Err(e) => self.note(e) } } }
             Ui::Fund => { if esc { self.me.ui = Ui::Play } else if ok { match self.mp_fund(DONATE_STEP) { Ok(a) => { self.snd.push(Snd::Coin); self.note(format!("Donated {a} coins.")) } Err(e) => self.note(e) } } }
             Ui::ConfirmExpand => { if ok || inp.p(Y) { self.me.ui = Ui::Play; match self.expand_home() { Ok(()) => { self.snd.push(Snd::Door); self.note(format!("Your home was expanded! Balance: {} coins, no deadline.", self.w.p.debt)) } Err(e) => self.note(e) } } else if esc || inp.p(N) { self.me.ui = Ui::Play } }
             Ui::Travel(go_out) => { if ok || inp.p(Y) { self.me.ui = Ui::Play; if go_out { if self.w.p.money < FARE { self.note("Not enough coins for the fare.") } else { self.w.p.money -= FARE; self.go(Scene::Islet) } } else { self.go(Scene::Town) } } else if esc || inp.p(N) { self.me.ui = Ui::Play } }

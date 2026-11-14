@@ -110,8 +110,12 @@ pub const BLDS: [Bld; 9] = [
 pub fn door_tile(b: usize) -> (i32, i32) { let b = &BLDS[b]; (b.x + b.w / 2, b.z + b.d) }
 pub fn door_stand(b: usize) -> Vec2 { let (x, z) = door_tile(b); vec2(x as f32 + 0.5, z as f32 + 0.5) }
 pub fn door_face(b: usize) -> Vec2 { let (x, z) = door_tile(b); vec2(x as f32 + 0.5, z as f32) }
-pub fn room_dims(b: usize) -> (i32, i32) { if matches!(BLDS[b].kind, BK::Shop | BK::Museum) { (7, 5) } else { (4, 4) } }
+pub fn room_dims(b: usize) -> (i32, i32) { if matches!(BLDS[b].kind, BK::Shop | BK::Museum | BK::Civic) { (7, 5) } else { (4, 4) } }
 /// Museum interior (7x5): curator desk, fish tank (left), bug case (right), four fossil pedestals.
+/// Town Hall interior: civic desk tiles and potted plants (blocked).
+pub const CIVIC_DESK: [(i32, i32); 3] = [(2, 1), (3, 1), (4, 1)];
+pub const CIVIC_PLANTS: [(i32, i32); 2] = [(0, 0), (6, 0)];
+pub const CIVIC_BENCH: [(i32, i32); 2] = [(5, 3), (6, 3)];
 pub const MUSEUM_DESK: [(i32, i32); 3] = [(2, 1), (3, 1), (4, 1)];
 pub const MUSEUM_TANK: [(i32, i32); 3] = [(0, 1), (0, 2), (0, 3)];
 pub const MUSEUM_CASE: [(i32, i32); 3] = [(6, 1), (6, 2), (6, 3)];
@@ -184,7 +188,7 @@ pub const ISTALL: (i32, i32) = (10, 9);
 /// Gullrock timed activities (original, provisional): name, objective, seconds, bronze/silver/gold team-score thresholds.
 pub const ACTS: [(&str, &str, f32, [u32; 3]); 3] = [
     ("Crab Corral", "Walk into the crabs to nudge them inside the ring of stones.", 60., [2, 4, 6]),
-    ("Beacon Dash", "Touch each glowing beacon before it fades (it moves every few seconds).", 45., [7, 12, 18]),
+    ("Beacon Dash", "Touch each glowing beacon before it fades (it moves every few seconds).", 45., [5, 9, 13]),
     ("Ring Swim", "Swim through the floating rings in numbered order.", 75., [2, 4, 6]),
 ];
 /// Sea Glass paid to each participant per tier (bronze, silver, gold); once per activity per player per day.

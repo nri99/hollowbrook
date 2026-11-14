@@ -68,5 +68,5 @@ Status: `[ ]` open · `[x]` done · `[B]` blocked (reason given)
 - [x] **X-05 Social depth.** Birthdays, resident-to-resident chats (speech bubbles), varied requests (deliver furniture / catch at location / weather-specific), more dialogue variety. *AC:* H + S.
 - [~] **X-06 Atmosphere.** (PARTIAL: music, surface footsteps, seasonal particles, split-screen dialogue framing done; animation/face polish + detailed materials open) Procedural music by hour/weather, surface-dependent footsteps, seasonal particles (leaves, fireflies, petals), animation/face polish, dialogue framing in split-screen. *AC:* S (+ audio by code inspection only).
 - [x] Gullrock timed activities: Crab Corral, Beacon Dash, Ring Swim (solo/co-op, HUD, tiered Sea Glass) — 2026-11-14.
-- [ ] Town Hall interior with the administrator modelled (desk currently opens at the door).
-- [ ] Autotest + rendered check for Crab Corral and Ring Swim; money-project placement preview screenshot.
+- [x] Town Hall interior with Hazel Quill and the civic desk — 2026-11-14.
+- [x] Autotest + rendered checks: Crab Corral co-op, Ring Swim solo, placement preview valid/invalid, partial + built project (phases 25-27).

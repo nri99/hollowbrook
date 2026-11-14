@@ -132,7 +132,7 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
     let phase = std::env::var("HOLLOWBROOK_AUTOTEST_PHASE").unwrap_or("1".into());
     let mut rep = String::new();
     macro_rules! log { ($($a:tt)*) => {{ let s = format!($($a)*); eprintln!("[auto] {s}"); rep += &s; rep.push('\n'); }} }
-    macro_rules! shot { ($n:expr) => {{ wait(g, c, 2).await; render::draw(g, c.now(), Some(c.source())); screenshot(&format!("{dir}/{}.png", $n)); next_frame().await; log!("shot {}", $n); }} }
+    macro_rules! shot { ($n:expr) => {{ wait(g, c, 2).await; render::draw(g, c.now(), None); screenshot(&format!("{dir}/{}.png", $n)); next_frame().await; log!("shot {}", $n); }} }
     let state = |g: &Game| format!("money={} inv={:?} stock={:?} room={:?} tools={:?}", g.w.p.money, g.w.p.inv.iter().map(|s| (def(s.def).name, s.qty, s.uid)).collect::<Vec<_>>(),
         g.w.stock.iter().map(|s| (def(s.def).name, s.sold)).collect::<Vec<_>>(), g.w.p.room.iter().map(|f| (def(f.def).name, f.uid, f.x, f.z, f.rot, f.on)).collect::<Vec<_>>(), g.w.p.tools);
     log!("phase {phase} start {} | {}", c.now(), state(g));
@@ -311,6 +311,43 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         log!("stones={}", have(g, 81));
         if let Some(p) = g.w.project.clone() { approach(g, c, tc((p.x, p.z))).await; shot!("x01_site_before"); press(g, c, KeyCode::E).await; log!("after contribute: project={:?} built={:?} ui={:?}", g.w.project, g.w.built, g.me.ui); for _ in 0..4 { if g.me.ui == Ui::Play { break } press(g, c, KeyCode::E).await } }
         if let Some(b) = g.w.built.first().copied() { approach(g, c, tc((b.x, b.z))).await; press(g, c, KeyCode::E).await; log!("pose={:?}", g.me.pose); wait(g, c, 30).await; shot!("x01_bench_built") }
+    } else if phase == "25" {
+        // Town Hall interior + money project: pick at Hazel's desk, invalid/valid preview, partial funding, P2 tops up, rollover builds it.
+        // Fixture: coins are set directly so the project can be funded within one run.
+        g.join("Player 2"); let th = BLDS.iter().position(|b| b.kind == BK::Civic).unwrap();
+        go(g, c, door_stand(th), 0.12).await; face(g, c, door_face(th)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await; log!("scene={:?}", g.me.scene);
+        go(g, c, vec2(4.5, 3.5), 0.15).await; face(g, c, vec2(3.5, 1.5)).await; shot!("th_interior"); approach(g, c, vec2(3.5, 1.5)).await; log!("target={:?}", g.target());
+        press(g, c, KeyCode::E).await; log!("ui={:?}", g.me.ui); shot!("th_civic_menu");
+        press(g, c, KeyCode::Down).await; press(g, c, KeyCode::Enter).await; log!("ui={:?}", g.me.ui); press(g, c, KeyCode::Enter).await; wait(g, c, 40).await; log!("mplace={:?} scene={:?}", g.me.mplace, g.me.scene);
+        go(g, c, vec2(13.5, 17.5), 0.12).await; face(g, c, vec2(13.5, 18.5)).await; shot!("place_invalid"); press(g, c, KeyCode::Enter).await; log!("invalid attempt: mproject={:?}", g.w.mproject.is_some());
+        go(g, c, vec2(16.5, 20.5), 0.12).await; face(g, c, vec2(17.5, 20.5)).await; shot!("place_valid"); press(g, c, KeyCode::Enter).await; let m = g.w.mproject.clone(); log!("placed={:?}", m);
+        let site = m.map(|m| tc((m.x, m.z))).unwrap_or_default(); g.w.p.money = 3000;
+        approach(g, c, site).await; press(g, c, KeyCode::E).await; press(g, c, KeyCode::Enter).await; press(g, c, KeyCode::Enter).await; shot!("project_partial_fund_ui"); press(g, c, KeyCode::Escape).await; wait(g, c, 5).await; shot!("project_partial");
+        log!("after P1: funded={:?} P1 money={}", g.w.mproject.as_ref().map(|m| m.funded), g.w.p.money);
+        g.activate(1); g.w.p.money = 9000; approach(g, c, site).await; press(g, c, KeyCode::E).await; for _ in 0..8 { press(g, c, KeyCode::Enter).await } press(g, c, KeyCode::Escape).await;
+        log!("after P2: funded={:?} P2 money={}", g.w.mproject.as_ref().map(|m| (m.funded, m.log.clone())), g.w.p.money); g.activate(0);
+        let next = (c.now() + chrono::Duration::days(1)).date().and_hms_opt(6, 0, 30).unwrap(); let c2 = Clock { dev: Some((next, std::time::Instant::now())) }; wait(g, &c2, 30).await;
+        log!("after rollover: mproject={:?} built={:?}", g.w.mproject.is_some(), g.w.built.iter().map(|b| (b.kind, b.x, b.z)).collect::<Vec<_>>());
+        render::draw(g, c2.now(), None); screenshot(&format!("{dir}/project_built.png")); next_frame().await;
+    } else if phase == "26" || phase == "27" {
+        // 26: both players sail and play Crab Corral together. 27: P1 plays Ring Swim while P2 stays in town.
+        g.join("Player 2"); let both = phase == "26";
+        for pid in if both { vec![0, 1] } else { vec![0] } { g.activate(pid); go(g, c, dock_stand(), 0.12).await; face(g, c, vec2(20.5, 26.)).await; press(g, c, KeyCode::E).await; press(g, c, KeyCode::Enter).await; wait(g, c, 40).await; log!("P{} scene={:?}", pid + 1, g.me.scene) }
+        g.activate(0); approach(g, c, tc(ACT_BOARD)).await; press(g, c, KeyCode::E).await; if !both { press(g, c, KeyCode::Down).await; press(g, c, KeyCode::Down).await } press(g, c, KeyCode::Enter).await;
+        log!("act kind={:?} players={:?}", g.act.as_ref().map(|a| a.kind), g.act.as_ref().map(|a| a.players.clone()));
+        let pen = vec2(PEN.0, PEN.1); let mut shots = 0;
+        for it in 0..80 { let Some(ents) = g.act.as_ref().filter(|a| !a.done).map(|a| (a.ents.clone(), a.next)) else { break };
+            if both { let pid = it % 2; g.activate(pid);
+                let Some(cr) = ents.0.iter().copied().filter(|&x| !Game::in_pen(x)).min_by(|x, y| x.distance(g.ppos()).total_cmp(&y.distance(g.ppos()))) else { g.activate(0); break };
+                let mut tgt = cr; for _ in 0..360 { let Some(a) = g.act.as_ref().filter(|a| !a.done) else { break }; let Some(&cb) = a.ents.iter().filter(|&&x| !Game::in_pen(x)).min_by(|x, y| x.distance(tgt).total_cmp(&y.distance(tgt))) else { break }; tgt = cb;
+                    let dir = (pen - cb).normalize_or_zero(); let behind = cb - dir * 0.5; let side = (g.ppos() - cb).dot(dir) > -0.2; // not yet behind: circle around at a distance
+                    let want = if side { cb - dir * 0.5 + vec2(-dir.y, dir.x) * 1.0 } else { behind }; step(g, c, &keys_toward(want - g.ppos()), &[]).await }
+                g.activate(0);
+            } else { let Some(&r) = ents.0.get(ents.1) else { break }; for f in 0..600 { if g.act.as_ref().map_or(true, |a| a.next != ents.1 || a.done) { break } step(g, c, &keys_toward(r - g.ppos()), &[]).await; if it == 1 && f == 40 { shot!("ring_swim_approach") } } }
+            if shots == 0 && (it == 3 || g.act.as_ref().is_some_and(|a| a.score >= 1)) { shot!(if both { "crab_corral_coop" } else { "ring_swim_solo" }); shots += 1 } }
+        log!("act end state={:?}", g.act.as_ref().map(|a| (a.score, a.done, a.left, a.mine.clone())));
+        for _ in 0..30 { step2(g, c, Inp::none(), Inp::none()).await } let gl = |p: &Profile| p.inv.iter().filter(|s| s.def == 85).map(|s| s.qty).sum::<u16>();
+        log!("P1 glass={} msg={:?} | P2 scene={:?} glass={}", gl(&g.w.p), g.me.msgs.last().map(|m| m.0.clone()), g.others.first().map(|o| o.scene), g.w.others.first().map_or(0, gl));
     } else if phase == "24" {
         // Gullrock timed activity through the real input path: P1 sails, starts Beacon Dash at the board, chases beacons; P2 stays in town
         g.join("Player 2");

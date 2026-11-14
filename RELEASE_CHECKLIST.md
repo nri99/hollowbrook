@@ -27,3 +27,8 @@ Physical items (P) cannot be performed by the agent; they go to HUMAN_VERIFICATI
 - [x] Money projects: leader-only start, route validation, per-player donations, built at 06:00, save/reload — unit test (headless).
 - [x] Policies: one active, fee/insufficient funds, leader-only, no stacking after reload, upkeep effect at rollover — unit test (headless).
 - [x] Gullrock activities: co-op shared score, separate rewards, once/day, forfeits on leaving — unit test; Beacon Dash executable action path + screenshot inspected. Physical controller: NOT RUN.
+- [x] Housing balance migration/independence/relaunch — unit test (headless).
+- [x] Town Hall interior + civic desk — unit test + rendered screenshot (phase 25).
+- [x] Construction preview valid/invalid, partial funding, built after rollover — rendered screenshots (phase 25).
+- [x] Crab Corral co-op, Ring Swim with other player in town — executable action path + rendered screenshots (phases 26/27).
+- [ ] Activity difficulty: human assessment PENDING. Physical controllers: PENDING.
