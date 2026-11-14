@@ -18,7 +18,7 @@ when every listed evidence type exists and is recorded in PROGRESS.md.
 | R10 | Gamepad support (2 pads): explicit assignment, dead zone, edges, menu navigation, prompts | H (virtual) P | H + X(virtual pad) done; P NOT RUN |
 | R11 | Controller disconnect/reconnect/reassign without progress loss; join/leave safely | H P | H + X(virtual) done; P NOT RUN |
 | R12 | Daily rollover with players in different scenes | H | done (H) |
-| R13 | Museum donations shared + persistent visible exhibits | H X S | open |
+| R13 | Museum donations shared + persistent visible exhibits | H X S | done |
 | R14 | Keyboard single-player still works | X P | X done, P open |
 | R15 | Tool feedback, occlusion fade, night lighting rendered | S | done (occlusion, night, lamp); tool FX S open |
 | R16 | Content coverage table kept current (DESIGN_SPEC §Content) | doc | open |

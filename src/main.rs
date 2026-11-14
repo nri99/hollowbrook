@@ -213,6 +213,12 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
             log!("net swing: inv={:?}", g.w.p.inv); if g.w.p.inv.iter().any(|s| def(s.def).k == K::Bug) { shot!("p3_bug_caught"); break } }
         if let Some(r) = (0..4).find(|&r| where_(r, g.hr) == Loc::Home) { let b = RES[r].bld; go(g, c, door_stand(b), 0.12).await; face(g, c, door_face(b)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
             log!("resident {r} home: scene={:?}", g.me.scene); shot!("p3_resident_home"); approach(g, c, res_spot()).await; press(g, c, KeyCode::E).await; log!("talk ui={:?}", g.me.ui); shot!("p3_resident_talk"); for _ in 0..4 { if g.me.ui == Ui::Play { break } press(g, c, KeyCode::E).await } }
+        if let Some(site) = g.w.digs.first().copied() { for _ in 0..4 { if g.w.p.equip == Some(62) { break } press(g, c, KeyCode::Tab).await } approach(g, c, tc(site)).await; press(g, c, KeyCode::Space).await; log!("second dig: inv={:?}", g.w.p.inv) }
+        if g.me.scene != Scene::Town { go(g, c, vec2(1.5, 3.5), 0.12).await; for _ in 0..30 { if g.me.scene == Scene::Town { break } step(g, c, &[KeyCode::S], &[]).await } wait(g, c, 40).await }
+        let mb = BLDS.iter().position(|b| b.kind == BK::Museum).unwrap(); go(g, c, door_stand(mb), 0.12).await; face(g, c, door_face(mb)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await; log!("museum: scene={:?}", g.me.scene);
+        go(g, c, vec2(3.5, 2.5), 0.12).await; face(g, c, vec2(3.5, 1.)).await; press(g, c, KeyCode::E).await; log!("curator: ui={:?}", g.me.ui); shot!("p3_museum_curator");
+        for _ in 0..12 { if g.me.ui == Ui::Play { break } press(g, c, KeyCode::E).await } log!("donated={:?} inv={:?}", g.w.donated, g.w.p.inv);
+        go(g, c, vec2(3.5, 3.4), 0.12).await; face(g, c, vec2(3.5, 1.)).await; shot!("p3_museum_exhibits");
         log!("phase 3A end | {}", state(g));
     } else if phase == "3" {
         // P1-05: night lighting outdoors, lamp on/off indoors (lamp granted as a logged test fixture)

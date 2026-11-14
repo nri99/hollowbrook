@@ -42,6 +42,8 @@ pub struct World {
     pub version: u32, pub day: i64, pub native: u16, pub trees: Vec<Tree>, pub ground: Vec<GItem>,
     pub weeds: Vec<(i32, i32)>, pub holes: Vec<(i32, i32)>, pub digs: Vec<(i32, i32)>, pub stock: Vec<Stock>, pub stock_day: i64, pub uid: u32,
     #[serde(default)] pub trampled: Vec<(i32, i32)>,
+    /// museum donations shared by all players: (item def, donating player id)
+    #[serde(default)] pub donated: Vec<(u16, usize)>,
     /// profile of the player currently being processed (swapped in by `Game::activate`)
     pub p: Profile,
     #[serde(default)] pub others: Vec<Profile>,
@@ -49,7 +51,7 @@ pub struct World {
 impl World {
     pub fn fresh(name: String, day: i64, map: &[u8]) -> World {
         let trees = (0..W * H).filter(|&i| map[i] == TREE).map(|i| Tree { x: (i % W) as i32, z: (i / W) as i32, fruit: true, shaken: i64::MIN / 2 }).collect();
-        World { version: SAVE_VERSION, day, native: FRUITS[gen_range(0usize, 4)], trees, ground: vec![], weeds: vec![], holes: vec![], digs: vec![], stock: vec![], stock_day: i64::MIN, uid: 1, trampled: vec![], p: Profile::new(0, name, door_stand(HOME)), others: vec![] }
+        World { version: SAVE_VERSION, day, native: FRUITS[gen_range(0usize, 4)], trees, ground: vec![], weeds: vec![], holes: vec![], digs: vec![], stock: vec![], stock_day: i64::MIN, uid: 1, trampled: vec![], donated: vec![], p: Profile::new(0, name, door_stand(HOME)), others: vec![] }
     }
 }
 
@@ -58,7 +60,7 @@ impl World {
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Pose { Stand, Sit(u32), Lie(u32) }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Loc { Out, Home, Asleep }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Snd { Step, Blip, Splash, Coin, Dig, Rustle, Door }
-#[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize) }
+#[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize) }
 #[derive(Clone, PartialEq, Debug)]
 pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal }
 pub struct Placing { pub f: Furn, pub orig: Option<Furn>, pub slot_uid: Option<u32> }
@@ -205,6 +207,7 @@ impl Game {
     pub fn room_block(&self, b: usize, x: i32, z: i32, skip: u32) -> bool {
         let (w, d) = room_dims(b); if x < 0 || z < 0 || x >= w || z >= d { return true }
         if BLDS[b].kind == BK::Shop { return COUNTER.contains(&(x, z)) || DISPLAYS.contains(&(x, z)) }
+        if BLDS[b].kind == BK::Museum { return MUSEUM_DESK.contains(&(x, z)) || MUSEUM_TANK.contains(&(x, z)) || MUSEUM_CASE.contains(&(x, z)) || MUSEUM_PED.iter().any(|p| p.0 == (x, z)) }
         self.room_furn(b).iter().filter(|f| !def(f.def).wall && !(skip != 0 && f.uid == skip)).any(|f| foot(f.def, f.x, f.z, f.rot).contains(&(x, z)))
     }
     pub fn free(&self, p: Vec2) -> bool {
@@ -253,6 +256,8 @@ impl Game {
             Scene::Room(b) => {
                 for fu in self.room_furn(b) { cand(fcenter(&fu), 1.5, 1., Tg::Furn(fu.uid, fu.def), None) }
                 if BLDS[b].kind == BK::Shop { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Counter, None); cand(vec2(3.5, 0.5), 2.6, 1.3, Tg::Keeper, None); for (i, &d) in DISPLAYS.iter().enumerate() { cand(tc(d), 1.5, 1., Tg::Display(i), None) } }
+                if BLDS[b].kind == BK::Museum { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Curator, None); cand(vec2(0.5, 2.5), 1.5, 1., Tg::Exhibit(0), None); cand(vec2(6.5, 2.5), 1.5, 1., Tg::Exhibit(1), None);
+                    for (k, p) in MUSEUM_PED.iter().enumerate() { cand(tc(p.0), 1.5, 1., Tg::Exhibit(2 + k), None) } }
                 if let BK::Res(r) = BLDS[b].kind { if where_(r, self.hr) == Loc::Home { cand(res_spot(), 1.7, 0.9, Tg::Npc(r), None) } }
             }
         }
@@ -264,7 +269,7 @@ impl Game {
         match tg {
             Tg::Npc(i) => v(if self.me.scene == Scene::Town { self.npcs[i].pos } else { res_spot() }, 1.5), Tg::Door(b) => v(door_face(b), 1.3),
             Tg::Tree(i) => v(tc((self.w.trees[i].x, self.w.trees[i].z)), 2.15), Tg::Item(i) => vec3(self.w.ground[i].x, 0.45, self.w.ground[i].z),
-            Tg::Weed(i) => v(tc(self.w.weeds[i]), 0.55), Tg::Counter => vec3(3.5, 1.3, 1.5), Tg::Keeper => vec3(3.5, 1.7, 0.5), Tg::Display(i) => v(tc(DISPLAYS[i]), 1.3),
+            Tg::Weed(i) => v(tc(self.w.weeds[i]), 0.55), Tg::Curator => vec3(3.5, 1.3, 1.5), Tg::Exhibit(k) => match k { 0 => vec3(0.5, 1.5, 2.5), 1 => vec3(6.5, 1.5, 2.5), _ => { let p = tc(MUSEUM_PED[k - 2].0); vec3(p.x, 1.2, p.y) } }, Tg::Counter => vec3(3.5, 1.3, 1.5), Tg::Keeper => vec3(3.5, 1.7, 0.5), Tg::Display(i) => v(tc(DISPLAYS[i]), 1.3),
             Tg::Furn(uid, d) => { let c = self.room_furn(match self.me.scene { Scene::Room(b) => b, _ => HOME }).into_iter().find(|f| f.uid == uid && f.def == d).map(|f| fcenter(&f)).unwrap_or_default(); v(c, if def(d).wall { 1.9 } else { 1.2 }) }
         }
     }
@@ -275,7 +280,8 @@ impl Game {
             Tg::Item(i) => format!("Pick up {}", def(self.w.ground[i].def).name), Tg::Weed(_) => "Pull weed".into(),
             Tg::Furn(uid, d) => { let a = match def(d).act { Act::Sit => "Sit on", Act::Bed => "Lie on", Act::Lamp => "Toggle", Act::Storage => "Open", Act::None => "Look at" };
                 if uid != 0 && self.me.scene == Scene::Room(self.home()) { format!("{a} {}   [F] Move  [G] Pick up", def(d).name) } else { format!("{a} {}", def(d).name) } }
-            Tg::Counter => "Sell items".into(), Tg::Keeper => "Talk to Mr. Tumble".into(),
+            Tg::Counter => "Sell items".into(), Tg::Keeper => "Talk to Mr. Tumble".into(), Tg::Curator => "Donate / identify fossils".into(),
+            Tg::Exhibit(k) => match k { 0 => "Look at the fish tank".into(), 1 => "Look at the bug case".into(), _ => format!("Look at the {} pedestal", def(MUSEUM_PED[k - 2].1).name) },
             Tg::Display(i) => if i < 5 { let s = self.w.stock[i]; if s.sold { "Sold out".into() } else { format!("Buy {} ({} coins)", def(s.def).name, def(s.def).buy) } } else { let t = TOOL_DISPLAY[i - 5]; format!("Buy {} ({} coins)", def(t).name, def(t).buy) },
         }
     }
@@ -292,6 +298,10 @@ impl Game {
             Tg::Weed(i) => { self.w.weeds.remove(i); self.note("You pulled a weed. Tidy!") }
             Tg::Furn(uid, d) => self.use_furn(uid, d),
             Tg::Counter => self.me.ui = Ui::Sell(0),
+            Tg::Curator => self.donate(),
+            Tg::Exhibit(k) => { let (n, t) = match k { 0 => (self.donated_of(K::Fish), DEFS.iter().filter(|d| d.k == K::Fish).count()), 1 => (self.donated_of(K::Bug), DEFS.iter().filter(|d| d.k == K::Bug).count()), _ => (self.w.donated.iter().any(|x| x.0 == MUSEUM_PED[k - 2].1) as usize, 1) };
+                let who = if k >= 2 { self.w.donated.iter().find(|x| x.0 == MUSEUM_PED[k - 2].1).map(|x| format!(" (donated by Player {})", x.1 + 1)).unwrap_or_default() } else { String::new() };
+                self.note(format!("{}: {n}/{t} on display.{who}", ["Fish tank", "Bug case"].get(k).copied().unwrap_or(def(MUSEUM_PED[k.max(2) - 2].1).name))) }
             Tg::Keeper => self.me.ui = Ui::Talk { npc: None, who: "Mr. Tumble the tortoise".into(), lines: KEEPER.iter().map(|s| s.to_string()).collect(), i: 0 },
             Tg::Display(i) => {
                 if i < 5 && self.w.stock[i].sold { self.note("That one's sold out. New stock arrives at 6:00.") }
@@ -305,6 +315,7 @@ impl Game {
             BK::Shop => if shop_open(self.hr) { self.go(Scene::Room(b)) } else { self.note("The General Store is closed. Hours: 8:00-22:00.") },
             BK::Res(r) => match where_(r, self.hr) { Loc::Home => self.go(Scene::Room(b)), Loc::Asleep => self.note(format!("It's late. {} is asleep.", RES[r].name)), Loc::Out => self.note(format!("{} isn't home right now.", RES[r].name)) },
             BK::Civic => self.note("The Town Hall isn't open yet. Maybe someday!"),
+            BK::Museum => self.go(Scene::Room(b)),
         }
     }
     pub fn talk(&mut self, i: usize) {
@@ -351,6 +362,24 @@ impl Game {
     pub fn remove_one(&mut self, d: u16) -> bool {
         let Some(i) = self.w.p.inv.iter().position(|s| s.def == d && s.uid == 0) else { return false };
         self.w.p.inv[i].qty -= 1; if self.w.p.inv[i].qty == 0 { self.w.p.inv.remove(i); } true
+    }
+
+    // ---- museum ----
+    pub fn donated_of(&self, k: K) -> usize { self.w.donated.iter().filter(|x| def(x.0).k == k).count() }
+    /// Curator: identify unknown fossils, then donate every pocket item the museum doesn't have yet (shared, once per species).
+    pub fn donate(&mut self) {
+        let mut lines = vec![];
+        while self.w.p.inv.iter().any(|s| s.def == 47) {
+            self.remove_one(47); let f = FOSSILS[gen_range(0, FOSSILS.len())];
+            if !self.add(f) { self.add(47); lines.push("Your pockets are too full for me to hand it back. Make some room first.".to_string()); break }
+            lines.push(format!("Let me see... this fossil is a {}!", def(f).name));
+        }
+        let mut cands: Vec<u16> = self.w.p.inv.iter().map(|s| s.def).filter(|&d| matches!(def(d).k, K::Fish | K::Bug | K::Fossil) && d != 47).collect(); cands.dedup();
+        for d in cands { if self.w.donated.iter().any(|x| x.0 == d) { continue } if self.remove_one(d) { self.w.donated.push((d, self.me.id)); lines.push(format!("A {}! It will make a splendid exhibit.", def(d).name)) } }
+        if lines.is_empty() { lines.push("Bring me fish, bugs or fossils the museum doesn't have yet, and I'll put them on display.".into()) } else { self.snd.push(Snd::Coin) }
+        let tot = |k: K| DEFS.iter().filter(|d| d.k == k).count();
+        lines.push(format!("Collection: {}/{} fish, {}/{} bugs, {}/{} fossils.", self.donated_of(K::Fish), tot(K::Fish), self.donated_of(K::Bug), tot(K::Bug), self.donated_of(K::Fossil), FOSSILS.len()));
+        self.me.ui = Ui::Talk { npc: None, who: "Professor Quill the heron".into(), lines, i: 0 };
     }
 
     // ---- shop ----
@@ -453,7 +482,7 @@ impl Game {
             Some(_) => {
                 self.me.swing = 0.35; let t = tile_of(p + f * 0.9); self.fx.push((vec3(t.0 as f32 + 0.5, 0.05, t.1 as f32 + 0.5), 0., 1));
                 if let Some(i) = self.w.holes.iter().position(|&h| h == t) { self.w.holes.remove(i); self.snd.push(Snd::Dig); self.note("You filled the hole.") }
-                else if let Some(i) = self.w.digs.iter().position(|&h| h == t) { self.w.digs.remove(i); self.w.holes.push(t); self.snd.push(Snd::Dig); let d = if gen_range(0, 3) == 0 { 46 } else { 45 }; self.add(d); }
+                else if let Some(i) = self.w.digs.iter().position(|&h| h == t) { self.w.digs.remove(i); self.w.holes.push(t); self.snd.push(Snd::Dig); let d = [47, 47, 47, 45, 46][gen_range(0, 5)]; self.add(d); }
                 else if matches!(self.tile(t.0, t.1), GRASS | SAND | PATH) && self.walk_tile(t.0, t.1) && !self.occupied(t.0, t.1) && t != tile_of(p) { self.w.holes.push(t); self.snd.push(Snd::Dig); self.note("You dug a hole.") }
                 else { self.note("You can't dig there.") }
             }

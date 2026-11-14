@@ -1,10 +1,10 @@
 # Progress log
 
 ## Current
-- Current task: P3-01 Museum building + donations (shared, persistent)
-- Last completed: MP-04 gamepads (virtual-verified; physical NOT RUN)
+- Current task: P5-02 Clothing (personal outfit per profile; required for multiplayer identity)
+- Last completed: P3-01..03 museum (shared donations, fossil identification, visible exhibits, journal marks)
 - Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
-- Next action: add museum building on free grass (append to BLDS, id 8), shared `donated: Vec<u16>` in World (serde default), curator interaction donating undonated fish/bug/treasure from pockets, tests (no double donation across two players), then P3-02 exhibits in the museum interior.
+- Next action: add 4 shirt defs (K::Cloth) sold at a shop tool-style stand; Profile.shirt Option<u16> (serde default); equip from pockets (Enter on a shirt in Inv); human() uses profile shirt colour; tests + screenshot. Then P5-01 home expansion (paid up front, no debt).
 
 ## Baseline verification (before this run)
 - 19 headless tests pass. Executable bot run (2 launches) completed the full loop; screenshots inspected:
@@ -53,3 +53,9 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - X: phase 5 — virtual pad states through Mapper into P2: A entered own home (Room 7), Y opened pockets, B closed; slot disconnect -> banner, another pad reclaimed slot; P2 progress intact.
 - S (inspected): mp_pad_prompts, mp_pad_disconnected (banner was clipped in narrow view -> shortened, rechecked prompts).
 - Physical controller: NOT RUN (no hardware access by agent). Steps in HUMAN_VERIFICATION.md.
+
+### 00:40 — P3-01..P3-03 done (museum)
+- Building 8 "Museum" on free grass (ids unchanged); interior 7x5 with curator Professor Quill (heron), desk, fish tank, bug case, 4 fossil pedestals. `World.donated: Vec<(def, player)>` shared (serde default). Curator identifies Unknown Fossils (new dig-site drop) into Fern Fossil / Shark Tooth / Ammonite / Trilobite (identification result random [PROV]), then donates every species not yet in the museum; a species can be donated once across both players. Journal marks [museum]; exhibit interaction shows counts and donor.
+- H: 34/34 (new: museum_shared_donation_once_and_fossil_id, museum_reachable_and_blocks; dig test updated for fossils).
+- X: phase 3A extended: dug Unknown Fossil, caught Trout, netted Pill Bug, entered museum, curator identified Shark Tooth and took all three; pockets empty.
+- S (inspected): p3_museum_exhibits (trout in tank, bug in case, shark tooth on pedestal, curator).

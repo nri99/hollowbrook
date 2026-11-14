@@ -16,7 +16,7 @@ pub const FLOWER: u8 = b'*';
 pub const BLD: u8 = b'#';
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum K { Bug, Fish, Fruit, Shell, Treasure, Furn, Tool }
+pub enum K { Bug, Fish, Fruit, Shell, Treasure, Fossil, Furn, Tool }
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Act { None, Sit, Bed, Lamp, Storage }
 
@@ -29,7 +29,7 @@ const fn cr(id: u16, name: &'static str, k: K, sell: u32, col: (f32, f32, f32), 
 const fn fu(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32), fp: (i32, i32), rot: bool, wall: bool, act: Act) -> D { D { buy, fp, rot, wall, act, ..b(id, name, K::Furn, buy / 4, col) } }
 const fn tl(id: u16, name: &'static str, buy: u32) -> D { D { buy, ..b(id, name, K::Tool, 0, (0.6, 0.45, 0.3)) } }
 
-pub static DEFS: [D; 39] = [
+pub static DEFS: [D; 44] = [
     cr(0, "Cabbage White", K::Bug, 90, (1., 1., 0.95), 0.2, 0, 3, 10, 6, 17), cr(1, "Honeybee", K::Bug, 160, (1., 0.85, 0.2), 0.2, 0, 3, 7, 8, 17),
     cr(2, "Ladybug", K::Bug, 120, (0.9, 0.15, 0.1), 0.2, 0, 3, 6, 8, 17), cr(3, "Dragonfly", K::Bug, 230, (0.3, 0.8, 0.9), 0.2, 0, 5, 10, 8, 19),
     cr(4, "Cicada", K::Bug, 300, (0.4, 0.6, 0.3), 0.2, 0, 7, 8, 8, 17), cr(5, "Firefly", K::Bug, 450, (0.8, 1., 0.3), 0.2, 0, 6, 7, 19, 4),
@@ -43,6 +43,8 @@ pub static DEFS: [D; 39] = [
     b(20, "Apple", K::Fruit, 100, (0.85, 0.15, 0.15)), b(21, "Pear", K::Fruit, 100, (0.8, 0.85, 0.25)), b(22, "Cherry", K::Fruit, 100, (0.7, 0.05, 0.2)), b(23, "Peach", K::Fruit, 100, (1., 0.65, 0.5)),
     b(40, "Scallop", K::Shell, 80, (0.98, 0.82, 0.72)), b(41, "Conch", K::Shell, 250, (0.98, 0.62, 0.55)), b(42, "Sand Dollar", K::Shell, 120, (0.92, 0.9, 0.78)),
     b(45, "Amber Stone", K::Treasure, 600, (0.95, 0.6, 0.1)), b(46, "Old Coin", K::Treasure, 1000, (0.85, 0.75, 0.3)),
+    b(47, "Unknown Fossil", K::Fossil, 100, (0.78, 0.72, 0.6)), b(43, "Fern Fossil", K::Fossil, 700, (0.55, 0.6, 0.45)), b(44, "Shark Tooth", K::Fossil, 900, (0.95, 0.93, 0.85)),
+    b(48, "Ammonite", K::Fossil, 1100, (0.8, 0.65, 0.45)), b(49, "Trilobite", K::Fossil, 1300, (0.5, 0.45, 0.4)),
     fu(50, "Chair", 600, (0.75, 0.5, 0.3), (1, 1), true, false, Act::Sit), fu(51, "Sofa", 1200, (0.35, 0.5, 0.78), (2, 1), true, false, Act::Sit),
     fu(52, "Table", 800, (0.66, 0.46, 0.3), (1, 1), false, false, Act::None), fu(53, "Bed", 1800, (0.55, 0.7, 0.9), (1, 2), true, false, Act::Bed),
     fu(54, "Lamp", 700, (0.95, 0.88, 0.65), (1, 1), false, false, Act::Lamp), fu(55, "Cabinet", 1500, (0.58, 0.38, 0.24), (1, 1), true, false, Act::Storage),
@@ -65,11 +67,11 @@ pub fn rainy(d: i64) -> bool { (d as u64).wrapping_mul(2654435761) >> 8 & 7 == 0
 pub fn shop_open(hr: u32) -> bool { (8..22).contains(&hr) }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum BK { Shop, Home(usize), Res(usize), Civic }
+pub enum BK { Shop, Home(usize), Res(usize), Civic, Museum }
 pub struct Bld { pub x: i32, pub z: i32, pub w: i32, pub d: i32, pub kind: BK, pub name: &'static str, pub wall: (f32, f32, f32), pub roof: (f32, f32, f32) }
 /// Stable building ids = index. 1 = player 1's home (same id as earlier saves), 7 = player 2's home.
 pub fn home_of(player: usize) -> usize { if player == 0 { 1 } else { 7 } }
-pub const BLDS: [Bld; 8] = [
+pub const BLDS: [Bld; 9] = [
     Bld { x: 4, z: 3, w: 5, d: 4, kind: BK::Shop, name: "General Store", wall: (0.96, 0.9, 0.78), roof: (0.25, 0.55, 0.7) },
     Bld { x: 12, z: 12, w: 3, d: 3, kind: BK::Home(0), name: "Player 1's Home", wall: (0.98, 0.95, 0.88), roof: (0.78, 0.32, 0.3) },
     Bld { x: 4, z: 12, w: 3, d: 3, kind: BK::Res(0), name: "Juniper's House", wall: (0.98, 0.88, 0.75), roof: (0.92, 0.52, 0.2) },
@@ -78,12 +80,19 @@ pub const BLDS: [Bld; 8] = [
     Bld { x: 17, z: 4, w: 3, d: 3, kind: BK::Res(3), name: "Otto's House", wall: (0.85, 0.9, 0.98), roof: (0.3, 0.45, 0.82) },
     Bld { x: 10, z: 3, w: 5, d: 4, kind: BK::Civic, name: "Town Hall", wall: (0.92, 0.86, 0.74), roof: (0.52, 0.3, 0.25) },
     Bld { x: 16, z: 12, w: 3, d: 3, kind: BK::Home(1), name: "Player 2's Home", wall: (0.9, 0.96, 0.9), roof: (0.3, 0.6, 0.5) },
+    Bld { x: 33, z: 5, w: 4, d: 3, kind: BK::Museum, name: "Museum", wall: (0.93, 0.92, 0.88), roof: (0.45, 0.5, 0.6) },
 ];
 /// Outdoor tile directly in front of the door.
 pub fn door_tile(b: usize) -> (i32, i32) { let b = &BLDS[b]; (b.x + b.w / 2, b.z + b.d) }
 pub fn door_stand(b: usize) -> Vec2 { let (x, z) = door_tile(b); vec2(x as f32 + 0.5, z as f32 + 0.5) }
 pub fn door_face(b: usize) -> Vec2 { let (x, z) = door_tile(b); vec2(x as f32 + 0.5, z as f32) }
-pub fn room_dims(b: usize) -> (i32, i32) { if BLDS[b].kind == BK::Shop { (7, 5) } else { (4, 4) } }
+pub fn room_dims(b: usize) -> (i32, i32) { if matches!(BLDS[b].kind, BK::Shop | BK::Museum) { (7, 5) } else { (4, 4) } }
+/// Museum interior (7x5): curator desk, fish tank (left), bug case (right), four fossil pedestals.
+pub const MUSEUM_DESK: [(i32, i32); 3] = [(2, 1), (3, 1), (4, 1)];
+pub const MUSEUM_TANK: [(i32, i32); 3] = [(0, 1), (0, 2), (0, 3)];
+pub const MUSEUM_CASE: [(i32, i32); 3] = [(6, 1), (6, 2), (6, 3)];
+pub const MUSEUM_PED: [((i32, i32), u16); 4] = [((1, 0), 48), ((5, 0), 49), ((1, 3), 43), ((5, 3), 44)];
+pub const FOSSILS: [u16; 4] = [43, 44, 48, 49];
 
 pub struct Res { pub name: &'static str, pub species: &'static str, pub fur: (f32, f32, f32), pub cloth: (f32, f32, f32), pub pers: usize, pub wake: u32, pub sleep: u32, pub bld: usize, pub home_h: [(u32, u32); 2] }
 pub const RES: [Res; 4] = [

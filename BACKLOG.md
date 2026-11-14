@@ -32,9 +32,9 @@ Status: `[ ]` open · `[x]` done · `[B]` blocked (reason given)
 - [x] **P2-03 Running tramples flowers.** Running over a flower tile can flatten it (persisted, regrows next day). *AC:* unit test.
 
 ## P3 — collections and museum
-- [ ] **P3-01 Museum building + donations.** New building on free grass (town otherwise unchanged; saves remap safely). Curator interaction donates any undonated fish/bug/treasure; donation log persisted. *AC:* tests: donate once, no duplicate donation, item leaves pockets.
-- [ ] **P3-02 Visible exhibits.** Museum interior shows donated species (fish tank models, bug cases, treasure pedestals). *AC:* screenshot inspected.
-- [ ] **P3-03 Completion records.** Journal shows donated/total per category. *AC:* test + screenshot.
+- [x] **P3-01 Museum building + donations.** New building on free grass (town otherwise unchanged; saves remap safely). Curator interaction donates any undonated fish/bug/treasure; donation log persisted. *AC:* tests: donate once, no duplicate donation, item leaves pockets.
+- [x] **P3-02 Visible exhibits.** Museum interior shows donated species (fish tank models, bug cases, treasure pedestals). *AC:* screenshot inspected.
+- [x] **P3-03 Completion records.** Journal shows donated/total per category. *AC:* test + screenshot.
 
 ## P4 — civic systems
 - [B] **P4-01** Requires an original civic design approved by the user (see DESIGN_SPEC §14).

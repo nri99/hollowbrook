@@ -115,7 +115,7 @@ pub fn human(r: &mut R, id: usize, pos: Vec3, yaw: f32, anim: f32, spd: f32, pos
 }
 /// Residents 0-3 and the shopkeeper (4): distinct heads, ears, muzzles, tails, clothes; talk mouth + happy eyes.
 pub fn resident(r: &mut R, i: usize, pos: Vec3, yaw: f32, anim: f32, moving: bool, t: f32, talk: bool, happy: f32) {
-    let (fur, cloth) = if i < 4 { (rgb(RES[i].fur), rgb(RES[i].cloth)) } else { (Color::new(0.55, 0.65, 0.38, 1.), Color::new(0.92, 0.86, 0.7, 1.)) };
+    let (fur, cloth) = if i < 4 { (rgb(RES[i].fur), rgb(RES[i].cloth)) } else if i == 5 { (Color::new(0.93, 0.93, 0.96, 1.), Color::new(0.32, 0.34, 0.6, 1.)) } else { (Color::new(0.55, 0.65, 0.38, 1.), Color::new(0.92, 0.86, 0.7, 1.)) };
     let light = Color::new(0.97, 0.94, 0.88, 1.); let sw = if moving { anim.sin() * 0.6 } else { 0. };
     let jump = if happy > 0. { (t * 10.).sin().abs() * 0.18 } else { 0. }; let bob = (t * 2. + i as f32).sin() * 0.012;
     r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(yaw), pos + vec3(0., jump, 0.)), |r| {
@@ -139,6 +139,7 @@ fn head(r: &mut R, i: usize, fur: Color, light: Color, t: f32, talk: bool, happy
         0 => { r.sphere(vec3(0., -0.07, 0.18), vec3(0.11, 0.08, 0.14), light); r.sphere(vec3(0., -0.04, 0.32), Vec3::splat(0.035), DARK); for s in [-1f32, 1.] { r.cone(vec3(s * 0.14, 0.16, -0.02), 0.08, 0.2, fur); r.sphere(vec3(s * 0.13, -0.08, 0.16), vec3(0.06, 0.04, 0.05), light) } }
         1 => { r.cube(vec3(0., 0.13, 0.1), vec3(0.05, 0.11, 0.15), light); for s in [-1f32, 1.] { r.sphere(vec3(s * 0.09, 0.02, 0.17), vec3(0.075, 0.09, 0.06), DARK); r.sphere(vec3(s * 0.17, 0.17, -0.02), Vec3::splat(0.06), fur) } r.sphere(vec3(0., -0.08, 0.2), vec3(0.08, 0.06, 0.07), light); r.sphere(vec3(0., -0.06, 0.27), Vec3::splat(0.03), DARK) }
         2 => { for s in [-1f32, 1.] { r.sphere(vec3(s * 0.13, 0.16, 0.08), Vec3::splat(0.095), fur); r.sphere(vec3(s * 0.2, -0.06, 0.15), vec3(0.05, 0.03, 0.03), Color::new(1., 0.6, 0.6, 1.)) } }
+        5 => { r.with(Mat4::from_translation(vec3(0., -0.03, 0.2)) * Mat4::from_rotation_x(FRAC_PI_2), |r| r.cone(Vec3::ZERO, 0.055, 0.3, GOLD)); r.sphere(vec3(0., 0.2, -0.12), vec3(0.04, 0.12, 0.04), DARKGRAY) }
         3 => { r.sphere(vec3(0., -0.07, 0.17), vec3(0.12, 0.08, 0.1), light); r.sphere(vec3(0., -0.04, 0.27), Vec3::splat(0.035), DARK); for s in [-1f32, 1.] { r.sphere(vec3(s * 0.18, 0.13, -0.02), Vec3::splat(0.05), fur) } }
         _ => {}
     }
@@ -176,6 +177,7 @@ fn building(r: &mut R, bi: usize, night: f32) {
     for wx in [x + 0.5, x + w - 0.5] { r.cube(vec3(wx, 0.98, fz), vec3(0.24, 0.24, 0.05), WHITE); let u = r.unlit; r.unlit = lit; r.cube(vec3(wx, 0.98, fz + 0.012), vec3(0.19, 0.19, 0.05), win); r.unlit = u }
     match b.kind {
         BK::Shop => { for k in 0..7 { r.cube(vec3(x + 0.4 + k as f32 * (w - 0.8) / 6., hg * 0.82, fz + 0.32), vec3((w - 0.8) / 14., 0.04, 0.3), if k % 2 == 0 { WHITE } else { Color::new(0.2, 0.6, 0.6, 1.) }) } r.cube(vec3(c.x, hg + 0.15, fz + 0.1), vec3(0.8, 0.22, 0.05), WOOD) }
+        BK::Museum => { for k in 0..4 { r.cyl(vec3(x + 0.45 + k as f32 * (w - 0.9) / 3., 0.16, fz + 0.3), 0.1, hg - 0.16, Color::new(0.97, 0.96, 0.92, 1.)) } r.cube(vec3(c.x, hg - 0.05, fz + 0.3), vec3(w / 2., 0.08, 0.14), Color::new(0.97, 0.96, 0.92, 1.)) }
         BK::Civic => { r.cube(vec3(c.x, hg + 1.15, c.z), vec3(0.38, 0.55, 0.38), wall); r.roof(vec3(c.x, hg + 1.7, c.z), 0.48, 0.48, 0.5, roof); r.cylinder_clock(c.x, hg + 1.25, c.z + 0.39);
             r.seg(vec3(c.x, hg + 2.2, c.z), vec3(c.x, hg + 2.9, c.z), 0.02, DARKGRAY); r.cube(vec3(c.x + 0.2, hg + 2.75, c.z), vec3(0.2, 0.12, 0.01), Color::new(0.9, 0.3, 0.3, 1.));
             r.with(Mat4::from_translation(vec3(dx, 0.55, fz + 0.09)) * Mat4::from_rotation_z(0.35), |r| r.cube(Vec3::ZERO, vec3(0.42, 0.05, 0.02), WOOD)) }
@@ -317,6 +319,20 @@ fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, Strin
     let dxw = (w / 2) as f32; r.cube(vec3(dxw / 2., 0.12, df + 0.06), vec3(dxw / 2., 0.12, 0.06), sh(wall, 0.8)); r.cube(vec3((dxw + 1. + wf) / 2., 0.12, df + 0.06), vec3((wf - dxw - 1.) / 2., 0.12, 0.06), sh(wall, 0.8));
     r.cube(vec3(dxw + 0.5, 0.005, df - 0.4), vec3(0.4, 0.005, 0.3), Color::new(0.7, 0.3, 0.3, 1.)); // door mat
     if BLDS[b].kind != BK::Shop { let wx = if w > 3 { wf - 0.9 } else { wf / 2. }; r.cube(vec3(wx, 1.45, 0.04), vec3(0.42, 0.36, 0.04), WOOD); let u = r.unlit; r.unlit = true; r.cube(vec3(wx, 1.45, 0.07), vec3(0.34, 0.28, 0.02), Color::new(lt.sky.r * 0.9 + 0.1, lt.sky.g * 0.9 + 0.1, lt.sky.b * 0.9 + 0.1, 1.)); r.unlit = u }
+    if BLDS[b].kind == BK::Museum {
+        for &(x, z) in &MUSEUM_DESK { r.cube(vec3(x as f32 + 0.5, 0.45, z as f32 + 0.5), vec3(0.5, 0.45, 0.42), Color::new(0.4, 0.3, 0.25, 1.)) }
+        let talking = matches!(g.me.ui, Ui::Talk { npc: None, .. }); resident(r, 5, vec3(3.5, 0., 0.5), 0., 0., false, t, talking, 0.);
+        r.cube(vec3(0.5, 0.15, 2.5), vec3(0.48, 0.15, 1.48), Color::new(0.35, 0.3, 0.28, 1.)); // tank base
+        for (k, d) in g.w.donated.iter().filter(|x| def(x.0).k == K::Fish).enumerate() { let ph = t * 0.6 + k as f32 * 1.7; let s = def(d.0).size * 0.35;
+            r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(if ph.cos() > 0. { 0. } else { PI }), vec3(0.5, 0.55 + (k % 4) as f32 * 0.18, 2.5 + ph.sin() * 1.1)), |r| { r.sphere(Vec3::ZERO, vec3(s * 0.45, s * 0.5, s), rgb(def(d.0).col)); r.cone(vec3(0., 0., -s), s * 0.4, s * 0.6, rgb(def(d.0).col)) }) }
+        let ua = r.alpha; r.alpha = 0.35; r.cube(vec3(0.5, 0.75, 2.5), vec3(0.47, 0.45, 1.46), Color::new(0.45, 0.75, 0.95, 1.)); r.alpha = ua;
+        r.cube(vec3(6.5, 0.45, 2.5), vec3(0.45, 0.45, 1.45), Color::new(0.55, 0.38, 0.25, 1.)); r.cube(vec3(6.5, 0.92, 2.5), vec3(0.43, 0.02, 1.43), Color::new(0.95, 0.93, 0.85, 1.));
+        for (k, d) in g.w.donated.iter().filter(|x| def(x.0).k == K::Bug).enumerate() { let p = vec3(6.5 + ((k % 2) as f32 - 0.5) * 0.4, 0.95, 1.4 + (k / 2) as f32 * 0.5); r.sphere(p, vec3(0.09, 0.02, 0.06), rgb(def(d.0).col)); r.sphere(p, Vec3::splat(0.025), DARK) }
+        for &((x, z), fd) in &MUSEUM_PED { let p = vec3(x as f32 + 0.5, 0., z as f32 + 0.5); r.cyl(p, 0.36, 0.5, Color::new(0.9, 0.88, 0.84, 1.));
+            if g.w.donated.iter().any(|x| x.0 == fd) { let c = rgb(def(fd).col); match fd { 48 => { for k in 0..5 { r.sphere(p + vec3(0., 0.62 + k as f32 * 0.02, 0.), Vec3::splat(0.2 - k as f32 * 0.035), sh(c, 1. - k as f32 * 0.08)) } } 49 => { r.sphere(p + vec3(0., 0.58, 0.), vec3(0.16, 0.06, 0.24), c); for k in 0..4 { r.cube(p + vec3(0., 0.63, -0.15 + k as f32 * 0.1), vec3(0.15, 0.01, 0.015), sh(c, 0.7)) } }
+                43 => { r.cube(p + vec3(0., 0.7, 0.), vec3(0.22, 0.2, 0.04), Color::new(0.75, 0.72, 0.65, 1.)); for k in 0..5 { r.cube(p + vec3(-0.1 + k as f32 * 0.05, 0.7, 0.045), vec3(0.01, 0.12, 0.005), c) } } _ => r.cone(p + vec3(0., 0.5, 0.), 0.1, 0.3, c) } }
+            else { r.cube(p + vec3(0., 0.53, 0.25), vec3(0.15, 0.03, 0.01), DARKGRAY) } }
+    }
     if BLDS[b].kind == BK::Shop {
         for &(x, z) in &COUNTER { r.cube(vec3(x as f32 + 0.5, 0.45, z as f32 + 0.5), vec3(0.5, 0.45, 0.42), WOOD); r.cube(vec3(x as f32 + 0.5, 0.92, z as f32 + 0.5), vec3(0.52, 0.03, 0.45), sh(WOOD, 1.2)) }
         r.cube(vec3(4.3, 1.05, 1.4), vec3(0.15, 0.1, 0.12), DARKGRAY);
@@ -379,8 +395,8 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
             list(&a, (*c == 0).then_some(*s), sw / 2. - 350., 165.); list(&bb, (*c == 1).then_some(*s), sw / 2. + 30., 165.); txt(if g.me.pad { "Left/Right switch side  Up/Down select  A move item  B close" } else { "A/D switch side  W/S select  Enter move item  Esc close" }, sw / 2. - 360., 590., 19., DARKGRAY) }
         Ui::Journal => { panel(60., 80., sw - 120., sh - 160.); txt("Field Journal", 80., 115., 30., Color::new(0.45, 0.3, 0.2, 1.));
             for (col, (k, title)) in [(K::Fish, "Fish"), (K::Bug, "Bugs"), (K::Shell, "Shells & finds")].iter().enumerate() { let x = 80. + col as f32 * 380.; txt(title, x, 155., 26., BLACK);
-                for (j, dd) in DEFS.iter().filter(|dd| dd.k == *k || (*k == K::Shell && matches!(dd.k, K::Treasure | K::Fruit))).enumerate() { let seen = g.w.p.seen.contains(&dd.id);
-                    txt(&format!("{}{}", if avail(dd, g.mo, g.hr) && matches!(dd.k, K::Fish | K::Bug) { "* " } else { "  " }, if seen { format!("{}  {}c", dd.name, dd.sell) } else { "???".into() }), x, 185. + j as f32 * 24., 20., if seen { BLACK } else { GRAY }) } }
+                for (j, dd) in DEFS.iter().filter(|dd| dd.k == *k || (*k == K::Shell && matches!(dd.k, K::Treasure | K::Fruit | K::Fossil))).enumerate() { let seen = g.w.p.seen.contains(&dd.id);
+                    txt(&format!("{}{}", if avail(dd, g.mo, g.hr) && matches!(dd.k, K::Fish | K::Bug) { "* " } else { "  " }, if seen { format!("{}  {}c{}", dd.name, dd.sell, if g.w.donated.iter().any(|x| x.0 == dd.id) { "  [museum]" } else { "" }) } else { "???".into() }), x, 185. + j as f32 * 24., 20., if seen { BLACK } else { GRAY }) } }
             txt("* = active right now", 80., sh - 100., 18., DARKGRAY) }
     }
     if let Some(src) = dbg {

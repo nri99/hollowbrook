@@ -53,7 +53,7 @@ fn home(g: &mut Game) { g.swap(Scene::Room(HOME)) }
 #[test] fn digging_holes_and_sites() {
     let mut g = g0(at(11, 12, 0, 0)); g.w.p.tools.push(62); g.w.p.equip = Some(62); let site = g.w.digs[0];
     g.me.pos = tc((site.0, site.1 + 1)); g.me.face = vec2(0., -1.); if !g.free(g.me.pos) { g.me.pos = tc((site.0 + 1, site.1)); g.me.face = vec2(-1., 0.) }
-    g.use_tool(); assert!(g.w.holes.contains(&site)); assert!(g.w.p.inv.iter().any(|s| matches!(s.def, 45 | 46))); assert!(!g.walk_tile(site.0, site.1));
+    g.use_tool(); assert!(g.w.holes.contains(&site)); assert!(g.w.p.inv.iter().any(|s| matches!(s.def, 45 | 46 | 47))); assert!(!g.walk_tile(site.0, site.1));
     g.use_tool(); assert!(!g.w.holes.contains(&site)); assert!(g.walk_tile(site.0, site.1));
 }
 
@@ -171,3 +171,12 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     assert!(matches!(g.target(), Some(Tg::Furn(u, _)) if u == uid)); g.update(&Inp::keys(&[KeyCode::G], &[KeyCode::G]), 0.016, at(11, 12, 0, 1)); assert_eq!(g.room_furn(7).len(), 1); assert!(g.w.p.inv.is_empty()); // visitor cannot take it
     let w = g.persist(); assert_eq!(w.others[0].room.len(), 1); assert!(w.p.room.is_empty());
 }
+
+// ---- museum (P3) ----
+#[test] fn museum_shared_donation_once_and_fossil_id() {
+    let mut g = two(at(11, 12, 0, 0)); g.activate(0); g.add(12); g.add(47); g.add(0); g.activate(1); g.add(12);
+    g.activate(0); g.donate(); assert!(g.w.donated.iter().any(|x| *x == (12, 0)) && g.w.donated.iter().any(|x| *x == (0, 0))); assert_eq!(g.w.donated.iter().filter(|x| FOSSILS.contains(&x.0)).count(), 1); assert!(!g.w.p.inv.iter().any(|s| s.def == 47));
+    g.activate(1); g.donate(); assert_eq!(g.w.donated.iter().filter(|x| x.0 == 12).count(), 1); assert!(g.w.p.inv.iter().any(|s| s.def == 12)); // already donated: P2 keeps the carp
+    let g2 = reload(&g, "mus"); assert_eq!(g2.w.donated, g.w.donated);
+}
+#[test] fn museum_reachable_and_blocks() { let g = g0(at(11, 12, 0, 0)); let m = BLDS.iter().position(|b| b.kind == BK::Museum).unwrap(); let t = door_tile(m); assert!(g.walk_tile(t.0, t.1)); assert!(g.bfs(door_tile(HOME), t, true).is_some()); assert!(g.room_block(m, 0, 2, 0) && !g.room_block(m, 3, 3, 0)) }
