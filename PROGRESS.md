@@ -1,10 +1,10 @@
 # Progress log
 
 ## Current
-- Current task: C-04 furniture customization (re-colour) + wallpaper/flooring
-- Last completed: C-03b resident moving out/in
+- Current task: C-05 hats + hairstyle choice
+- Last completed: C-04 furniture tint + wallpaper/flooring
 - Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
-- Next action: Furn gets `tint: u8` (serde default 0) applied as colour variant in furniture(); counter menu "Customize" re-colours a furniture item from pockets for a fee; wallpaper/flooring as K::Furn wall-less items applied to the room (Profile.wall/floor colours) from pockets via Inv Enter at home; tests; screenshot.
+- Next action: Profile.hat Option<u16> (serde default) + 3 hats (K::Cloth subtype via id range 67-69) on the rack, worn via pockets like shirts; Profile.hair u8 (0-3 colour/style) changed at the shop rack for a fee; human() draws hat/hair variants; tests; screenshot of both players with different looks.
 
 ## Baseline verification (before this run)
 - 19 headless tests pass. Executable bot run (2 launches) completed the full loop; screenshots inspected:
@@ -116,3 +116,7 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - [PROV] `World.arrived/moving` per slot (serde default; older saves start the 14-day clock at load). Daily: resident present >= 14 days, friendship < 3 with every player, no open request -> letter to every profile + dialogue line; X (pad Y) in conversation asks them to stay (cancels, restarts clock, +1 friendship). After 2 days a reserve character (Clover, Basil) takes the slot; friendship for that slot resets in every profile; house labels/door prompts follow the roster (`Game::bname`). Post letter announces the change.
 - H: 46/46 (new: residents_move_out_and_in_with_stay_option, plurals). X: phase 16 (roster set as logged FIXTURE) talked to Clover and Basil. S (inspected): c03_Clover.png (sheep head + "Clover's House" label); c03_Basil.png (hedgehog mostly behind the dialogue box: spikes visible only -> partial).
 - Fixed plural helper (cherry -> cherries) seen in the Clover screenshot.
+
+### 05:10 — C-04 done (customization)
+- [PROV] Counter "Customize": re-tint a furniture item in pockets (original/warm/cool/dark, 200c) or cycle home wallpaper/flooring palettes (4 each, 300c). Tints are stored per profile by item uid (`Profile.tints`, serde default), so they follow the item between pockets and room without touching item records; `Profile.wall/floor` drive the owner home room colours.
+- H: 47/47 (new: customize_tint_follows_item_and_decor). X: phase 17 (coins logged FIXTURE): bought Chair, tinted warm, wallpaper 1, floor 1 via counter menu, placed at home. S (inspected): c04_custom_home (blue wallpaper, grey floor, warm chair).

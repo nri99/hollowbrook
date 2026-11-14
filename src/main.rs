@@ -263,6 +263,19 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         g.w.roster[0] = 4; g.w.roster[2] = 5; for k in [0, 2] { g.npcs[k].inside = true } log!("FIXTURE: roster {:?}", g.w.roster);
         wait(g, c, 90).await; for k in [0usize, 2] { for _ in 0..1500 { let np = g.npcs[k].pos; if !g.npcs[k].inside && g.me.pos.distance(np) < 1.6 { break } let path = g.bfs(tile_of(g.me.pos), tile_of(np), false).unwrap_or_default(); let wp = if path.len() > 1 { tc(path[0]) } else { np }; step(g, c, &keys_toward(wp - g.me.pos), &[]).await }
             face(g, c, g.npcs[k].pos).await; press(g, c, KeyCode::E).await; log!("talk {}: {:?}", g.res(k).name, g.me.ui); shot!(format!("c03_{}", g.res(k).name)); for _ in 0..5 { if g.me.ui == Ui::Play { break } press(g, c, KeyCode::E).await } }
+    } else if phase == "17" {
+        // C-04: buy furniture, customize tint + wallpaper + flooring at the counter, place it at home (coins: logged FIXTURE)
+        g.w.p.money = 3000; log!("FIXTURE: money 3000");
+        go(g, c, door_stand(SHOP), 0.12).await; face(g, c, door_face(SHOP)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
+        let d = (0..5).filter(|&i| !def(g.w.stock[i].def).wall).max_by_key(|&i| (def(g.w.stock[i].def).act == Act::Sit) as u8).unwrap();
+        approach(g, c, tc(DISPLAYS[d])).await; press(g, c, KeyCode::E).await; press(g, c, KeyCode::Enter).await; log!("bought {}", def(g.w.stock[d].def).name);
+        go(g, c, vec2(3.5, 2.5), 0.12).await; face(g, c, vec2(3.5, 1.5)).await; press(g, c, KeyCode::E).await; for _ in 0..g.w.p.inv.len() + 2 { press(g, c, KeyCode::S).await } press(g, c, KeyCode::Enter).await;
+        log!("ui={:?}", g.me.ui); press(g, c, KeyCode::Enter).await; press(g, c, KeyCode::S).await; press(g, c, KeyCode::Enter).await; press(g, c, KeyCode::S).await; press(g, c, KeyCode::Enter).await; shot!("c04_customize_menu"); press(g, c, KeyCode::Escape).await;
+        log!("tints={:?} wall={} floor={} money={}", g.w.p.tints, g.w.p.wall, g.w.p.floor, g.w.p.money);
+        go(g, c, vec2(3.5, 4.5), 0.12).await; for _ in 0..30 { if g.me.scene == Scene::Town { break } step(g, c, &[KeyCode::S], &[]).await } wait(g, c, 40).await;
+        go(g, c, door_stand(HOME), 0.12).await; face(g, c, door_face(HOME)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
+        go(g, c, vec2(2.5, 3.5), 0.1).await; face(g, c, vec2(2.5, 1.)).await; press(g, c, KeyCode::I).await; press(g, c, KeyCode::Enter).await; press(g, c, KeyCode::A).await; press(g, c, KeyCode::W).await; press(g, c, KeyCode::Enter).await;
+        log!("room={:?}", g.w.p.room); go(g, c, vec2(3.4, 3.3), 0.15).await; face(g, c, vec2(3.4, 4.)).await; shot!("c04_custom_home");
     } else if phase == "0" {
         log!("load-only check");
     } else if phase == "3" && c.now().hour() < 18 {

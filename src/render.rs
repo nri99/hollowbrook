@@ -157,8 +157,8 @@ fn head(r: &mut R, i: usize, fur: Color, light: Color, t: f32, talk: bool, happy
     let (my, mz, mw) = match i { 0 => (-0.14, 0.28, 0.035), 2 => (-0.05, 0.255, 0.14), 10 => (-0.08, 0.2, 0.03), 3 => (-0.13, 0.25, 0.035), _ => (-0.13, 0.24, 0.035) };
     r.cube(vec3(0., my, mz), vec3(mw, open, 0.012), Color::new(0.45, 0.15, 0.15, 1.));
 }
-pub fn furniture(r: &mut R, d: u16, base: Mat4, on: bool) {
-    let c = rgb(def(d).col);
+pub fn furniture(r: &mut R, d: u16, base: Mat4, on: bool, tint: u8) {
+    let (c0, k) = (def(d).col, TINTS[tint as usize % TINTS.len()]); let c = Color::new((c0.0 * k.0).min(1.), (c0.1 * k.1).min(1.), (c0.2 * k.2).min(1.), 1.);
     r.with(base, |r| match d {
         50 => { r.cube(vec3(0., 0.4, 0.), vec3(0.3, 0.05, 0.3), c); for (x, z) in [(-0.25, -0.25), (0.25, -0.25), (-0.25, 0.25), (0.25, 0.25)] { r.cube(vec3(x, 0.18, z), vec3(0.04, 0.18, 0.04), sh(c, 0.8)) } r.cube(vec3(0., 0.72, -0.27), vec3(0.3, 0.28, 0.04), c) }
         51 => { r.cube(vec3(0., 0.22, 0.), vec3(0.95, 0.18, 0.4), c); for x in [-0.47, 0.47] { r.cube(vec3(x, 0.45, 0.05), vec3(0.44, 0.07, 0.33), sh(c, 1.15)) } r.cube(vec3(0., 0.6, -0.32), vec3(0.95, 0.25, 0.09), c); for x in [-0.92, 0.92] { r.cube(vec3(x, 0.45, 0.), vec3(0.07, 0.15, 0.4), sh(c, 0.85)) } }
@@ -327,7 +327,7 @@ fn others(r: &mut R, g: &Game, t: f32) {
 }
 fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, String, Color)>) {
     let (w, d) = g.rdims(b); let (wf, df) = (w as f32, d as f32); let t = g.t;
-    let (fl, wl) = match BLDS[b].kind { BK::Shop => ((0.72, 0.76, 0.66), (0.93, 0.95, 0.86)), BK::Res(i) => THEME[i], _ => ((0.78, 0.6, 0.42), (0.97, 0.93, 0.84)) };
+    let (fl, wl) = match BLDS[b].kind { BK::Shop => ((0.72, 0.76, 0.66), (0.93, 0.95, 0.86)), BK::Res(i) => THEME[i], BK::Home(o) => { let pr = g.owner(o); (FLOORS[pr.floor as usize % 4], WALLS[pr.wall as usize % 4]) } _ => ((0.78, 0.6, 0.42), (0.97, 0.93, 0.84)) };
     let (floor, wall) = (rgb(fl), rgb(wl)); let furn = g.room_furn(b); let lamp = furn.iter().any(|f| f.def == 54 && f.on);
     let dim = lt.night > 0.6 && !lamp;
     r.sun = vec3(0.35, 0.85, 0.5).normalize();
@@ -366,18 +366,19 @@ fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, Strin
             let (txt, show) = if i < 5 { let s = g.w.stock[i]; (if s.sold { "SOLD OUT".to_string() } else { format!("{} {}", def(s.def).name, def(s.def).buy) }, (!s.sold).then_some(s.def)) }
                 else { let tl = TOOL_DISPLAY[i - 5]; (if g.w.p.tools.contains(&tl) { "Owned".into() } else { format!("{} {}", def(tl).name, def(tl).buy) }, Some(tl)) };
             match show { Some(dd) if def(dd).k == K::Tool => r.with(Mat4::from_translation(p + vec3(0., 0.3, 0.)) * Mat4::from_rotation_z(0.4) * Mat4::from_scale(Vec3::splat(1.4)), |r| draw_tool(r, dd)),
-                Some(dd) => { let wall_it = def(dd).wall; furniture(r, dd, Mat4::from_translation(p + vec3(0., if wall_it { -0.2 } else { 0.22 }, 0.)) * Mat4::from_scale(Vec3::splat(0.5)), false) }
+                Some(dd) => { let wall_it = def(dd).wall; furniture(r, dd, Mat4::from_translation(p + vec3(0., if wall_it { -0.2 } else { 0.22 }, 0.)) * Mat4::from_scale(Vec3::splat(0.5)), false, 0) }
                 None => r.cube(p + vec3(0., 0.4, 0.), vec3(0.25, 0.15, 0.02), Color::new(0.8, 0.2, 0.2, 1.)) }
             if g.me.ipos.distance(vec2(p.x, p.z)) < 2.2 { labels.push((p + vec3(0., 1.15, 0.), txt, if i < 5 && g.w.stock[i].sold { Color::new(1., 0.5, 0.5, 1.) } else { Color::new(1., 0.95, 0.6, 1.) })) } }
     }
-    for f in &furn { furniture(r, f.def, fbase(f), f.on); if f.def == 54 && f.on { let c = fcenter(f); r.disc(vec3(c.x, 0.012, c.y), vec2(0.9, 0.9), Color::new(1., 0.85, 0.4, 0.18)) } }
+    let owner = if let BK::Home(o) = BLDS[b].kind { Some(g.owner(o)) } else { None };
+    for f in &furn { furniture(r, f.def, fbase(f), f.on, owner.map_or(0, |pr| Game::tint_of(pr, f.uid))); if f.def == 54 && f.on { let c = fcenter(f); r.disc(vec3(c.x, 0.012, c.y), vec2(0.9, 0.9), Color::new(1., 0.85, 0.4, 0.18)) } }
     if let Some((vi, vb, _)) = g.visit { if vb == b { let s = g.visit_spot(b); let talking = matches!(g.me.ui, Ui::Talk { npc: Some(j), .. } if j == vi);
         r.disc(vec3(s.x, 0.02, s.y), vec2(0.3, 0.24), Color::new(0., 0., 0., 0.2)); resident(r, g.w.roster[vi], vec3(s.x, 0., s.y), yaw_of(g.me.ipos - s), 0., false, t, talking, g.npcs[vi].happy) } }
     if let BK::Res(i) = BLDS[b].kind { if where_(g.res(i), g.hr) == Loc::Home { let s = res_spot(); let talking = matches!(g.me.ui, Ui::Talk { npc: Some(j), .. } if j == i);
         r.disc(vec3(s.x, 0.02, s.y), vec2(0.3, 0.24), Color::new(0., 0., 0., 0.2)); resident(r, g.w.roster[i], vec3(s.x, 0., s.y), yaw_of(g.me.ipos - s), 0., false, t, talking, g.npcs[i].happy) } }
     if let Some(p) = &g.me.placing { let ok = g.place_ok(&p.f).is_ok(); let c = if ok { Color::new(0.2, 0.9, 0.3, 0.45) } else { Color::new(0.95, 0.2, 0.2, 0.45) };
         if def(p.f.def).wall { r.disc(vec3(p.f.x as f32 + 0.5, 0.02, 0.3), vec2(0.45, 0.25), c) } else { for (x, z) in foot(p.f.def, p.f.x, p.f.z, p.f.rot) { r.disc(vec3(x as f32 + 0.5, 0.02, z as f32 + 0.5), vec2(0.48, 0.48), c) } }
-        furniture(r, p.f.def, fbase(&p.f), false) }
+        furniture(r, p.f.def, fbase(&p.f), false, Game::tint_of(&g.w.p, p.f.uid)) }
     let pose = match g.me.pose { Pose::Stand => 0, Pose::Sit(_) => 1, Pose::Lie(_) => 2 };
     if pose == 0 { r.disc(vec3(g.me.ipos.x, 0.02, g.me.ipos.y), vec2(0.32, 0.26), Color::new(0., 0., 0., 0.2)) }
     human(r, g.me.id, g.w.p.shirt, vec3(g.me.ipos.x, 0., g.me.ipos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, pose, None, t, 0.);
@@ -412,7 +413,7 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         Ui::Inv(s) | Ui::Sell(s) => { let sell = matches!(g.me.ui, Ui::Sell(_)); panel(sw / 2. - 260., 90., 520., 520.);
             txt(if sell { "Sell to Mr. Tumble" } else { "Pockets" }, sw / 2. - 240., 125., 30., Color::new(0.45, 0.3, 0.2, 1.));
             let mut items: Vec<String> = g.w.p.inv.iter().map(|it| if sell { format!("{}  -  {}c", slot_name(it), def(it.def).sell * it.qty as u32) } else { slot_name(it) }).collect();
-            if sell { let lv = g.w.p.home as usize; items.push(if lv < EXPAND_COST.len() { format!("Expand your home  -  {}c", EXPAND_COST[lv]) } else { "Home fully expanded".into() }); items.push(format!("Order from catalog ({} items)", g.w.p.catalog.len())) }
+            if sell { let lv = g.w.p.home as usize; items.push(if lv < EXPAND_COST.len() { format!("Expand your home  -  {}c", EXPAND_COST[lv]) } else { "Home fully expanded".into() }); items.push(format!("Order from catalog ({} items)", g.w.p.catalog.len())); items.push("Customize furniture / wallpaper / flooring".into()) }
             if items.is_empty() { txt("(empty)", sw / 2. - 230., 170., 22., GRAY) } list(&items, Some(*s), sw / 2. - 230., 170.);
             txt(match (sell, g.me.pad) { (true, false) => "W/S select  Enter sell  A sell all finds  Esc close", (true, true) => "Up/Down select  A sell  Y sell all finds  B close", (false, false) => "W/S select  Enter place furniture (at home)  Esc close", _ => "Up/Down select  A place furniture (at home)  B close" }, sw / 2. - 240., 590., 19., DARKGRAY);
             if !sell { txt(&format!("Tools: {}", g.w.p.tools.iter().map(|t| def(*t).name).collect::<Vec<_>>().join(", ")), sw / 2. - 240., 565., 19., DARKGRAY) } }
@@ -424,6 +425,10 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         Ui::Gift(j, sel) => { panel(sw / 2. - 260., 100., 520., 440.); txt(&format!("Give {} a gift", g.res(*j).name), sw / 2. - 240., 135., 28., Color::new(0.45, 0.3, 0.2, 1.));
             let items: Vec<String> = g.w.p.inv.iter().map(slot_name).collect(); list(&items, Some(*sel), sw / 2. - 230., 175.);
             txt(if g.me.pad { "Up/Down select  A give  B cancel" } else { "W/S select  Enter give  Esc cancel" }, sw / 2. - 240., 525., 19., DARKGRAY) }
+        Ui::Tint(sel) => { panel(sw / 2. - 270., 100., 540., 440.); txt("Customize", sw / 2. - 250., 135., 28., Color::new(0.45, 0.3, 0.2, 1.));
+            let mut items: Vec<String> = g.tint_targets().iter().map(|&i| { let s = g.w.p.inv[i]; format!("{} ({})  -  {}c", def(s.def).name, TINT_NAMES[Game::tint_of(&g.w.p, s.uid) as usize], TINT_FEE) }).collect();
+            items.push(format!("Wallpaper (style {})  -  {}c", g.w.p.wall + 1, DECOR_FEE)); items.push(format!("Flooring (style {})  -  {}c", g.w.p.floor + 1, DECOR_FEE));
+            list(&items, Some(*sel), sw / 2. - 240., 175.); txt(if g.me.pad { "Up/Down select  A change  B close" } else { "W/S select  Enter change  Esc close" }, sw / 2. - 250., 525., 19., DARKGRAY) }
         Ui::Catalog(sel) => { panel(sw / 2. - 260., 100., 520., 440.); txt("Catalog", sw / 2. - 240., 135., 28., Color::new(0.45, 0.3, 0.2, 1.));
             let items: Vec<String> = g.w.p.catalog.iter().map(|&d| format!("{}  -  {}c", def(d).name, def(d).buy)).collect(); if items.is_empty() { txt("Items you own appear here.", sw / 2. - 230., 175., 22., GRAY) }
             list(&items[..items.len().min(12)], Some(*sel), sw / 2. - 230., 175.); txt(if g.me.pad { "Up/Down select  A order  B close" } else { "W/S select  Enter order  Esc close" }, sw / 2. - 240., 525., 19., DARKGRAY) }

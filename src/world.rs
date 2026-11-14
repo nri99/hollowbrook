@@ -46,9 +46,11 @@ pub struct Profile {
     #[serde(default)] pub catalog: Vec<u16>,
     /// year in which this player last claimed the Harvest Fair prize
     #[serde(default)] pub fair_year: i32,
+    /// furniture tint per item uid; home wallpaper/flooring palette index
+    #[serde(default)] pub tints: Vec<(u32, u8)>, #[serde(default)] pub wall: u8, #[serde(default)] pub floor: u8,
 }
 impl Profile {
-    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false, visited: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, mail: vec![], catalog: vec![], fair_year: 0 } }
+    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false, visited: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, mail: vec![], catalog: vec![], fair_year: 0, tints: vec![], wall: 0, floor: 0 } }
 }
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct World {
@@ -81,7 +83,7 @@ impl World {
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Snd { Step, Blip, Splash, Coin, Dig, Rustle, Door }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize), Stall }
 #[derive(Clone, PartialEq, Debug)]
-pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize) }
+pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize), Tint(usize) }
 pub struct Placing { pub f: Furn, pub orig: Option<Furn>, pub slot_uid: Option<u32> }
 pub struct Fishing { pub bob: Vec2, pub fish: Option<usize>, pub t: f32, pub nib: u8, pub need: u8, pub bite: bool, pub dip: f32 }
 pub struct Shadow { pub pos: Vec2, pub def: u16, pub vel: Vec2 }
@@ -507,6 +509,21 @@ impl Game {
         }
     }
 
+    pub fn tint_of(pr: &Profile, uid: u32) -> u8 { pr.tints.iter().find(|t| t.0 == uid).map_or(0, |t| t.1) }
+    /// Profile owning a home building (or the active one).
+    pub fn owner(&self, o: usize) -> &Profile { if self.w.p.id == o { &self.w.p } else { self.w.others.iter().find(|p| p.id == o).unwrap_or(&self.w.p) } }
+    /// Furniture in pockets that can be re-coloured (pocket slot indices).
+    pub fn tint_targets(&self) -> Vec<usize> { (0..self.w.p.inv.len()).filter(|&i| self.w.p.inv[i].uid != 0 && def(self.w.p.inv[i].def).k == K::Furn).collect() }
+    /// Counter "Customize": entry `sel` = a furniture item (cycle tint), then wallpaper, then flooring (cycle palette).
+    pub fn customize(&mut self, sel: usize) -> Result<String, &'static str> {
+        let t = self.tint_targets(); let fee = if sel < t.len() { TINT_FEE } else { DECOR_FEE };
+        if self.w.p.money < fee { return Err("Not enough coins.") } self.w.p.money -= fee;
+        if sel < t.len() { let s = self.w.p.inv[t[sel]]; let cur = Game::tint_of(&self.w.p, s.uid); let nt = (cur + 1) % TINTS.len() as u8;
+            self.w.p.tints.retain(|x| x.0 != s.uid); if nt != 0 { self.w.p.tints.push((s.uid, nt)) } Ok(format!("Your {} is now {}.", def(s.def).name, TINT_NAMES[nt as usize])) }
+        else if sel == t.len() { self.w.p.wall = (self.w.p.wall + 1) % WALLS.len() as u8; Ok("New wallpaper installed at home.".into()) }
+        else { self.w.p.floor = (self.w.p.floor + 1) % FLOORS.len() as u8; Ok("New flooring installed at home.".into()) }
+    }
+
     // ---- clothing ----
     pub fn buy_cloth(&mut self, d: u16) -> Result<(), &'static str> {
         let p = def(d).buy; if self.w.p.money < p { return Err("Not enough coins.") } if self.w.p.inv.len() >= INV_CAP { return Err("Your pockets are full.") }
@@ -803,12 +820,13 @@ impl Game {
                     if def(sl.def).k == crate::data::K::Cloth { self.me.ui = Ui::Play; self.wear(sl.uid) }
                     else if def(sl.def).k != crate::data::K::Furn { self.note(format!("{} sells for {} coins at the shop.", def(sl.def).name, def(sl.def).sell)) }
                     else if self.me.scene == Scene::Room(self.home()) { self.me.ui = Ui::Play; self.start_place(sl.uid) } else { self.note("Furniture can be placed inside your home.") } } }
-            Ui::Sell(s) => { let s = mv(s, n + 2); if ok && s == n + 1 { self.me.ui = Ui::Catalog(0); return true } self.me.ui = Ui::Sell(s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.sell_slot(s) } else if ok && s == n { match self.expand_home() { Ok(()) => { self.snd.push(Snd::Coin); self.note("Your home has been expanded! Go take a look.") } Err(e) => self.note(e) } } else if inp.p(A) || inp.p(X) { self.sell_all() } }
+            Ui::Sell(s) => { let s = mv(s, n + 3); if ok && s == n + 1 { self.me.ui = Ui::Catalog(0); return true } if ok && s == n + 2 { self.me.ui = Ui::Tint(0); return true } self.me.ui = Ui::Sell(s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.sell_slot(s) } else if ok && s == n { match self.expand_home() { Ok(()) => { self.snd.push(Snd::Coin); self.note("Your home has been expanded! Go take a look.") } Err(e) => self.note(e) } } else if inp.p(A) || inp.p(X) { self.sell_all() } }
             Ui::Confirm(d) => { if ok || inp.p(Y) { self.me.ui = Ui::Play; match self.buy(d) { Ok(()) => { self.snd.push(Snd::Coin); self.note("Thank you for your purchase!") } Err(e) => self.note(e) } } else if esc || inp.p(N) { self.me.ui = Ui::Play } }
             Ui::Storage(c, s) => { let c = if left { 0 } else if right { 1 } else { c }; let len = if c == 0 { n } else { self.w.p.storage.len() }; let s = mv(s, len); self.me.ui = Ui::Storage(c, s);
                 if esc { self.me.ui = Ui::Play } else if ok && s < len { self.transfer(c, s) } }
             Ui::Journal => if esc || inp.p(J) { self.me.ui = Ui::Play },
             Ui::Gift(j, s) => { let s = mv(s, n); self.me.ui = Ui::Gift(j, s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.give_gift(j, s) } }
+            Ui::Tint(s) => { let len = self.tint_targets().len() + 2; let s = mv(s, len); self.me.ui = Ui::Tint(s); if esc { self.me.ui = Ui::Play } else if ok { match self.customize(s) { Ok(m) => { self.snd.push(Snd::Coin); self.note(m) } Err(e) => self.note(e) } } }
             Ui::Catalog(s) => { let s = mv(s, self.w.p.catalog.len()); self.me.ui = Ui::Catalog(s); if esc { self.me.ui = Ui::Play } else if ok && s < self.w.p.catalog.len() { let d = self.w.p.catalog[s]; match self.order(d) { Ok(()) => { self.snd.push(Snd::Coin); self.note(format!("Ordered a {}.", def(d).name)) } Err(e) => self.note(e) } } }
             Ui::Mail(s) => { let s = mv(s, self.w.p.mail.len()); self.me.ui = Ui::Mail(s); if esc { self.me.ui = Ui::Play } else if ok { self.open_letter(s) } }
             Ui::Rack(s) => { let s = mv(s, CLOTHES.len()); self.me.ui = Ui::Rack(s); if esc { self.me.ui = Ui::Play } else if ok { match self.buy_cloth(CLOTHES[s]) { Ok(()) => { self.snd.push(Snd::Coin); self.note(format!("Bought the {}. Open your pockets to wear it.", def(CLOTHES[s]).name)) } Err(e) => self.note(e) } } }

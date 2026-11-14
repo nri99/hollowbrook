@@ -130,6 +130,13 @@ pub const COUNTER: [(i32, i32); 3] = [(2, 1), (3, 1), (4, 1)];
 /// Clothing rack in the shop (always stocked; provisional).
 pub const RACK: (i32, i32) = (1, 1);
 pub const CLOTHES: [u16; 4] = [63, 64, 65, 66];
+/// Customization palettes (provisional): furniture tints multiply the item colour; home wallpaper/flooring colours.
+pub const TINTS: [(f32, f32, f32); 4] = [(1., 1., 1.), (1.2, 0.85, 0.65), (0.7, 0.9, 1.25), (0.55, 0.55, 0.6)];
+pub const TINT_NAMES: [&str; 4] = ["original", "warm", "cool", "dark"];
+pub const WALLS: [(f32, f32, f32); 4] = [(0.97, 0.93, 0.84), (0.82, 0.9, 0.97), (0.96, 0.84, 0.88), (0.86, 0.95, 0.83)];
+pub const FLOORS: [(f32, f32, f32); 4] = [(0.78, 0.6, 0.42), (0.62, 0.64, 0.68), (0.86, 0.76, 0.56), (0.48, 0.36, 0.28)];
+pub const TINT_FEE: u32 = 200;
+pub const DECOR_FEE: u32 = 300;
 pub const KEEPER: [&str; 2] = ["Welcome to the General Store! New furniture arrives every morning at 6.", "Sell your finds at the counter. We're open from 8:00 until 22:00."];
 
 fn put(m: &mut [u8], x: i32, z: i32, c: u8) { if x >= 0 && z >= 0 && (x as usize) < W && (z as usize) < H { m[z as usize * W + x as usize] = c } }

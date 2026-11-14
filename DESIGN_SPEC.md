@@ -109,7 +109,7 @@ original sample, not a claim of full coverage.
 | Art | — | NOT IMPLEMENTED | art exhibits, authenticity |
 | Museum exhibits | fish tank, bug case, 4 fossil pedestals, shared donations | PARTIAL | per-species exhibit layouts, art wing |
 | Fruit / shells / treasures | 4 / 3 / 2 | PARTIAL | non-native fruit, special shells |
-| Furniture | 8 (chair, sofa, table, bed, lamp, cabinet, plant, painting) | PARTIAL | sets, themes, customization/re-colouring, rugs, wallpaper/flooring |
+| Furniture | 8 items, 4 tints, 4 wallpapers, 4 floors | PARTIAL | sets, themes, rugs, more items |
 | Clothing / appearance | 4 shirts; no hair/face changes | PARTIAL | trousers, shoes, hats, accessories, hairstyles, designs |
 | Shops | general store (5 daily stock, 2 tools, rack, counter, catalog) | PARTIAL | additional shops, upgrades, seasonal stock |
 | Housing | 3 sizes (paid up front), storage 40 | PARTIAL | extra rooms, exterior customization; loans BLOCKED |

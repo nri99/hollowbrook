@@ -250,3 +250,10 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     let g2 = reload(&g, "move"); assert_eq!(g2.w.roster, g.w.roster);
 }
 #[test] fn plurals() { assert_eq!(plural("peach"), "peaches"); assert_eq!(plural("cherry"), "cherries"); assert_eq!(plural("apple"), "apples"); }
+#[test] fn customize_tint_follows_item_and_decor() {
+    let mut g = g0(at(11, 12, 0, 0)); g.w.p.money = 2000; g.add_furn(50); let uid = g.w.p.inv[0].uid;
+    assert!(g.customize(0).is_ok()); assert_eq!(Game::tint_of(&g.w.p, uid), 1); assert_eq!(g.w.p.money, 2000 - TINT_FEE);
+    g.swap(Scene::Room(HOME)); g.start_place(uid); { let p = g.me.placing.as_mut().unwrap(); p.f.x = 0; p.f.z = 0; } g.place_confirm().unwrap(); assert_eq!(Game::tint_of(&g.w.p, uid), 1); g.pick_furn(uid); assert_eq!(Game::tint_of(&g.w.p, uid), 1);
+    assert!(g.customize(1).is_ok()); assert_eq!(g.w.p.wall, 1); assert!(g.customize(2).is_ok()); assert_eq!(g.w.p.floor, 1); g.w.p.money = 0; assert_eq!(g.customize(2), Err("Not enough coins.")); assert_eq!(g.w.p.floor, 1);
+    let g2 = reload(&g, "tint"); assert_eq!(Game::tint_of(&g2.w.p, uid), 1); assert_eq!((g2.w.p.wall, g2.w.p.floor), (1, 1));
+}
