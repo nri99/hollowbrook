@@ -49,6 +49,7 @@ fn music(mood: usize) -> Vec<f32> {
         for i in 0..len.min(n - start) { let t = i as f32 / sr; let env = (t * 30.).min(1.) * (1. - i as f32 / len as f32).powf(1.5); out[start + i] += ((t * f * std::f32::consts::TAU).sin() * 0.6 + (t * f * 2. * std::f32::consts::TAU).sin() * 0.15) * env * 0.22 } }
     for (k, &b) in bass.iter().enumerate() { let f = scale[b] / 2.; let start = (k as f32 * 2. * beat * sr) as usize; let len = (2. * beat * sr) as usize;
         for i in 0..len.min(n.saturating_sub(start)) { let t = i as f32 / sr; let env = (t * 8.).min(1.) * (1. - i as f32 / len as f32); out[start + i] += (t * f * std::f32::consts::TAU).sin() * env * 0.16 } }
+    let peak = out.iter().fold(0f32, |m, v| m.max(v.abs())).max(1e-6); for v in &mut out { *v *= 0.8 / peak } // normalize to a clear level
     out
 }
 fn load_game() -> Option<Game> {
@@ -103,7 +104,7 @@ async fn main() {
         if kb.p(KeyCode::F2) { if g.ids().len() == 1 { g.join("Player 2"); g.note("Player 2 joined (split-screen).") } else { g.leave(1); g.note("Player 2 left; their progress is saved.") } save::save(&g.persist(), SAVE) }
         render::draw(&mut g, now, dbg.then(|| clock.source()));
         sounds.play(&mut g.snd);
-        let mood = match now.hour() { 6..=16 => 0, 17..=20 => 1, _ => 2 }; if tracks.len() == 3 && playing != Some(mood) { if let Some(p) = playing { macroquad::audio::stop_sound(&tracks[p]) } play_sound(&tracks[mood], PlaySoundParams { looped: true, volume: 0.22 }); playing = Some(mood) }
+        let mood = match now.hour() { 6..=16 => 0, 17..=20 => 1, _ => 2 }; if tracks.len() == 3 && playing != Some(mood) { if let Some(p) = playing { macroquad::audio::stop_sound(&tracks[p]) } play_sound(&tracks[mood], PlaySoundParams { looped: true, volume: 0.5 }); playing = Some(mood) }
         if dbg && is_key_pressed(KeyCode::F12) { shots += 1; screenshot(&format!("shot_{shots}.png")); eprintln!("[shot] shot_{shots}.png") }
         st += dt; if st > 15. { save::save(&g.persist(), SAVE); st = 0. }
         if is_quit_requested() { save::save(&g.persist(), SAVE); break }
