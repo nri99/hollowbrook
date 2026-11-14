@@ -324,10 +324,15 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         g.w.p.money = 5000; log!("art_open={} week art={}", g.art_open(), def(art_of_week(g.w.day)).name);
         approach(g, c, tc(STALL)).await; log!("target={:?}", g.target()); shotc!("x04_art_stall"); press(g, c, KeyCode::E).await; log!("money={} inv={:?}", g.w.p.money, g.w.p.inv.iter().map(|s| def(s.def).name).collect::<Vec<_>>());
         let mb = BLDS.iter().position(|b| b.kind == BK::Museum).unwrap(); go(g, c, door_stand(mb), 0.12).await; face(g, c, door_face(mb)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
-        approach(g, c, vec2(3.5, 1.5)).await; press(g, c, KeyCode::E).await; for _ in 0..3 { press(g, c, KeyCode::E).await } press(g, c, KeyCode::Escape).await; log!("donated art={} ui={:?}", g.donated_of(K::Art), g.me.ui);
+        for d in [8u16, 9, 18, 19] { g.add(d); } log!("FIXTURE: added Rain Snail, Dune Beetle, Ice Smelt, Brackish Goby to pockets");
+        approach(g, c, vec2(3.5, 1.5)).await; press(g, c, KeyCode::E).await;
+        for (n, t) in [("x06_frame_a", 4.15f32), ("x06_frame_b", 5.0), ("x06_frame_c", 8.45)] { g.t = t; render::draw(g, c.now(), None); screenshot(&format!("{dir}/{n}.png")); next_frame().await; log!("frame {n} t={t}") }
+        for _ in 0..8 { press(g, c, KeyCode::E).await } press(g, c, KeyCode::Escape).await; log!("donated critters={:?}", [8u16, 9, 18, 19].map(|d| g.w.donated.iter().any(|x| x.0 == d)));
+        go(g, c, vec2(3.5, 3.3), 0.12).await; shotc!("x04_museum_exhibits"); log!("donated art={} ui={:?}", g.donated_of(K::Art), g.me.ui);
         go(g, c, vec2(2.6, 2.4), 0.12).await; face(g, c, vec2(2.6, 0.5)).await; shotc!("x04_art_wing");
         go(g, c, vec2(3.5, 4.4), 0.15).await; for _ in 0..40 { step(g, c, &[KeyCode::S], &[]).await } wait(g, c, 40).await; log!("scene={:?}", g.me.scene);
-        for (k, (d, x, z)) in [(90u16, 0, 3), (91, 1, 3), (92, 2, 3), (93, 0, 0), (94, 2, 0), (95, 3, 0)].into_iter().enumerate() { g.w.p.room.retain(|f| !foot(f.def, f.x, f.z, f.rot).iter().any(|t| foot(d, x, z, 0).contains(t))); g.w.p.room.push(Furn { uid: 5000 + k as u32, def: d, x, z, rot: 0, on: true }) }
+        g.w.p.home = 2; g.w.p.debt = 0; g.w.p.room.clear(); // fixture: largest home, cleared, then every piece placed through place_ok
+        for (k, (d, x, z)) in [(90u16, 0, 4), (91, 1, 4), (92, 4, 4), (110, 5, 3), (111, 5, 0), (112, 1, -1), (93, 0, 0), (94, 2, 0), (95, 3, 0), (113, 4, 0), (114, 5, 2), (115, 0, 2), (112, 1, -1)].into_iter().enumerate().take(12) { let f = Furn { uid: 5000 + k as u32, def: d, x, z, rot: 0, on: true }; g.me.ipos = vec2(2.5, 2.5); match g.place_ok(&f) { Ok(()) => g.w.p.room.push(f), Err(e) => log!("fixture place {} at {},{} rejected: {e}", def(d).name, x, z) } }
         log!("sets_done={:?}", g.sets_done()); go(g, c, door_stand(HOME), 0.12).await; face(g, c, door_face(HOME)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await; shotc!("x04_home_collections");
     } else if phase == "25" {
         // Town Hall interior + money project: pick at Hazel's desk, invalid/valid preview, partial funding, P2 tops up, rollover builds it.

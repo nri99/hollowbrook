@@ -30,7 +30,7 @@ const fn fu(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32), fp: (i3
 const fn cl(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32)) -> D { D { buy, ..b(id, name, K::Cloth, buy / 4, col) } }
 const fn tl(id: u16, name: &'static str, buy: u32) -> D { D { buy, ..b(id, name, K::Tool, 0, (0.6, 0.45, 0.3)) } }
 
-pub static DEFS: [D; 81] = [
+pub static DEFS: [D; 89] = [
     cr(0, "Cabbage White", K::Bug, 90, (1., 1., 0.95), 0.2, 0, 3, 10, 6, 17), cr(1, "Honeybee", K::Bug, 160, (1., 0.85, 0.2), 0.2, 0, 3, 7, 8, 17),
     cr(2, "Ladybug", K::Bug, 120, (0.9, 0.15, 0.1), 0.2, 0, 3, 6, 8, 17), cr(3, "Dragonfly", K::Bug, 230, (0.3, 0.8, 0.9), 0.2, 0, 5, 10, 8, 19),
     cr(4, "Cicada", K::Bug, 300, (0.4, 0.6, 0.3), 0.2, 0, 7, 8, 8, 17), cr(5, "Firefly", K::Bug, 450, (0.8, 1., 0.3), 0.2, 0, 6, 7, 19, 4),
@@ -49,6 +49,9 @@ pub static DEFS: [D; 81] = [
     fu(93, "Harbor Bench", 1600, (0.3, 0.42, 0.6), (2, 1), true, false, Act::Sit), fu(94, "Harbor Crate", 1300, (0.6, 0.48, 0.32), (1, 1), true, false, Act::Storage), fu(95, "Harbor Lantern", 1200, (0.25, 0.3, 0.38), (1, 1), false, false, Act::Lamp),
     // X-04 paintings (original procedural art; sold at the weekly art stall, donatable to the art wing)
     b(100, "Morning Over Hollowbrook", K::Art, 600, (0.95, 0.8, 0.55)), b(101, "Gullrock at Low Tide", K::Art, 600, (0.4, 0.75, 0.85)), b(102, "The Cherry Lane", K::Art, 600, (0.95, 0.6, 0.7)),
+    fu(110, "Meadow Bed", 2200, (0.75, 0.88, 0.6), (1, 2), true, false, Act::Bed), fu(111, "Meadow Planter", 700, (0.55, 0.78, 0.4), (1, 1), false, false, Act::None), fu(112, "Meadow Wall Art", 1000, (0.98, 0.75, 0.8), (1, 1), false, true, Act::None),
+    fu(113, "Harbor Stool", 800, (0.35, 0.45, 0.6), (1, 1), false, false, Act::Sit), fu(114, "Harbor Buoy Light", 1400, (0.9, 0.35, 0.3), (1, 1), false, false, Act::Lamp), fu(115, "Harbor Bunk", 2400, (0.3, 0.38, 0.55), (1, 2), true, false, Act::Bed),
+    b(106, "Bramble's Garden", K::Art, 600, (0.55, 0.45, 0.6)), b(107, "Harbor Fog", K::Art, 600, (0.7, 0.75, 0.78)),
     b(103, "Lantern Night", K::Art, 600, (0.2, 0.22, 0.45)), b(104, "Pond in Summer", K::Art, 600, (0.4, 0.7, 0.4)), b(105, "First Snow", K::Art, 600, (0.85, 0.9, 0.98)),
     b(20, "Apple", K::Fruit, 100, (0.85, 0.15, 0.15)), b(21, "Pear", K::Fruit, 100, (0.8, 0.85, 0.25)), b(22, "Cherry", K::Fruit, 100, (0.7, 0.05, 0.2)), b(23, "Peach", K::Fruit, 100, (1., 0.65, 0.5)),
     b(40, "Scallop", K::Shell, 80, (0.98, 0.82, 0.72)), b(41, "Conch", K::Shell, 250, (0.98, 0.62, 0.55)), b(42, "Sand Dollar", K::Shell, 120, (0.92, 0.9, 0.78)),
@@ -70,18 +73,18 @@ pub static DEFS: [D; 81] = [
     tl(60, "Net", 0), tl(61, "Fishing Rod", 400), tl(62, "Shovel", 500),
 ];
 pub const FRUITS: [u16; 4] = [20, 21, 22, 23];
-pub const FURN_IDS: [u16; 14] = [50, 51, 52, 53, 54, 55, 56, 57, 90, 91, 92, 93, 94, 95];
+pub const FURN_IDS: [u16; 20] = [50, 51, 52, 53, 54, 55, 56, 57, 90, 91, 92, 93, 94, 95, 110, 111, 112, 113, 114, 115];
 /// Furniture collections: (name, members). Completing one in your home shows a note.
-pub const SETS: [(&str, [u16; 3]); 2] = [("Meadow collection", [90, 91, 92]), ("Harbor collection", [93, 94, 95])];
+pub const SETS: [(&str, [u16; 6]); 2] = [("Meadow collection", [90, 91, 92, 110, 111, 112]), ("Harbor collection", [93, 94, 95, 113, 114, 115])];
 /// Base model drawn for a furniture id (collections reuse a model with their own colors and accents).
-pub fn model(d: u16) -> u16 { match d { 90 => 50, 91 => 52, 92 | 95 => 54, 93 => 51, 94 => 55, _ => d } }
-pub const ARTS: [u16; 6] = [100, 101, 102, 103, 104, 105];
+pub fn model(d: u16) -> u16 { match d { 90 => 50, 91 => 52, 92 | 95 => 54, 93 => 51, 94 => 55, 110 | 115 => 53, 111 => 56, 112 => 57, 113 => 58, 114 => 59, _ => d } }
+pub const ARTS: [u16; 8] = [100, 101, 102, 103, 104, 105, 106, 107];
 /// Weekly art stall: open on Saturdays (when the fair isn't on) at STALL; price per painting (provisional).
 pub const ART_PRICE: u32 = 2500;
 pub fn weekday(day: i64) -> i64 { (day - 1).rem_euclid(7) } // 0 = Monday (day = days from CE)
 pub fn art_of_week(day: i64) -> u16 { ARTS[((day - 1).div_euclid(7) % ARTS.len() as i64) as usize] }
 /// Gallery slots on the museum's back wall (x positions), in ARTS order.
-pub const GALLERY_X: [f32; 6] = [0.55, 1.6, 2.65, 4.35, 5.4, 6.45];
+pub const GALLERY_X: [f32; 8] = [0.5, 1.35, 2.2, 3.05, 3.95, 4.8, 5.65, 6.5];
 pub fn def(id: u16) -> &'static D { DEFS.iter().find(|d| d.id == id).unwrap_or(&DEFS[0]) }
 pub fn is_def(id: u16) -> bool { DEFS.iter().any(|d| d.id == id) }
 fn inr(v: u32, (a, b): (u32, u32), incl: bool) -> bool { let hi = if incl { v <= b } else { v < b }; if a <= b { v >= a && hi } else { v >= a || hi } }

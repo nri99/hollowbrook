@@ -189,3 +189,12 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - Full suite: 64/64 pass.
 - Remaining (human): physical controllers, activity difficulty, Windows HDMI audio (game produces sound at peak 0.33 on the TV endpoint per Core Audio meter; output path beyond Windows unverified).
 - Next action: await user feedback; no open agent tasks.
+
+## X-04/X-06 reconciliation (2026-11-14)
+- Counts: no record of 6/8 found (BACKLOG AC had no counts; my handoff said 3/6). Delivered 6 per set, 8 paintings.
+- Doorway lamp: screenshot fixture bypassed validation (pushed into room). Normal placement already rejects doorway, own tile and escape-route blocking; test placement_never_blocks_door_or_escape drives the real Enter path. Fixture now goes through place_ok (all 12 accepted; lamp at 4,4, visible).
+- DEFECT FIXED: tools were disabled on Gullrock, so the Dune Beetle was uncatchable; the net now works there (other tools show a note).
+- Critters: test new_critters_rules_capture_dex_donation (rain/season/hours/habitat pools, net capture on islet, encyclopedia, donation). Rendered: museum shows donated fish in tank, bugs in case (phase 28). Screenshots don't prove the availability rules; the tests do.
+- Blink/nod: three fixed-time frames rendered (phase 28); curator blink + head tilt confirmed in crops (test_output/a28/x06_frames_compare.png). Player blink not visible in those frames (player faces away): rendering unverified for players.
+- Art stall: Saturday && !fair (event restriction); per-player weekly limit survives reload (test art_week_limit_per_player_survives_reload).
+- Full suite 67/67.

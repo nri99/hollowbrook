@@ -924,6 +924,10 @@ impl Game {
     pub fn use_tool(&mut self) {
         if self.swimming() { return self.dive() }
         if self.me.scene == Scene::Islet && self.swimming() { return self.dive() }
+        if self.me.scene == Scene::Islet { // only the net works on Gullrock (for island bugs)
+            if self.w.p.equip != Some(60) { return self.note("Only the net is useful on Gullrock.") }
+            self.me.swing = 0.35; let at = self.me.ipos + self.me.face * 0.7; self.fx.push((vec3(at.x, 0.6, at.y), 0., 2));
+            if let Some(j) = self.ibugs.iter().position(|b| b.1.distance(at) < 0.8) { let d = self.ibugs.remove(j).0; self.add(d); } else { self.snd.push(Snd::Rustle) } return }
         if self.me.scene != Scene::Town { return }
         if self.me.fish.is_some() { return self.reel() }
         let (p, f) = (self.me.pos, self.me.face);
@@ -969,11 +973,16 @@ impl Game {
         }
         if keep { self.me.fish = Some(f) }
     }
+    /// Town bugs available now (Rain Snail only in rain; Gullrock-only bugs excluded).
+    pub fn bug_pool(rain: bool, mo: u32, hr: u32) -> Vec<u16> { DEFS.iter().filter(|d| d.k == K::Bug && d.hab == 0 && (d.id != 8 || rain) && avail(d, mo, hr)).map(|d| d.id).collect() }
+    pub fn islet_bug_pool(mo: u32, hr: u32) -> Vec<u16> { DEFS.iter().filter(|d| d.k == K::Bug && d.hab == 4 && avail(d, mo, hr)).map(|d| d.id).collect() }
+    /// Fish for a water tile: hab 1 river / 2 sea; river tiles near the sea (`mouth`) also hold hab 3 fish.
+    pub fn fish_pool(hab: u8, mouth: bool, mo: u32, hr: u32) -> Vec<u16> { DEFS.iter().filter(|d| d.k == K::Fish && (d.hab == hab || (mouth && d.hab == 3)) && avail(d, mo, hr)).map(|d| d.id).collect() }
     fn sim_life(&mut self, dt: f32) {
         if self.ibubbles.len() < 2 && std::iter::once(&self.me).chain(self.others.iter()).any(|p| p.scene == Scene::Islet) && gen_range(0, 50) == 0 { let t = (gen_range(0, IW as i32), gen_range(0, IH as i32)); if tile_at_i(&self.imap, t.0, t.1) == SEA && (t.0 - 7).abs() + (t.1 - 6).abs() < 10 { self.ibubbles.push((tc(t), [74, 74, 30, 72][gen_range(0, 4)])) } }
         let on_islet = std::iter::once(&self.me).chain(self.others.iter()).any(|p| p.scene == Scene::Islet);
         if !on_islet { self.ibugs.clear() } else {
-            if self.ibugs.len() < 2 && gen_range(0, 120) == 0 { let t = (gen_range(1, IW as i32 - 1), gen_range(1, IH as i32 - 1)); if tile_at_i(&self.imap, t.0, t.1) == GRASS { let av: Vec<u16> = DEFS.iter().filter(|d| d.hab == 4 && avail(d, self.mo, self.hr)).map(|d| d.id).collect(); if !av.is_empty() { self.ibugs.push((av[gen_range(0, av.len())], tc(t), gen_range(0., 6.28))) } } }
+            if self.ibugs.len() < 2 && gen_range(0, 120) == 0 { let t = (gen_range(1, IW as i32 - 1), gen_range(1, IH as i32 - 1)); if tile_at_i(&self.imap, t.0, t.1) == GRASS { let av = Self::islet_bug_pool(self.mo, self.hr); if !av.is_empty() { self.ibugs.push((av[gen_range(0, av.len())], tc(t), gen_range(0., 6.28))) } } }
             let t = self.t; for b in &mut self.ibugs { b.1 += vec2((t * 2. + b.2).sin(), (t * 1.3 + b.2).cos()) * 0.4 * dt } }
         let anchors: Vec<Vec2> = std::iter::once(&self.me).chain(self.others.iter()).filter(|p| p.scene == Scene::Town).map(|p| p.pos).collect();
         if anchors.is_empty() { return }
@@ -985,7 +994,7 @@ impl Game {
             let tt = tile_of(p + vec2(gen_range(-11., 11.), gen_range(-11., 11.))); let c = tile_at(map, tt.0, tt.1);
             if matches!(c, RIVER | SEA) { let hab = if c == SEA { 2 } else { 1 };
                 let mouth = c == RIVER && (-3..=3).any(|dx| (-3..=3).any(|dz| tile_at(map, tt.0 + dx, tt.1 + dz) == SEA));
-                let av: Vec<u16> = DEFS.iter().filter(|d| d.k == K::Fish && (d.hab == hab || (mouth && d.hab == 3)) && avail(d, mo, hr)).map(|d| d.id).collect();
+                let av = Self::fish_pool(hab, mouth, mo, hr);
                 if !av.is_empty() { let d = loop { let d = av[gen_range(0, av.len())]; if def(d).sell < 1000 || gen_range(0, 4) == 0 { break d } }; self.shadows.push(Shadow { pos: tc(tt), def: d, vel: Vec2::ZERO }) } }
         }
         let att: Vec<usize> = std::iter::once(&self.me).chain(self.others.iter()).filter_map(|p| p.fish.as_ref().and_then(|f| f.fish)).collect();
@@ -997,7 +1006,7 @@ impl Game {
             if tile_at(map, tt.0, tt.1) == SEA { let d = [70, 70, 71, 71, 72, 73][gen_range(0, 6)]; self.bubbles.push((tc(tt), d)) } }
         if self.bugs.len() < 4 && gen_range(0, if rainy(self.w.day) { 400 } else { 90 }) == 0 {
             let tt = tile_of(p + vec2(gen_range(-9., 9.), gen_range(-9., 9.)));
-            if matches!(tile_at(map, tt.0, tt.1), GRASS | FLOWER) { let rain = rainy(self.w.day); let av: Vec<u16> = DEFS.iter().filter(|d| d.k == K::Bug && d.hab == 0 && (d.id != 8 || rain) && avail(d, mo, hr)).map(|d| d.id).collect();
+            if matches!(tile_at(map, tt.0, tt.1), GRASS | FLOWER) { let av = Self::bug_pool(rainy(self.w.day), mo, hr);
                 if !av.is_empty() { self.bugs.push((av[gen_range(0, av.len())], tc(tt), gen_range(0., 6.28))) } }
         }
         for b in &mut self.bugs { b.1 += vec2((t * 2. + b.2).sin(), (t * 1.3 + b.2).cos()) * 0.5 * dt }

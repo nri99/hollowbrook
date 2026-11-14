@@ -410,10 +410,34 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     g.donate(); assert!(g.w.donated.iter().any(|x| x.0 == d)); assert_eq!(g.donated_of(K::Art), 1);
     assert_ne!(art_of_week(g.w.day), art_of_week(g.w.day + 7));
     // collections: three pieces complete a set
-    for &(k, x) in &[(90u16, 0), (91, 1), (92, 2)] { g.w.p.room.retain(|f| f.x != x || f.z != 3); if k != 92 { g.w.p.room.push(Furn { uid: 900 + k as u32, def: k, x, z: 3, rot: 0, on: false }) } }
-    assert!(g.sets_done().is_empty()); g.w.p.room.push(Furn { uid: 992, def: 92, x: 2, z: 3, rot: 0, on: false }); assert_eq!(g.sets_done(), vec!["Meadow collection"]);
+    g.w.p.room.clear(); for (k, &d) in SETS[0].1.iter().enumerate().take(5) { g.w.p.room.push(Furn { uid: 900 + k as u32, def: d, x: k as i32, z: 0, rot: 0, on: false }) }
+    assert!(g.sets_done().is_empty()); g.w.p.room.push(Furn { uid: 999, def: SETS[0].1[5], x: 0, z: -1, rot: 0, on: false }); assert_eq!(g.sets_done(), vec!["Meadow collection"]);
     assert!(FURN_IDS.contains(&95) && def(92).act == Act::Lamp && model(93) == 51);
     // critters: rain snail only in rain filter, Dune Beetle is islet-only, river-mouth goby, winter smelt
     assert!(avail(def(18), 1, 12) && !avail(def(18), 6, 12)); assert_eq!(def(9).hab, 4); assert_eq!(def(19).hab, 3);
-    assert_eq!(DEFS.iter().filter(|d| d.k == K::Bug).count(), 10); assert_eq!(DEFS.iter().filter(|d| d.k == K::Fish).count(), 13);
+    assert_eq!(DEFS.iter().filter(|d| d.k == K::Bug).count(), 10); assert_eq!(DEFS.iter().filter(|d| d.k == K::Fish).count(), 13); assert_eq!(ARTS.len(), 8); assert!(SETS.iter().all(|s| s.1.len() == 6));
+}
+
+#[test] fn placement_never_blocks_door_or_escape() {
+    let mut g = two(at(11, 12, 0, 0)); home(&mut g); assert_eq!(g.rdims(HOME), (4, 4)); g.w.p.room.clear(); g.me.ipos = vec2(1.5, 0.5);
+    let place = |g: &mut Game, x: i32, z: i32| -> Result<(), &'static str> { assert!(g.add_furn(92)); let uid = g.w.p.inv.last().unwrap().uid; g.start_place(uid); let p = g.me.placing.as_mut().unwrap(); p.f.x = x; p.f.z = z; p.f.rot = 0;
+        let r = g.place_ok(&g.me.placing.as_ref().unwrap().f); g.update_player(&Inp::keys(&[KeyCode::Enter], &[KeyCode::Enter]), 0.016); if g.me.placing.is_some() { g.place_cancel(); g.me.placing = None; } r };
+    assert_eq!(place(&mut g, 2, 3), Err("Keep the doorway clear.")); assert!(!g.w.p.room.iter().any(|f| (f.x, f.z) == (2, 3)));
+    assert_eq!(place(&mut g, 1, 0), Err("You're standing there."));
+    for x in [0, 1, 3] { assert_eq!(place(&mut g, x, 2), Ok(())) } assert_eq!(g.w.p.room.len(), 3);
+    assert_eq!(place(&mut g, 2, 2), Err("That would block your way out.")); assert_eq!(g.w.p.room.len(), 3);
+}
+#[test] fn new_critters_rules_capture_dex_donation() {
+    let (rain, dry) = (Game::bug_pool(true, 6, 12), Game::bug_pool(false, 6, 12)); assert!(rain.contains(&8) && !dry.contains(&8)); assert!(!Game::bug_pool(true, 1, 12).contains(&8)); // Mar-Nov only
+    assert!(!rain.contains(&9) && Game::islet_bug_pool(6, 12).contains(&9) && !Game::islet_bug_pool(6, 22).contains(&9)); // Gullrock only, 8-20h
+    assert!(Game::fish_pool(1, false, 1, 12).contains(&18) && !Game::fish_pool(1, false, 6, 12).contains(&18) && !Game::fish_pool(2, false, 1, 12).contains(&18)); // winter river
+    assert!(Game::fish_pool(1, true, 6, 12).contains(&19) && !Game::fish_pool(1, false, 6, 12).contains(&19) && !Game::fish_pool(2, false, 6, 12).contains(&19)); // river mouth only
+    let mut g = g0(at(11, 12, 0, 0)); g.w.p.inv.clear(); g.w.p.tools = vec![60, 61]; g.w.p.equip = Some(60); g.me.scene = Scene::Islet; g.me.ipos = vec2(7.5, 8.5); g.me.face = vec2(1., 0.);
+    g.ibugs = vec![(9, vec2(8.2, 8.5), 0.)]; g.use_tool(); assert!(g.w.p.inv.iter().any(|s| s.def == 9)); assert!(g.w.p.seen.contains(&9)); assert!(g.ibugs.is_empty());
+    for d in [8, 18, 19] { g.add(d); } g.me.scene = Scene::Town; g.donate(); for d in [8, 9, 18, 19] { assert!(g.w.donated.iter().any(|x| x.0 == d), "{d} not donated") }
+}
+#[test] fn art_week_limit_per_player_survives_reload() {
+    let mut g = two(at(21, 12, 0, 0)); g.mo = 11; g.dom = 21; g.w.p.money = 9000; g.art_buy().unwrap(); g.activate(1); g.w.p.money = 9000; g.art_buy().unwrap(); g.activate(0);
+    let mut g2 = reload(&g, "artwk"); g2.mo = 11; g2.dom = 21; assert!(g2.art_buy().is_err()); g2.activate(1); assert_eq!(g2.art_buy(), Err("You've already bought this week's painting.")); assert_eq!(g2.w.p.money, 9000 - ART_PRICE);
+    let mut g3 = reload(&g2, "artwk2"); g3.w.day += 7; g3.mo = 11; g3.dom = 28; assert!(g3.art_buy().is_ok());
 }
