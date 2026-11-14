@@ -175,3 +175,8 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - Rendered (autotest phases 25/26/27, screenshots inspected): Town Hall interior + civic menu; invalid (red) and valid (green) placement; partial funding label; bench built after 06:00 rollover; Crab Corral co-op (both players scored, silver, 2 Sea Glass each); Ring Swim solo while P2 in town (gold). Beacon Dash solo/town earlier (phase 24).
 - Visual fixes: debug panel off in screenshots, hint bar background, shorter notes for split view, distinct blue activity crabs with markers, stronger preview disc, lower civic desk.
 - Beacon Dash thresholds reverted to 5/9/13 (earlier bump was bot-driven). Human difficulty assessment pending.
+
+## Paused for user feedback (2026-11-14)
+- Items 2/3/4/7 milestone accepted by user. Awaiting human checklist results.
+- Unfinished: X-04 collections NOT STARTED; X-06 PARTIAL (animation/face polish, materials open); activity difficulty human assessment pending; physical controllers pending; split-screen "[E] next" dialogue hint not visible (known minor); leader fixed to P1.
+- Next action: wait for user feedback before new work.
