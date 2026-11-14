@@ -78,6 +78,15 @@ pub enum Wx { Clear, Rain, Snow }
 pub fn weather(day: i64, month: u32) -> Wx { if !rainy(day) { Wx::Clear } else if month == 12 || month <= 2 { Wx::Snow } else { Wx::Rain } }
 /// Provisional content choice for this milestone: shop open 08:00-22:00; stock refresh is separate (06:00).
 pub fn shop_open(hr: u32) -> bool { (8..22).contains(&hr) }
+/// Town policies (original, provisional values). Effects are computed from this table on the fly and are
+/// never written into saved schedules, so changing or reloading a policy cannot stack modifiers.
+pub struct Policy { pub name: &'static str, pub fee: u32, pub shop: (u32, u32), pub wake: i32, pub sleep: i32, pub weeds: usize, pub exempt: &'static [usize], pub effect: &'static str }
+pub const POLICIES: [Policy; 3] = [
+    Policy { name: "Dawn Hours", fee: 12000, shop: (6, 22), wake: -2, sleep: 0, weeds: 2, exempt: &[1, 5], effect: "Store opens 6:00 (closing unchanged). Residents wake 2h earlier; bedtimes unchanged. Bramble and Basil keep their usual hours." },
+    Policy { name: "Lantern Hours", fee: 12000, shop: (8, 24), wake: 0, sleep: 2, weeds: 2, exempt: &[3], effect: "Store closes 24:00 (opening unchanged). Residents stay up and home 2h later; waking unchanged. Otto keeps his usual hours." },
+    Policy { name: "Tidy Commons", fee: 15000, shop: (8, 22), wake: 0, sleep: 0, weeds: 0, exempt: &[], effect: "No new weeds sprout each morning (normally 2 per day). Schedules unchanged." },
+];
+pub const ADMIN: &str = "Administrator Hazel Quill";
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum BK { Shop, Home(usize), Res(usize), Civic, Museum }

@@ -165,5 +165,5 @@ schedules, resume-outdoors policy, clock-rollback pause).
 ## Items 2/3/4/7 (user request, 2026-11-14)
 - 2 Housing balance: DONE (7da590e).
 - 3 Money-funded public construction: DONE. MPROJECTS table (data.rs), LEADER=player 0 picks at notice board, ghost preview green/red with route validation (mp_site_ok), donations per player in 1000c steps at the site sign (log saved), built at next 06:00 (finish_mproject). Material projects unchanged. Test money_projects_leader_funding_rollover.
-- 4 Policies: PENDING (civic desk administrator, one active, data table, no stacking on reload).
+- 4 Policies: DONE. Town Hall door opens the civic desk (Administrator Hazel Quill); POLICIES table in data.rs (fee, shop hours, wake/sleep shifts, weeds, exempt chars, effect text); leader-only, fee from own coins, effect + fee shown before confirm, repeal free; effects derived at runtime (Game::loc, shop_hours) so no stacking. Test policies_one_active_no_stacking. Town Hall interior not modelled (desk panel opens at the door).
 - 7 Gullrock timed activities: PENDING (3 distinct, solo/co-op, HUD objective/time/score/thresholds).

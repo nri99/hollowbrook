@@ -82,7 +82,9 @@ pub struct World {
     /// per house slot: gameplay day the current resident arrived, and the day they leave (0 = not moving)
     #[serde(default)] pub arrived: Vec<i64>,
     #[serde(default)] pub moving: Vec<i64>,
-    #[serde(default)] pub project: Option<Project>, #[serde(default)] pub mproject: Option<MProject>, #[serde(default)] pub built: Vec<Built>,
+    #[serde(default)] pub project: Option<Project>, #[serde(default)] pub mproject: Option<MProject>,
+    /// active town policy (index into POLICIES); effects are derived, never stored
+    #[serde(default)] pub policy: Option<usize>, #[serde(default)] pub built: Vec<Built>,
     /// trees already yielding a branch / rocks already yielding a stone today
     #[serde(default)] pub branches: Vec<(i32, i32)>, #[serde(default)] pub rocks_hit: Vec<(i32, i32)>,
     /// islet collectibles (islet coordinates), refreshed daily
@@ -95,7 +97,7 @@ pub fn roster0() -> Vec<usize> { vec![0, 1, 2, 3] }
 impl World {
     pub fn fresh(name: String, day: i64, map: &[u8]) -> World {
         let trees = (0..W * H).filter(|&i| map[i] == TREE).map(|i| Tree { x: (i % W) as i32, z: (i / W) as i32, fruit: true, shaken: i64::MIN / 2 }).collect();
-        World { version: SAVE_VERSION, day, native: FRUITS[gen_range(0usize, 4)], trees, ground: vec![], weeds: vec![], holes: vec![], digs: vec![], stock: vec![], stock_day: i64::MIN, uid: 1, trampled: vec![], donated: vec![], roster: roster0(), arrived: vec![day; 4], moving: vec![0; 4], project: None, mproject: None, built: vec![], branches: vec![], rocks_hit: vec![], iground: vec![], p: Profile::new(0, name, door_stand(HOME)), others: vec![] }
+        World { version: SAVE_VERSION, day, native: FRUITS[gen_range(0usize, 4)], trees, ground: vec![], weeds: vec![], holes: vec![], digs: vec![], stock: vec![], stock_day: i64::MIN, uid: 1, trampled: vec![], donated: vec![], roster: roster0(), arrived: vec![day; 4], moving: vec![0; 4], project: None, mproject: None, policy: None, built: vec![], branches: vec![], rocks_hit: vec![], iground: vec![], p: Profile::new(0, name, door_stand(HOME)), others: vec![] }
     }
 }
 
@@ -106,7 +108,7 @@ impl World {
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Snd { Step, Blip, Splash, Coin, Dig, Rustle, Door, StepPath, StepSand, StepWood, StepFloor, Swim }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize), Stall, Site, Board, Built(usize), Dock, Pell, IItem(usize), IStall, MSite }
 #[derive(Clone, PartialEq, Debug)]
-pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize), Tint(usize), Travel(bool), IStall(usize), ConfirmExpand, MPick(usize), Fund }
+pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize), Tint(usize), Travel(bool), IStall(usize), ConfirmExpand, MPick(usize), Fund, Policy(usize), PolicyOk(usize) }
 pub struct Placing { pub f: Furn, pub orig: Option<Furn>, pub slot_uid: Option<u32> }
 pub struct Fishing { pub bob: Vec2, pub fish: Option<usize>, pub t: f32, pub nib: u8, pub need: u8, pub bite: bool, pub dip: f32 }
 pub struct Shadow { pub pos: Vec2, pub def: u16, pub vel: Vec2 }
@@ -273,7 +275,7 @@ impl Game {
     pub fn refresh_world(&mut self) {
         let day = self.w.day; self.w.trampled.clear(); self.w.branches.clear(); self.w.rocks_hit.clear(); self.refresh_islet(); self.finish_mproject(); if self.w.project.is_none() { self.propose() } // flattened flowers recover each morning
         for t in &mut self.w.trees { if !t.fruit && day - t.shaken >= 3 { t.fruit = true } } // persisted elapsed-time regrowth rule
-        for _ in 0..2 { if self.w.weeds.len() < 12 { if let Some(t) = self.rand_tile(GRASS) { self.w.weeds.push(t) } } }
+        for _ in 0..self.pol().map_or(2, |p| p.weeds) { if self.w.weeds.len() < 12 { if let Some(t) = self.rand_tile(GRASS) { self.w.weeds.push(t) } } }
         while self.w.ground.iter().filter(|g| def(g.def).k == K::Shell).count() < 4 { let Some(t) = self.rand_tile(SAND) else { break }; self.drop_item([40, 42, 40, 42, 41][gen_range(0, 5)], t.0, t.1) }
         while self.w.digs.len() < 2 { let Some(t) = self.rand_tile(GRASS) else { break }; self.w.digs.push(t) }
         if self.w.stock_day != day { let mut pool = FURN_IDS.to_vec(); self.w.stock = (0..5).map(|_| Stock { def: pool.remove(gen_range(0, pool.len())), sold: false }).collect(); self.w.stock_day = day }
@@ -293,6 +295,23 @@ impl Game {
     pub fn bname(&self, b: usize) -> String { match BLDS[b].kind { BK::Res(k) => format!("{}'s House", self.res(k).name), _ => BLDS[b].name.into() } }
     /// Character living in house slot `slot`.
     pub fn res(&self, slot: usize) -> &'static Res { &CHARS[self.w.roster[slot]] }
+    pub fn pol(&self) -> Option<&'static Policy> { self.w.policy.and_then(|i| POLICIES.get(i)) }
+    /// Resident location with the active policy applied (wake/sleep shifts; exempt characters unchanged).
+    pub fn loc(&self, slot: usize) -> Loc {
+        let r = self.res(slot); let (dw, ds) = match self.pol() { Some(p) if !p.exempt.contains(&self.w.roster[slot]) => (p.wake, p.sleep), _ => (0, 0) };
+        let (wake, sleep, hr) = ((r.wake as i32 + dw).max(0), (r.sleep as i32 + ds).min(24), self.hr as i32);
+        if !(hr >= wake && hr < sleep) { Loc::Asleep } else if r.home_h.iter().enumerate().any(|(k, &(a, b))| hr >= a as i32 && hr < b as i32 + if k == 1 { ds } else { 0 }) { Loc::Home } else { Loc::Out }
+    }
+    pub fn shop_hours(&self) -> (u32, u32) { self.pol().map_or((8, 22), |p| p.shop) }
+    pub fn shop_is_open(&self) -> bool { let (a, b) = self.shop_hours(); (a..b).contains(&self.hr) }
+    /// Leader enacts policy `i` (fee from the leader's own coins), or repeals with None (free).
+    pub fn enact(&mut self, i: Option<usize>) -> Result<(), &'static str> {
+        if self.me.id != LEADER { return Err("Only the town leader can change policies.") }
+        let Some(i) = i else { self.w.policy = None; return Ok(()) };
+        if self.w.policy == Some(i) { return Err("That policy is already in effect.") }
+        let fee = POLICIES[i].fee; if self.w.p.money < fee { return Err("Not enough coins for the policy fee.") }
+        self.w.p.money -= fee; self.w.policy = Some(i); Ok(())
+    }
     pub fn walk_tile(&self, x: i32, z: i32) -> bool {
         if (x, z) == DOCK { return false }
         if self.fair() && (x, z) == STALL { return false }
@@ -376,7 +395,7 @@ impl Game {
                 if BLDS[b].kind == BK::Shop { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Counter, None); cand(vec2(3.5, 0.5), 2.6, 1.3, Tg::Keeper, None); for (i, &d) in DISPLAYS.iter().enumerate() { cand(tc(d), 1.5, 1., Tg::Display(i), None) } cand(tc(RACK), 1.5, 1., Tg::Rack, None) }
                 if BLDS[b].kind == BK::Museum { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Curator, None); cand(vec2(0.5, 2.5), 1.5, 1., Tg::Exhibit(0), None); cand(vec2(6.5, 2.5), 1.5, 1., Tg::Exhibit(1), None);
                     for (k, p) in MUSEUM_PED.iter().enumerate() { cand(tc(p.0), 1.5, 1., Tg::Exhibit(2 + k), None) } }
-                if let BK::Res(r) = BLDS[b].kind { if where_(self.res(r), self.hr) == Loc::Home { cand(res_spot(), 1.7, 0.9, Tg::Npc(r), None) } }
+                if let BK::Res(r) = BLDS[b].kind { if self.loc(r) == Loc::Home { cand(res_spot(), 1.7, 0.9, Tg::Npc(r), None) } }
                 if let Some((r, vb, _)) = self.visit { if vb == b { cand(self.visit_spot(b), 1.7, 0.9, Tg::Npc(r), None) } }
             }
         }
@@ -443,9 +462,9 @@ impl Game {
     fn door(&mut self, b: usize) {
         match BLDS[b].kind {
             BK::Home(_) => self.go(Scene::Room(b)),
-            BK::Shop => if shop_open(self.hr) { self.go(Scene::Room(b)) } else { self.note("The General Store is closed. Hours: 8:00-22:00.") },
-            BK::Res(r) => match where_(self.res(r), self.hr) { Loc::Home => self.go(Scene::Room(b)), Loc::Asleep => self.note(format!("It's late. {} is asleep.", self.res(r).name)), Loc::Out => self.note(format!("{} isn't home right now.", self.res(r).name)) },
-            BK::Civic => self.note("The Town Hall isn't open yet. Maybe someday!"),
+            BK::Shop => if self.shop_is_open() { self.go(Scene::Room(b)) } else { let (a, c) = self.shop_hours(); self.note(format!("The General Store is closed. Hours: {a}:00-{c}:00.")) },
+            BK::Res(r) => match self.loc(r) { Loc::Home => self.go(Scene::Room(b)), Loc::Asleep => self.note(format!("It's late. {} is asleep.", self.res(r).name)), Loc::Out => self.note(format!("{} isn't home right now.", self.res(r).name)) },
+            BK::Civic => self.me.ui = Ui::Policy(0),
             BK::Museum => self.go(Scene::Room(b)),
         }
     }
@@ -582,7 +601,7 @@ impl Game {
         let hosts: Vec<usize> = std::iter::once(&self.me).chain(self.others.iter()).filter(|p| p.scene == Scene::Room(home_of(p.id))).map(|p| p.id).collect();
         for id in hosts {
             let pr = if self.w.p.id == id { &self.w.p } else { match self.w.others.iter().find(|p| p.id == id) { Some(p) => p, None => continue } };
-            if let Some(i) = (0..4).find(|&i| where_(self.res(i), self.hr) == Loc::Out && !self.npcs[i].inside && pr.npcs[i].friend >= 5 && !pr.npcs[i].visited) {
+            if let Some(i) = (0..4).find(|&i| self.loc(i) == Loc::Out && !self.npcs[i].inside && pr.npcs[i].friend >= 5 && !pr.npcs[i].visited) {
                 if self.w.p.id == id { self.w.p.npcs[i].visited = true } else if let Some(p) = self.w.others.iter_mut().find(|p| p.id == id) { p.npcs[i].visited = true }
                 self.start_visit(i, home_of(id)); return;
             }
@@ -907,7 +926,7 @@ impl Game {
         for i in 0..4 {
             if self.visit.is_some_and(|v| v.0 == i) { continue }
             if let Some(&(a, b, _)) = self.chats.iter().find(|c| c.0 == i || c.1 == i) { let o = if a == i { b } else { a }; let d = self.npcs[o].pos - self.npcs[i].pos; if d.length() > 0.01 { self.npcs[i].yaw = yaw_of(d) } self.npcs[i].moving = false; continue }
-            let loc = where_(self.res(i), self.hr);
+            let loc = self.loc(i);
             { let n = &mut self.npcs[i]; n.happy = (n.happy - dt).max(0.); n.moving = false; }
             if let Some(&(_, pp, town)) = talkers.iter().find(|t| t.0 == i) { let d = pp - self.npcs[i].pos; if town && d.length() > 0.01 { self.npcs[i].yaw = yaw_of(d) } continue }
             if loc == Loc::Out {
@@ -938,7 +957,7 @@ impl Game {
         if gen_range(0, 60) != 0 { return }
         for a in 0..4 { for b in a + 1..4 {
             let (na, nb) = (&self.npcs[a], &self.npcs[b]);
-            if na.inside || nb.inside || where_(self.res(a), self.hr) != Loc::Out || where_(self.res(b), self.hr) != Loc::Out || self.chats.iter().any(|c| [c.0, c.1].contains(&a) || [c.0, c.1].contains(&b)) { continue }
+            if na.inside || nb.inside || self.loc(a) != Loc::Out || self.loc(b) != Loc::Out || self.chats.iter().any(|c| [c.0, c.1].contains(&a) || [c.0, c.1].contains(&b)) { continue }
             if na.pos.distance(nb.pos) < 2.6 { for k in [a, b] { self.npcs[k].path.clear(); self.npcs[k].wait = 5. } self.chats.push((a, b, 5.)); return }
         } }
     }
@@ -1031,6 +1050,9 @@ impl Game {
                 if (mv0, sv0, mu0) != (self.music_vol, self.sfx_vol, self.muted) { self.settings_dirty = true } }
             Ui::Gift(j, s) => { let s = mv(s, n); self.me.ui = Ui::Gift(j, s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.give_gift(j, s) } }
             Ui::MPick(s) => { let s = mv(s, MPROJECTS.len()); self.me.ui = Ui::MPick(s); if esc { self.me.ui = Ui::Play } else if ok { self.me.ui = Ui::Play; self.me.mplace = Some(s); self.note("Walk to the spot and face it, then press Enter to place. Esc cancels.") } }
+            Ui::Policy(s) => { let s = mv(s, POLICIES.len() + 1); self.me.ui = Ui::Policy(s); if esc { self.me.ui = Ui::Play } else if ok { self.me.ui = Ui::PolicyOk(s) } }
+            Ui::PolicyOk(s) => { if esc { self.me.ui = Ui::Policy(s) } else if ok { let r = self.enact((s < POLICIES.len()).then_some(s)); self.me.ui = Ui::Play;
+                match r { Ok(()) => { self.snd.push(Snd::Coin); self.note(self.pol().map_or("Policy repealed. Normal hours apply.".to_string(), |p| format!("{} is now in effect.", p.name))) } Err(e) => self.note(e) } } }
             Ui::Fund => { if esc { self.me.ui = Ui::Play } else if ok { match self.mp_fund(DONATE_STEP) { Ok(a) => { self.snd.push(Snd::Coin); self.note(format!("Donated {a} coins.")) } Err(e) => self.note(e) } } }
             Ui::ConfirmExpand => { if ok || inp.p(Y) { self.me.ui = Ui::Play; match self.expand_home() { Ok(()) => { self.snd.push(Snd::Door); self.note(format!("Your home was expanded! Balance: {} coins, no deadline.", self.w.p.debt)) } Err(e) => self.note(e) } } else if esc || inp.p(N) { self.me.ui = Ui::Play } }
             Ui::Travel(go_out) => { if ok || inp.p(Y) { self.me.ui = Ui::Play; if go_out { if self.w.p.money < FARE { self.note("Not enough coins for the fare.") } else { self.w.p.money -= FARE; self.go(Scene::Islet) } } else { self.go(Scene::Town) } } else if esc || inp.p(N) { self.me.ui = Ui::Play } }

@@ -317,3 +317,18 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     let g2 = reload(&g, "mproj"); assert_eq!(g2.w.mproject, g.w.mproject);
     assert!(g.w.built.iter().all(|b| b.kind != 4)); assert!(g.catch_up(at(12, 6, 0, 1))); assert!(g.w.built.iter().any(|b| b.kind == 4 && (b.x, b.z) == (m.x, m.z))); assert!(g.w.mproject.is_none());
 }
+
+#[test] fn policies_one_active_no_stacking() {
+    let mut g = two(at(11, 12, 7, 0)); let otto = (0..4).find(|&k| g.w.roster[k] == 3); let jun = (0..4).find(|&k| g.w.roster[k] == 0);
+    g.activate(1); g.w.p.money = 99999; assert!(g.enact(Some(0)).is_err()); assert_eq!(g.w.p.money, 99999);
+    g.activate(0); g.w.p.money = 100; assert_eq!(g.enact(Some(0)), Err("Not enough coins for the policy fee.")); assert_eq!(g.w.policy, None);
+    g.w.p.money = 30000; g.enact(Some(0)).unwrap(); assert_eq!(g.w.p.money, 30000 - POLICIES[0].fee); assert!(g.enact(Some(0)).is_err());
+    g.hr = 6; assert!(g.shop_is_open()); g.hr = 21; assert!(g.shop_is_open()); g.hr = 22; assert!(!g.shop_is_open());
+    if let Some(j) = jun { g.hr = 5; assert_eq!(g.loc(j), Loc::Out); g.hr = 22; assert_eq!(g.loc(j), Loc::Asleep) }
+    let g2 = reload(&g, "pol"); assert_eq!(g2.w.policy, Some(0)); let g3 = reload(&g2, "pol2"); assert_eq!(g3.shop_hours(), (6, 22));
+    g.enact(Some(1)).unwrap(); assert_eq!(g.shop_hours(), (8, 24)); g.hr = 7; assert!(!g.shop_is_open()); g.hr = 23; assert!(g.shop_is_open());
+    if let Some(j) = jun { g.hr = 5; assert_eq!(g.loc(j), Loc::Asleep); g.hr = 23; assert_eq!(g.loc(j), Loc::Home) }
+    if let Some(o) = otto { g.hr = 21; assert_eq!(g.loc(o), Loc::Asleep) }
+    g.w.p.money = 20000; g.enact(Some(2)).unwrap(); g.w.weeds.clear(); assert!(g.catch_up(at(12, 6, 0, 1))); assert!(g.w.weeds.is_empty());
+    g.enact(None).unwrap(); assert_eq!(g.w.policy, None); assert_eq!(g.shop_hours(), (8, 22));
+}

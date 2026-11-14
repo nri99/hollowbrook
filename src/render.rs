@@ -456,7 +456,7 @@ fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, Strin
     for f in &furn { furniture(r, f.def, fbase(f), f.on, owner.map_or(0, |pr| Game::tint_of(pr, f.uid))); if f.def == 54 && f.on { let c = fcenter(f); r.disc(vec3(c.x, 0.012, c.y), vec2(0.9, 0.9), Color::new(1., 0.85, 0.4, 0.18)) } }
     if let Some((vi, vb, _)) = g.visit { if vb == b { let s = g.visit_spot(b); let talking = matches!(g.me.ui, Ui::Talk { npc: Some(j), .. } if j == vi);
         r.disc(vec3(s.x, 0.02, s.y), vec2(0.3, 0.24), Color::new(0., 0., 0., 0.2)); resident(r, g.w.roster[vi], vec3(s.x, 0., s.y), yaw_of(g.me.ipos - s), 0., false, t, talking, g.npcs[vi].happy) } }
-    if let BK::Res(i) = BLDS[b].kind { if where_(g.res(i), g.hr) == Loc::Home { let s = res_spot(); let talking = matches!(g.me.ui, Ui::Talk { npc: Some(j), .. } if j == i);
+    if let BK::Res(i) = BLDS[b].kind { if g.loc(i) == Loc::Home { let s = res_spot(); let talking = matches!(g.me.ui, Ui::Talk { npc: Some(j), .. } if j == i);
         r.disc(vec3(s.x, 0.02, s.y), vec2(0.3, 0.24), Color::new(0., 0., 0., 0.2)); resident(r, g.w.roster[i], vec3(s.x, 0., s.y), yaw_of(g.me.ipos - s), 0., false, t, talking, g.npcs[i].happy) } }
     if let Some(p) = &g.me.placing { let ok = g.place_ok(&p.f).is_ok(); let c = if ok { Color::new(0.2, 0.9, 0.3, 0.45) } else { Color::new(0.95, 0.2, 0.2, 0.45) };
         if def(p.f.def).wall { r.disc(vec3(p.f.x as f32 + 0.5, 0.02, 0.3), vec2(0.45, 0.25), c) } else { for (x, z) in foot(p.f.def, p.f.x, p.f.z, p.f.rot) { r.disc(vec3(x as f32 + 0.5, 0.02, z as f32 + 0.5), vec2(0.48, 0.48), c) } }
@@ -510,6 +510,14 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         Ui::MPick(sel) => { panel(sw / 2. - 270., 100., 540., 330.); txt("Start a funded public project", sw / 2. - 250., 135., 26., Color::new(0.45, 0.3, 0.2, 1.));
             let items: Vec<String> = MPROJECTS.iter().map(|p| format!("{}  -  {} coins", p.0, p.1)).collect(); list(&items, Some(*sel), sw / 2. - 240., 175.);
             txt("Pick one, then walk to the spot and press Enter (green = valid).", sw / 2. - 250., 330., 18., DARKGRAY); txt("Built the morning after it is fully funded. Esc cancels.", sw / 2. - 250., 355., 18., DARKGRAY) }
+        Ui::Policy(sel) => { panel(sw / 2. - 330., 80., 660., 400.); txt(ADMIN, sw / 2. - 310., 115., 24., Color::new(0.45, 0.3, 0.2, 1.));
+            txt(&format!("Civic desk. Current policy: {}. Only one policy can be active.", g.pol().map_or("none", |p| p.name)), sw / 2. - 310., 145., 18., DARKGRAY);
+            let mut items: Vec<String> = POLICIES.iter().map(|p| format!("{}  -  {} coins", p.name, p.fee)).collect(); items.push("Repeal current policy (free)".into()); list(&items, Some(*sel), sw / 2. - 300., 180.);
+            let e = POLICIES.get(*sel).map_or("Return to normal hours and maintenance.", |p| p.effect); for (k, l) in wrap(e, 70).iter().enumerate() { txt(l, sw / 2. - 310., 360. + k as f32 * 22., 18., BLACK) }
+            if g.me.id != LEADER { txt("Only the town leader can change policies.", sw / 2. - 310., 455., 18., Color::new(0.6, 0.2, 0.2, 1.)) } }
+        Ui::PolicyOk(sel) => { panel(sw / 2. - 330., sh / 2. - 110., 660., 210.); let (t, fee, e) = POLICIES.get(*sel).map_or(("Repeal current policy", 0, "Return to normal hours and maintenance."), |p| (p.name, p.fee, p.effect));
+            txt(&format!("{t}  -  fee {fee} coins (you have {})", g.w.p.money), sw / 2. - 310., sh / 2. - 75., 22., BLACK); for (k, l) in wrap(e, 70).iter().enumerate() { txt(l, sw / 2. - 310., sh / 2. - 40. + k as f32 * 22., 18., DARKGRAY) }
+            txt(if g.me.pad { "[A] Confirm   [B] Back" } else { "[Enter] Confirm   [Esc] Back" }, sw / 2. - 310., sh / 2. + 70., 22., Color::new(0.45, 0.3, 0.2, 1.)) }
         Ui::Fund => { if let Some(m) = &g.w.mproject { panel(sw / 2. - 260., sh / 2. - 80., 520., 150.); txt(&format!("{}: {} / {} coins", MPROJECTS[m.idx].0, m.funded, MPROJECTS[m.idx].1), sw / 2. - 240., sh / 2. - 40., 24., BLACK);
             txt(&format!("You have {} coins. Each press donates up to {}.", g.w.p.money, DONATE_STEP), sw / 2. - 240., sh / 2. - 6., 20., DARKGRAY); txt(if g.me.pad { "[A] Donate   [B] Close" } else { "[Enter] Donate   [Esc] Close" }, sw / 2. - 240., sh / 2. + 36., 22., Color::new(0.45, 0.3, 0.2, 1.)) } }
         Ui::ConfirmExpand => { let lv = g.w.p.home as usize; let (a, b) = (HOME_DIMS[lv], HOME_DIMS[(lv + 1).min(HOME_DIMS.len() - 1)]); panel(sw / 2. - 270., sh / 2. - 90., 540., 170.);
@@ -553,3 +561,5 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
     if g.me.pad_lost { for (k, m) in ["Controller disconnected", "Press Start on a controller to reconnect"].iter().enumerate() { let tw = measure_text(m, None, 24, 1.).width; draw_rectangle(sw / 2. - tw / 2. - 12., sh / 2. - 34. + k as f32 * 40., tw + 24., 40., Color::new(0.6, 0.1, 0.1, 0.9)); txt(m, sw / 2. - tw / 2., sh / 2. - 6. + k as f32 * 40., 24., WHITE) } }
     if let Some((t, _, _)) = g.me.trans { draw_rectangle(0., 0., sw, sh, Color::new(0., 0., 0., 1. - ((t - 0.22).abs() / 0.22).min(1.))) }
 }
+
+fn wrap(t: &str, n: usize) -> Vec<String> { let mut v = vec![String::new()]; for w in t.split(' ') { if v.last().unwrap().len() + w.len() + 1 > n { v.push(String::new()) } let l = v.last_mut().unwrap(); if !l.is_empty() { l.push(' ') } l.push_str(w) } v }
