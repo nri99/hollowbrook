@@ -116,45 +116,45 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
     let mut rep = String::new();
     macro_rules! log { ($($a:tt)*) => {{ let s = format!($($a)*); eprintln!("[auto] {s}"); rep += &s; rep.push('\n'); }} }
     macro_rules! shot { ($n:expr) => {{ wait(g, c, 2).await; render::draw(g, c.now(), Some(c.source())); screenshot(&format!("{dir}/{}.png", $n)); next_frame().await; log!("shot {}", $n); }} }
-    let state = |g: &Game| format!("money={} inv={:?} stock={:?} room={:?} tools={:?}", g.w.money, g.w.inv.iter().map(|s| (def(s.def).name, s.qty, s.uid)).collect::<Vec<_>>(),
-        g.w.stock.iter().map(|s| (def(s.def).name, s.sold)).collect::<Vec<_>>(), g.w.room.iter().map(|f| (def(f.def).name, f.uid, f.x, f.z, f.rot, f.on)).collect::<Vec<_>>(), g.w.tools);
+    let state = |g: &Game| format!("money={} inv={:?} stock={:?} room={:?} tools={:?}", g.w.p.money, g.w.p.inv.iter().map(|s| (def(s.def).name, s.qty, s.uid)).collect::<Vec<_>>(),
+        g.w.stock.iter().map(|s| (def(s.def).name, s.sold)).collect::<Vec<_>>(), g.w.p.room.iter().map(|f| (def(f.def).name, f.uid, f.x, f.z, f.rot, f.on)).collect::<Vec<_>>(), g.w.p.tools);
     log!("phase {phase} start {} | {}", c.now(), state(g));
     wait(g, c, 30).await;
     if phase == "1" {
         shot!("01_outdoor_start");
         go(g, c, vec2(13.5, 11.4), 0.15).await; face(g, c, vec2(13.5, 13.)).await; shot!("02_behind_house_occlusion");
         go(g, c, vec2(16.5, 23.4), 0.2).await; face(g, c, vec2(16.5, 10.)).await; shot!("03_beach_rolling_horizon");
-        let shell = g.w.ground.iter().filter(|i| def(i.def).k == K::Shell).min_by(|a, b| vec2(a.x, a.z).distance(g.pos).total_cmp(&vec2(b.x, b.z).distance(g.pos))).map(|i| vec2(i.x, i.z));
-        if let Some(s) = shell { approach(g, c, s).await; press(g, c, KeyCode::E).await; } log!("after shell: inv={:?}", g.w.inv);
+        let shell = g.w.ground.iter().filter(|i| def(i.def).k == K::Shell).min_by(|a, b| vec2(a.x, a.z).distance(g.me.pos).total_cmp(&vec2(b.x, b.z).distance(g.me.pos))).map(|i| vec2(i.x, i.z));
+        if let Some(s) = shell { approach(g, c, s).await; press(g, c, KeyCode::E).await; } log!("after shell: inv={:?}", g.w.p.inv);
         if let Some(i) = (0..4).find(|&i| !g.npcs[i].inside) {
-            for _ in 0..900 { let np = g.npcs[i].pos; if g.pos.distance(np) < 1.1 { break } let path = g.bfs(tile_of(g.pos), tile_of(np), false).unwrap_or_default(); let wp = if path.len() > 1 { tc(path[0]) } else { np }; step(g, c, &keys_toward(wp - g.pos), &[]).await }
-            face(g, c, g.npcs[i].pos).await; press(g, c, KeyCode::E).await; log!("talk to resident {i}: ui={:?}", g.ui);
-            if matches!(g.ui, Ui::Talk { .. }) { shot!("04_resident_conversation") } for _ in 0..4 { if g.ui == Ui::Play { break } press(g, c, KeyCode::E).await }
+            for _ in 0..900 { let np = g.npcs[i].pos; if g.me.pos.distance(np) < 1.1 { break } let path = g.bfs(tile_of(g.me.pos), tile_of(np), false).unwrap_or_default(); let wp = if path.len() > 1 { tc(path[0]) } else { np }; step(g, c, &keys_toward(wp - g.me.pos), &[]).await }
+            face(g, c, g.npcs[i].pos).await; press(g, c, KeyCode::E).await; log!("talk to resident {i}: ui={:?}", g.me.ui);
+            if matches!(g.me.ui, Ui::Talk { .. }) { shot!("04_resident_conversation") } for _ in 0..4 { if g.me.ui == Ui::Play { break } press(g, c, KeyCode::E).await }
         }
-        if let Some(ti) = (0..g.w.trees.len()).filter(|&i| g.w.trees[i].fruit).min_by(|&a, &b| tc((g.w.trees[a].x, g.w.trees[a].z)).distance(g.pos).total_cmp(&tc((g.w.trees[b].x, g.w.trees[b].z)).distance(g.pos))) {
+        if let Some(ti) = (0..g.w.trees.len()).filter(|&i| g.w.trees[i].fruit).min_by(|&a, &b| tc((g.w.trees[a].x, g.w.trees[a].z)).distance(g.me.pos).total_cmp(&tc((g.w.trees[b].x, g.w.trees[b].z)).distance(g.me.pos))) {
             let tp = tc((g.w.trees[ti].x, g.w.trees[ti].z)); approach(g, c, tp).await; press(g, c, KeyCode::E).await; log!("shook tree {ti}: fruit now {} ground fruit {}", g.w.trees[ti].fruit, g.w.ground.iter().filter(|i| i.def == g.w.native).count());
-            for _ in 0..3 { let Some(f) = g.w.ground.iter().filter(|i| i.def == g.w.native).map(|i| vec2(i.x, i.z)).min_by(|a, b| a.distance(g.pos).total_cmp(&b.distance(g.pos))) else { break }; approach(g, c, f).await; press(g, c, KeyCode::E).await }
-            log!("after fruit: inv={:?}", g.w.inv);
+            for _ in 0..3 { let Some(f) = g.w.ground.iter().filter(|i| i.def == g.w.native).map(|i| vec2(i.x, i.z)).min_by(|a, b| a.distance(g.me.pos).total_cmp(&b.distance(g.me.pos))) else { break }; approach(g, c, f).await; press(g, c, KeyCode::E).await }
+            log!("after fruit: inv={:?}", g.w.p.inv);
         }
-        go(g, c, door_stand(SHOP), 0.12).await; face(g, c, door_face(SHOP)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await; log!("scene after shop door: {:?}", g.scene); shot!("05_shop_interior");
-        go(g, c, vec2(3.5, 2.5), 0.12).await; face(g, c, vec2(3.5, 1.5)).await; press(g, c, KeyCode::E).await; log!("counter ui={:?}", g.ui); shot!("06_sell_menu");
-        let m0 = g.w.money; press(g, c, KeyCode::A).await; log!("sold all finds: money {m0} -> {}", g.w.money); press(g, c, KeyCode::Escape).await;
-        if let Some(d) = (0..5).filter(|&i| !g.w.stock[i].sold && def(g.w.stock[i].def).buy <= g.w.money && !def(g.w.stock[i].def).wall).max_by_key(|&i| { let d = def(g.w.stock[i].def); ((d.act == Act::Sit) as u32 * 4 + d.rot as u32 * 2 + (d.act != Act::None) as u32, u32::MAX - d.buy) }) {
-            approach(g, c, tc(DISPLAYS[d])).await; press(g, c, KeyCode::E).await; log!("display {d} ui={:?}", g.ui); let m1 = g.w.money; press(g, c, KeyCode::Enter).await; press(g, c, KeyCode::Enter).await;
-            log!("bought {}: money {m1} -> {}, sold={}", def(g.w.stock[d].def).name, g.w.money, g.w.stock[d].sold); shot!("07_shop_after_purchase");
+        go(g, c, door_stand(SHOP), 0.12).await; face(g, c, door_face(SHOP)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await; log!("scene after shop door: {:?}", g.me.scene); shot!("05_shop_interior");
+        go(g, c, vec2(3.5, 2.5), 0.12).await; face(g, c, vec2(3.5, 1.5)).await; press(g, c, KeyCode::E).await; log!("counter ui={:?}", g.me.ui); shot!("06_sell_menu");
+        let m0 = g.w.p.money; press(g, c, KeyCode::A).await; log!("sold all finds: money {m0} -> {}", g.w.p.money); press(g, c, KeyCode::Escape).await;
+        if let Some(d) = (0..5).filter(|&i| !g.w.stock[i].sold && def(g.w.stock[i].def).buy <= g.w.p.money && !def(g.w.stock[i].def).wall).max_by_key(|&i| { let d = def(g.w.stock[i].def); ((d.act == Act::Sit) as u32 * 4 + d.rot as u32 * 2 + (d.act != Act::None) as u32, u32::MAX - d.buy) }) {
+            approach(g, c, tc(DISPLAYS[d])).await; press(g, c, KeyCode::E).await; log!("display {d} ui={:?}", g.me.ui); let m1 = g.w.p.money; press(g, c, KeyCode::Enter).await; press(g, c, KeyCode::Enter).await;
+            log!("bought {}: money {m1} -> {}, sold={}", def(g.w.stock[d].def).name, g.w.p.money, g.w.stock[d].sold); shot!("07_shop_after_purchase");
         }
-        go(g, c, vec2(3.5, 4.5), 0.12).await; for _ in 0..30 { if g.scene == Scene::Town { break } step(g, c, &[KeyCode::S], &[]).await } wait(g, c, 40).await; log!("left shop: scene={:?} pos={:?}", g.scene, g.pos);
-        go(g, c, door_stand(HOME), 0.12).await; face(g, c, door_face(HOME)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await; log!("home: scene={:?}", g.scene);
-        if let Some(idx) = g.w.inv.iter().position(|s| def(s.def).k == K::Furn) {
+        go(g, c, vec2(3.5, 4.5), 0.12).await; for _ in 0..30 { if g.me.scene == Scene::Town { break } step(g, c, &[KeyCode::S], &[]).await } wait(g, c, 40).await; log!("left shop: scene={:?} pos={:?}", g.me.scene, g.me.pos);
+        go(g, c, door_stand(HOME), 0.12).await; face(g, c, door_face(HOME)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await; log!("home: scene={:?}", g.me.scene);
+        if let Some(idx) = g.w.p.inv.iter().position(|s| def(s.def).k == K::Furn) {
             go(g, c, vec2(2.5, 3.5), 0.1).await; face(g, c, vec2(2.5, 1.)).await;
-            press(g, c, KeyCode::I).await; for _ in 0..idx { press(g, c, KeyCode::S).await } press(g, c, KeyCode::Enter).await; log!("placing={:?}", g.placing.as_ref().map(|p| p.f));
-            press(g, c, KeyCode::A).await; press(g, c, KeyCode::W).await; if g.placing.as_ref().is_some_and(|p| def(p.f.def).rot) { press(g, c, KeyCode::R).await }
+            press(g, c, KeyCode::I).await; for _ in 0..idx { press(g, c, KeyCode::S).await } press(g, c, KeyCode::Enter).await; log!("placing={:?}", g.me.placing.as_ref().map(|p| p.f));
+            press(g, c, KeyCode::A).await; press(g, c, KeyCode::W).await; if g.me.placing.as_ref().is_some_and(|p| def(p.f.def).rot) { press(g, c, KeyCode::R).await }
             shot!("08_placing_ghost"); press(g, c, KeyCode::Enter).await;
-            if g.placing.is_some() { press(g, c, KeyCode::D).await; press(g, c, KeyCode::Enter).await }
-            log!("after place: placing={} room={:?} inv={:?}", g.placing.is_some(), g.w.room, g.w.inv);
-            if let Some(f) = g.w.room.last().copied() { let cpos = fcenter(&f); approach(g, c, cpos).await; let tg = g.target(); press(g, c, KeyCode::E).await; wait(g, c, 20).await;
-                log!("used furniture target={:?} pose={:?} ui={:?} lamp_on={:?}", tg, g.pose, g.ui, g.w.room.iter().find(|x| x.uid == f.uid).map(|x| x.on)); shot!("09_furniture_in_use");
-                if g.ui != Ui::Play { press(g, c, KeyCode::Escape).await } if g.pose != Pose::Stand { step(g, c, &[KeyCode::S], &[]).await } log!("stood up: pose={:?}", g.pose); go(g, c, vec2(3.4, 3.3), 0.15).await; face(g, c, vec2(3.4, 4.)).await; shot!("10_furnished_home"); }
+            if g.me.placing.is_some() { press(g, c, KeyCode::D).await; press(g, c, KeyCode::Enter).await }
+            log!("after place: placing={} room={:?} inv={:?}", g.me.placing.is_some(), g.w.p.room, g.w.p.inv);
+            if let Some(f) = g.w.p.room.last().copied() { let cpos = fcenter(&f); approach(g, c, cpos).await; let tg = g.target(); press(g, c, KeyCode::E).await; wait(g, c, 20).await;
+                log!("used furniture target={:?} pose={:?} ui={:?} lamp_on={:?}", tg, g.me.pose, g.me.ui, g.w.p.room.iter().find(|x| x.uid == f.uid).map(|x| x.on)); shot!("09_furniture_in_use");
+                if g.me.ui != Ui::Play { press(g, c, KeyCode::Escape).await } if g.me.pose != Pose::Stand { step(g, c, &[KeyCode::S], &[]).await } log!("stood up: pose={:?}", g.me.pose); go(g, c, vec2(3.4, 3.3), 0.15).await; face(g, c, vec2(3.4, 4.)).await; shot!("10_furnished_home"); }
         }
         log!("phase 1 end | {}", state(g));
     } else if phase == "0" {
@@ -162,37 +162,37 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
     } else if phase == "3" && c.now().hour() < 18 {
         // P1-01..04: shovel purchase, digging, fishing, bugs, resident interior
         go(g, c, door_stand(SHOP), 0.12).await; face(g, c, door_face(SHOP)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
-        approach(g, c, tc(DISPLAYS[5])).await; press(g, c, KeyCode::E).await; press(g, c, KeyCode::Enter).await; log!("shovel bought: tools={:?} money={}", g.w.tools, g.w.money);
-        go(g, c, vec2(3.5, 4.5), 0.12).await; for _ in 0..30 { if g.scene == Scene::Town { break } step(g, c, &[KeyCode::S], &[]).await } wait(g, c, 40).await;
-        for _ in 0..4 { if g.w.equip == Some(62) { break } press(g, c, KeyCode::Tab).await }
-        if let Some(site) = g.w.digs.first().copied() { approach(g, c, tc(site)).await; press(g, c, KeyCode::Space).await; log!("dig site {:?}: hole={} inv={:?}", site, g.w.holes.contains(&site), g.w.inv); shot!("p3_dig_site");
+        approach(g, c, tc(DISPLAYS[5])).await; press(g, c, KeyCode::E).await; press(g, c, KeyCode::Enter).await; log!("shovel bought: tools={:?} money={}", g.w.p.tools, g.w.p.money);
+        go(g, c, vec2(3.5, 4.5), 0.12).await; for _ in 0..30 { if g.me.scene == Scene::Town { break } step(g, c, &[KeyCode::S], &[]).await } wait(g, c, 40).await;
+        for _ in 0..4 { if g.w.p.equip == Some(62) { break } press(g, c, KeyCode::Tab).await }
+        if let Some(site) = g.w.digs.first().copied() { approach(g, c, tc(site)).await; press(g, c, KeyCode::Space).await; log!("dig site {:?}: hole={} inv={:?}", site, g.w.holes.contains(&site), g.w.p.inv); shot!("p3_dig_site");
             press(g, c, KeyCode::Space).await; log!("filled again: hole={}", g.w.holes.contains(&site)); }
-        for _ in 0..4 { if g.w.equip == Some(61) { break } press(g, c, KeyCode::Tab).await }
+        for _ in 0..4 { if g.w.p.equip == Some(61) { break } press(g, c, KeyCode::Tab).await }
         go(g, c, vec2(23.5, 5.5), 0.12).await; face(g, c, vec2(25., 5.5)).await;
-        'fish: for attempt in 0..8 { press(g, c, KeyCode::Space).await; log!("cast {attempt}: fishing={} target_fish={:?} shadows={}", g.fish.is_some(), g.fish.as_ref().and_then(|f| f.fish), g.shadows.len());
-            for _ in 0..600 { if g.fish.is_none() { break } if g.fish.as_ref().is_some_and(|f| f.bite) { shot!("p3_fish_bite"); press(g, c, KeyCode::Space).await; log!("reeled at bite: inv={:?}", g.w.inv); break 'fish } step(g, c, &[], &[]).await }
+        'fish: for attempt in 0..8 { press(g, c, KeyCode::Space).await; log!("cast {attempt}: fishing={} target_fish={:?} shadows={}", g.me.fish.is_some(), g.me.fish.as_ref().and_then(|f| f.fish), g.shadows.len());
+            for _ in 0..600 { if g.me.fish.is_none() { break } if g.me.fish.as_ref().is_some_and(|f| f.bite) { shot!("p3_fish_bite"); press(g, c, KeyCode::Space).await; log!("reeled at bite: inv={:?}", g.w.p.inv); break 'fish } step(g, c, &[], &[]).await }
             wait(g, c, 60).await }
-        for _ in 0..4 { if g.w.equip == Some(60) { break } press(g, c, KeyCode::Tab).await }
-        for _ in 0..3 { let mut b = None; for _ in 0..900 { if let Some(x) = g.bugs.iter().map(|b| b.1).min_by(|a, b| a.distance(g.pos).total_cmp(&b.distance(g.pos))) { b = Some(x); break } step(g, c, &[], &[]).await }
-            let Some(bp) = b else { log!("no bug spawned within 15 s"); break }; approach(g, c, bp).await; let bp2 = g.bugs.iter().map(|b| b.1).min_by(|a, b| a.distance(g.pos).total_cmp(&b.distance(g.pos))); if let Some(x) = bp2 { face(g, c, x).await } press(g, c, KeyCode::Space).await;
-            log!("net swing: inv={:?}", g.w.inv); if g.w.inv.iter().any(|s| def(s.def).k == K::Bug) { shot!("p3_bug_caught"); break } }
+        for _ in 0..4 { if g.w.p.equip == Some(60) { break } press(g, c, KeyCode::Tab).await }
+        for _ in 0..3 { let mut b = None; for _ in 0..900 { if let Some(x) = g.bugs.iter().map(|b| b.1).min_by(|a, b| a.distance(g.me.pos).total_cmp(&b.distance(g.me.pos))) { b = Some(x); break } step(g, c, &[], &[]).await }
+            let Some(bp) = b else { log!("no bug spawned within 15 s"); break }; approach(g, c, bp).await; let bp2 = g.bugs.iter().map(|b| b.1).min_by(|a, b| a.distance(g.me.pos).total_cmp(&b.distance(g.me.pos))); if let Some(x) = bp2 { face(g, c, x).await } press(g, c, KeyCode::Space).await;
+            log!("net swing: inv={:?}", g.w.p.inv); if g.w.p.inv.iter().any(|s| def(s.def).k == K::Bug) { shot!("p3_bug_caught"); break } }
         if let Some(r) = (0..4).find(|&r| where_(r, g.hr) == Loc::Home) { let b = RES[r].bld; go(g, c, door_stand(b), 0.12).await; face(g, c, door_face(b)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
-            log!("resident {r} home: scene={:?}", g.scene); shot!("p3_resident_home"); approach(g, c, res_spot()).await; press(g, c, KeyCode::E).await; log!("talk ui={:?}", g.ui); shot!("p3_resident_talk"); for _ in 0..4 { if g.ui == Ui::Play { break } press(g, c, KeyCode::E).await } }
+            log!("resident {r} home: scene={:?}", g.me.scene); shot!("p3_resident_home"); approach(g, c, res_spot()).await; press(g, c, KeyCode::E).await; log!("talk ui={:?}", g.me.ui); shot!("p3_resident_talk"); for _ in 0..4 { if g.me.ui == Ui::Play { break } press(g, c, KeyCode::E).await } }
         log!("phase 3A end | {}", state(g));
     } else if phase == "3" {
         // P1-05: night lighting outdoors, lamp on/off indoors (lamp granted as a logged test fixture)
         go(g, c, vec2(13.5, 17.5), 0.15).await; face(g, c, vec2(13.5, 10.)).await; shot!("p3_night_town");
         go(g, c, door_stand(HOME), 0.12).await; face(g, c, door_face(HOME)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
-        if !g.w.room.iter().any(|f| f.def == 54) { g.add_furn(54); log!("FIXTURE: lamp added to pockets for lighting check");
-            let idx = g.w.inv.iter().position(|s| s.def == 54).unwrap(); go(g, c, vec2(2.5, 3.5), 0.1).await; face(g, c, vec2(2.5, 1.)).await;
-            press(g, c, KeyCode::I).await; for _ in 0..idx { press(g, c, KeyCode::S).await } press(g, c, KeyCode::Enter).await; press(g, c, KeyCode::D).await; press(g, c, KeyCode::Enter).await; log!("lamp placed: {:?}", g.w.room) }
-        let lamp = g.w.room.iter().find(|f| f.def == 54).copied().unwrap(); approach(g, c, fcenter(&lamp)).await; go(g, c, vec2(1.5, 3.4), 0.12).await; face(g, c, vec2(1.5, 0.)).await; shot!("p3_lamp_off");
-        approach(g, c, fcenter(&lamp)).await; press(g, c, KeyCode::E).await; log!("lamp on={:?}", g.w.room.iter().find(|f| f.def == 54).map(|f| f.on)); go(g, c, vec2(1.5, 3.4), 0.12).await; face(g, c, vec2(1.5, 0.)).await; shot!("p3_lamp_on");
+        if !g.w.p.room.iter().any(|f| f.def == 54) { g.add_furn(54); log!("FIXTURE: lamp added to pockets for lighting check");
+            let idx = g.w.p.inv.iter().position(|s| s.def == 54).unwrap(); go(g, c, vec2(2.5, 3.5), 0.1).await; face(g, c, vec2(2.5, 1.)).await;
+            press(g, c, KeyCode::I).await; for _ in 0..idx { press(g, c, KeyCode::S).await } press(g, c, KeyCode::Enter).await; press(g, c, KeyCode::D).await; press(g, c, KeyCode::Enter).await; log!("lamp placed: {:?}", g.w.p.room) }
+        let lamp = g.w.p.room.iter().find(|f| f.def == 54).copied().unwrap(); approach(g, c, fcenter(&lamp)).await; go(g, c, vec2(1.5, 3.4), 0.12).await; face(g, c, vec2(1.5, 0.)).await; shot!("p3_lamp_off");
+        approach(g, c, fcenter(&lamp)).await; press(g, c, KeyCode::E).await; log!("lamp on={:?}", g.w.p.room.iter().find(|f| f.def == 54).map(|f| f.on)); go(g, c, vec2(1.5, 3.4), 0.12).await; face(g, c, vec2(1.5, 0.)).await; shot!("p3_lamp_on");
         log!("phase 3B end | {}", state(g));
     } else {
         shot!("11_relaunch_outdoor");
-        go(g, c, door_stand(HOME), 0.12).await; face(g, c, door_face(HOME)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await; log!("home: scene={:?}", g.scene); shot!("12_relaunch_home");
-        go(g, c, vec2(2.5, 3.5), 0.12).await; for _ in 0..30 { if g.scene == Scene::Town { break } step(g, c, &[KeyCode::S], &[]).await } wait(g, c, 40).await;
+        go(g, c, door_stand(HOME), 0.12).await; face(g, c, door_face(HOME)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await; log!("home: scene={:?}", g.me.scene); shot!("12_relaunch_home");
+        go(g, c, vec2(2.5, 3.5), 0.12).await; for _ in 0..30 { if g.me.scene == Scene::Town { break } step(g, c, &[KeyCode::S], &[]).await } wait(g, c, 40).await;
         go(g, c, door_stand(SHOP), 0.12).await; face(g, c, door_face(SHOP)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await; go(g, c, vec2(3.5, 2.6), 0.15).await; shot!("13_relaunch_shop_soldout");
         log!("phase 2 end | {}", state(g));
     }
