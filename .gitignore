@@ -1,0 +1,6 @@
+target/
+hollowbrook_save*
+save_backups/
+shot_*.png
+test_output/
+*.tmp

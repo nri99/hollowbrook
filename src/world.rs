@@ -1,0 +1,560 @@
+//! Game state and rules: persistent World, runtime Game, movement, interaction, economy, furniture, residents.
+use crate::clock::day_id;
+use crate::data::*;
+use chrono::{Datelike, NaiveDateTime, Timelike};
+use macroquad::prelude::*;
+use macroquad::rand::gen_range;
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet, VecDeque};
+
+pub const INV_CAP: usize = 16;
+pub const STORE_CAP: usize = 40;
+pub const STACK: u16 = 10;
+pub const PR: f32 = 0.28;
+pub const SHOP: usize = 0;
+pub const HOME: usize = 1;
+pub const SAVE_VERSION: u32 = 3;
+
+// ---- persistent state (definition id `def` is separate from instance id `uid` and from location) ----
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
+pub struct Slot { pub def: u16, pub qty: u16, pub uid: u32 }
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
+pub struct Furn { pub uid: u32, pub def: u16, pub x: i32, pub z: i32, pub rot: u8, pub on: bool }
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub struct NpcS { pub friend: i32, pub req: Option<u16>, pub talked: bool }
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
+pub struct Tree { pub x: i32, pub z: i32, pub fruit: bool, pub shaken: i64 }
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
+pub struct GItem { pub uid: u32, pub def: u16, pub x: f32, pub z: f32 }
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
+pub struct Stock { pub def: u16, pub sold: bool }
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub struct World {
+    pub version: u32, pub name: String, pub day: i64, pub money: u32, pub home: u32, pub native: u16,
+    pub inv: Vec<Slot>, pub storage: Vec<Slot>, pub room: Vec<Furn>, pub npcs: Vec<NpcS>, pub trees: Vec<Tree>, pub ground: Vec<GItem>,
+    pub weeds: Vec<(i32, i32)>, pub holes: Vec<(i32, i32)>, pub digs: Vec<(i32, i32)>, pub stock: Vec<Stock>, pub stock_day: i64,
+    pub seen: Vec<u16>, pub uid: u32, pub tools: Vec<u16>, pub equip: Option<u16>, pub pos: [f32; 2],
+}
+impl World {
+    pub fn fresh(name: String, day: i64, map: &[u8]) -> World {
+        let trees = (0..W * H).filter(|&i| map[i] == TREE).map(|i| Tree { x: (i % W) as i32, z: (i / W) as i32, fruit: true, shaken: i64::MIN / 2 }).collect();
+        let p = door_stand(HOME);
+        World { version: SAVE_VERSION, name, day, money: 1000, home: 0, native: FRUITS[gen_range(0usize, 4)], inv: vec![], storage: vec![], room: vec![],
+            npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false }).collect(), trees, ground: vec![], weeds: vec![], holes: vec![], digs: vec![],
+            stock: vec![], stock_day: i64::MIN, seen: vec![], uid: 1, tools: vec![60, 61], equip: None, pos: [p.x, p.y] }
+    }
+}
+
+// ---- runtime ----
+#[derive(Clone, Copy, PartialEq, Debug)] pub enum Scene { Town, Room(usize) }
+#[derive(Clone, Copy, PartialEq, Debug)] pub enum Pose { Stand, Sit(u32), Lie(u32) }
+#[derive(Clone, Copy, PartialEq, Debug)] pub enum Loc { Out, Home, Asleep }
+#[derive(Clone, Copy, PartialEq, Debug)] pub enum Snd { Step, Blip, Splash, Coin, Dig, Rustle, Door }
+#[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize) }
+#[derive(Clone, PartialEq, Debug)]
+pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal }
+pub struct Placing { pub f: Furn, pub orig: Option<Furn>, pub slot_uid: Option<u32> }
+pub struct Fishing { pub bob: Vec2, pub fish: Option<usize>, pub t: f32, pub nib: u8, pub need: u8, pub bite: bool, pub dip: f32 }
+pub struct Shadow { pub pos: Vec2, pub def: u16, pub vel: Vec2 }
+pub struct NpcRt { pub pos: Vec2, pub path: Vec<(i32, i32)>, pub wait: f32, pub yaw: f32, pub inside: bool, pub happy: f32, pub moving: bool, pub last_chat: usize, pub anim: f32 }
+/// Keyboard state for one frame; filled from the OS (macroquad) or injected by the dev autotest bot.
+pub struct Inp { pub down: HashSet<KeyCode>, pub pressed: HashSet<KeyCode> }
+impl Inp {
+    pub fn none() -> Inp { Inp { down: HashSet::new(), pressed: HashSet::new() } }
+    pub fn keys(down: &[KeyCode], pressed: &[KeyCode]) -> Inp { Inp { down: down.iter().copied().collect(), pressed: pressed.iter().copied().collect() } }
+    pub fn d(&self, k: KeyCode) -> bool { self.down.contains(&k) }
+    pub fn p(&self, k: KeyCode) -> bool { self.pressed.contains(&k) }
+}
+pub fn where_(i: usize, hr: u32) -> Loc { let r = &RES[i]; if !(hr >= r.wake && hr < r.sleep) { Loc::Asleep } else if r.home_h.iter().any(|&(a, b)| hr >= a && hr < b) { Loc::Home } else { Loc::Out } }
+pub fn tile_of(p: Vec2) -> (i32, i32) { (p.x.floor() as i32, p.y.floor() as i32) }
+pub fn tc(t: (i32, i32)) -> Vec2 { vec2(t.0 as f32 + 0.5, t.1 as f32 + 0.5) }
+pub fn dir(rot: u8) -> Vec2 { [vec2(0., 1.), vec2(1., 0.), vec2(0., -1.), vec2(-1., 0.)][rot as usize % 4] }
+pub fn yaw_of(v: Vec2) -> f32 { v.x.atan2(v.y) }
+pub fn tile_at(map: &[u8], x: i32, z: i32) -> u8 { if x < 0 || z < 0 || x >= W as i32 || z >= H as i32 { PINE } else { map[z as usize * W + x as usize] } }
+pub fn fcenter(f: &Furn) -> Vec2 { if def(f.def).wall { return vec2(f.x as f32 + 0.5, 0.15) } let t = foot(f.def, f.x, f.z, f.rot); let (a, b) = (t[0], t[t.len() - 1]); vec2((a.0 + b.0 + 1) as f32 / 2., (a.1 + b.1 + 1) as f32 / 2.) }
+
+pub struct Game {
+    pub w: World, pub map: Vec<u8>, pub scene: Scene, pub pos: Vec2, pub ipos: Vec2, pub face: Vec2, pub cam: Vec2,
+    pub anim: f32, pub spd: f32, pub pose: Pose, pub stand_from: Vec2, pub step_acc: f32, pub npcs: Vec<NpcRt>, pub ui: Ui,
+    pub msgs: Vec<(String, f32)>, pub t: f32, pub log: Vec<String>, pub rolled: bool, pub fish: Option<Fishing>, pub shadows: Vec<Shadow>,
+    pub bugs: Vec<(u16, Vec2, f32)>, pub trans: Option<(f32, Scene, bool)>, pub shake: Vec<(usize, f32)>, pub hearts: Vec<(Vec3, f32)>,
+    pub placing: Option<Placing>, pub snd: Vec<Snd>, pub hr: u32, pub mo: u32, pub swing: f32, pub curve: f32,
+}
+
+impl Game {
+    pub fn new(name: String, now: NaiveDateTime) -> Game {
+        let map = town(); let w = World::fresh(name, day_id(now), &map);
+        let mut g = Game::from_world(w, map); g.refresh(false); g.face = vec2(0., -1.); g.hr = now.hour(); g.mo = now.month();
+        g.note("Welcome to Hollowbrook! Walk up to doors, residents and trees and press E."); g
+    }
+    pub fn from_world(w: World, map: Vec<u8>) -> Game {
+        let pos = vec2(w.pos[0], w.pos[1]);
+        let npcs = (0..4).map(|i| NpcRt { pos: door_stand(RES[i].bld), path: vec![], wait: gen_range(0., 2.), yaw: 0., inside: true, happy: 0., moving: false, last_chat: 9, anim: 0. }).collect();
+        let mut g = Game { w, map, scene: Scene::Town, pos, ipos: Vec2::ZERO, face: vec2(0., 1.), cam: pos, anim: 0., spd: 0., pose: Pose::Stand, stand_from: Vec2::ZERO, step_acc: 0.,
+            npcs, ui: Ui::Play, msgs: vec![], t: 0., log: vec![], rolled: false, fish: None, shadows: vec![], bugs: vec![], trans: None, shake: vec![], hearts: vec![],
+            placing: None, snd: vec![], hr: 12, mo: 6, swing: 0., curve: 0.01 };
+        if !g.free(pos) { g.pos = door_stand(HOME); g.cam = g.pos }
+        if g.w.stock.is_empty() { g.refresh_world() } // migrated saves get shop stock, shells and dig sites
+        g
+    }
+    pub fn note(&mut self, s: impl Into<String>) { self.msgs.push((s.into(), self.t)) }
+    pub fn ppos(&self) -> Vec2 { if self.scene == Scene::Town { self.pos } else { self.ipos } }
+    fn set_ppos(&mut self, p: Vec2) { if self.scene == Scene::Town { self.pos = p } else { self.ipos = p } }
+    fn uid(&mut self) -> u32 { self.w.uid += 1; self.w.uid }
+    /// Snapshot for saving: an object being moved is still owned by the room; resume point is outdoors.
+    pub fn persist(&self) -> World {
+        let mut w = self.w.clone(); if let Some(o) = self.placing.as_ref().and_then(|p| p.orig) { w.room.push(o) }
+        let p = match self.scene { Scene::Town => self.pos, Scene::Room(b) => door_stand(b) }; w.pos = [p.x, p.y]; w
+    }
+
+    // ---- daily refresh (idempotent: one per gameplay day) ----
+    pub fn catch_up(&mut self, now: NaiveDateTime) -> bool {
+        let today = day_id(now);
+        if today < self.w.day { if !self.rolled { self.rolled = true; self.note("Your clock went backwards. Daily events pause until it catches up.") } return false }
+        let n = today - self.w.day; if n == 0 { return false }
+        let l = format!("{now} refresh day {} -> {today} ({n}d)", self.w.day); eprintln!("[clock] {l}"); self.log.push(l);
+        self.w.day = today;
+        self.note(if n > 1 { format!("Welcome back! You were away {n} days.") } else { "A new day begins in Hollowbrook.".into() });
+        self.refresh(true); true
+    }
+    pub fn refresh(&mut self, letters: bool) {
+        let reqs = [self.w.native, 40, 42, 10, 12, 30];
+        for i in 0..4 { let s = &mut self.w.npcs[i]; s.talked = false; s.req = if gen_range(0, 2) == 0 { Some(reqs[gen_range(0, reqs.len())]) } else { None };
+            if letters && s.friend >= 10 && gen_range(0, 3) == 0 { let m = gen_range(2u32, 8) * 100; self.w.money += m;
+                self.msgs.push((format!("Letter from {}: \"Thinking of you! Enclosed: {m} coins.\"", RES[i].name), self.t)) } }
+        self.refresh_world();
+    }
+    pub fn refresh_world(&mut self) {
+        let day = self.w.day;
+        for t in &mut self.w.trees { if !t.fruit && day - t.shaken >= 3 { t.fruit = true } } // persisted elapsed-time regrowth rule
+        for _ in 0..2 { if self.w.weeds.len() < 12 { if let Some(t) = self.rand_tile(GRASS) { self.w.weeds.push(t) } } }
+        while self.w.ground.iter().filter(|g| def(g.def).k == K::Shell).count() < 4 { let Some(t) = self.rand_tile(SAND) else { break }; self.drop_item([40, 42, 40, 42, 41][gen_range(0, 5)], t.0, t.1) }
+        while self.w.digs.len() < 2 { let Some(t) = self.rand_tile(GRASS) else { break }; self.w.digs.push(t) }
+        if self.w.stock_day != day { let mut pool = FURN_IDS.to_vec(); self.w.stock = (0..5).map(|_| Stock { def: pool.remove(gen_range(0, pool.len())), sold: false }).collect(); self.w.stock_day = day }
+    }
+    fn rand_tile(&self, kind: u8) -> Option<(i32, i32)> {
+        for _ in 0..300 { let (x, z) = (gen_range(1, W as i32 - 1), gen_range(1, H as i32 - 1)); if tile_at(&self.map, x, z) == kind && self.walk_tile(x, z) && !self.occupied(x, z) && (x, z) != tile_of(self.pos) { return Some((x, z)) } }
+        None
+    }
+    fn occupied(&self, x: i32, z: i32) -> bool { self.item_at(x, z) || self.w.weeds.contains(&(x, z)) || self.w.digs.contains(&(x, z)) || self.w.holes.contains(&(x, z)) }
+    fn item_at(&self, x: i32, z: i32) -> bool { self.w.ground.iter().any(|g| tile_of(vec2(g.x, g.z)) == (x, z)) }
+    fn drop_item(&mut self, d: u16, x: i32, z: i32) { let uid = self.uid(); self.w.ground.push(GItem { uid, def: d, x: x as f32 + 0.5 + gen_range(-0.15, 0.15), z: z as f32 + 0.5 + gen_range(-0.15, 0.15) }) }
+
+    // ---- collision ----
+    pub fn tile(&self, x: i32, z: i32) -> u8 { tile_at(&self.map, x, z) }
+    pub fn walk_tile(&self, x: i32, z: i32) -> bool { matches!(self.tile(x, z), GRASS | PATH | SAND | BRIDGE | FLOWER) && !self.w.holes.contains(&(x, z)) }
+    pub fn room_furn(&self, b: usize) -> Vec<Furn> {
+        match BLDS[b].kind { BK::Home => self.w.room.clone(), BK::Res(r) => TEMPL[r].iter().map(|&(def, x, z, rot)| Furn { uid: 0, def, x, z, rot, on: true }).collect(), _ => vec![] }
+    }
+    pub fn room_block(&self, b: usize, x: i32, z: i32, skip: u32) -> bool {
+        let (w, d) = room_dims(b); if x < 0 || z < 0 || x >= w || z >= d { return true }
+        if BLDS[b].kind == BK::Shop { return COUNTER.contains(&(x, z)) || DISPLAYS.contains(&(x, z)) }
+        self.room_furn(b).iter().filter(|f| !def(f.def).wall && !(skip != 0 && f.uid == skip)).any(|f| foot(f.def, f.x, f.z, f.rot).contains(&(x, z)))
+    }
+    pub fn free(&self, p: Vec2) -> bool {
+        [(-PR, -PR), (PR, -PR), (-PR, PR), (PR, PR)].iter().all(|&(dx, dz)| { let (x, z) = tile_of(p + vec2(dx, dz)); match self.scene { Scene::Town => self.walk_tile(x, z), Scene::Room(b) => !self.room_block(b, x, z, 0) } })
+    }
+    pub fn step_move(&mut self, d: Vec2, run: bool, dt: f32) {
+        self.spd = 0.;
+        if d == Vec2::ZERO { return }
+        if self.pose != Pose::Stand { self.pose = Pose::Stand; self.ipos = self.stand_from; return }
+        if self.fish.is_some() { self.fish = None; self.note("You reel in your line.") }
+        let d = d.normalize(); self.face = d; let s = (if run { 5.5 } else { 3.0 }) * dt;
+        let p0 = self.ppos(); let mut p = p0;
+        let nx = p + vec2(d.x * s, 0.); if self.free(nx) { p = nx }
+        let nz = p + vec2(0., d.y * s);
+        if self.free(nz) { p = nz } else if let Scene::Room(b) = self.scene { let (w, dd) = room_dims(b); if d.y > 0. && p.x.floor() as i32 == w / 2 && p.y > dd as f32 - 0.5 { self.set_ppos(p); self.go(Scene::Town); return } }
+        self.set_ppos(p); let moved = (p - p0).length(); self.spd = moved / dt.max(1e-4); self.step_acc += moved;
+        if self.step_acc > if run { 0.9 } else { 0.6 } { self.step_acc = 0.; self.snd.push(Snd::Step) }
+        if run && self.scene == Scene::Town { self.bugs.retain(|b| b.1.distance(p) > 2.5) }
+    }
+    pub fn go(&mut self, to: Scene) { if self.trans.is_none() { self.trans = Some((0., to, false)); self.snd.push(Snd::Door) } }
+    pub fn swap(&mut self, to: Scene) {
+        self.place_cancel();
+        match to { Scene::Town => { if let Scene::Room(b) = self.scene { self.pos = door_stand(b) } self.face = vec2(0., 1.); self.cam = self.pos }
+            Scene::Room(b) => { let (w, d) = room_dims(b); self.ipos = vec2((w / 2) as f32 + 0.5, d as f32 - 0.5); self.face = vec2(0., -1.); self.cam = self.ipos } }
+        eprintln!("[scene] {:?} -> {:?}", self.scene, to); self.scene = to; self.pose = Pose::Stand; self.fish = None;
+    }
+
+    // ---- targeting: distance + facing + line of sight; doors win when deliberately faced ----
+    pub fn target(&self) -> Option<Tg> {
+        let p = self.ppos(); let f = self.face; let mut best: Option<(f32, Tg)> = None;
+        let mut cand = |c: Vec2, reach: f32, wt: f32, tg: Tg, own: Option<(i32, i32)>| {
+            let v = c - p; let d = v.length(); if d > reach { return }
+            let dot = if d < 0.05 { 1. } else { v.dot(f) / d }; if dot < 0.3 { return }
+            if self.scene == Scene::Town && !self.los(p, c, own) { return }
+            let s = d * (1.6 - dot) * wt; if best.map_or(true, |b| s < b.0) { best = Some((s, tg)) }
+        };
+        match self.scene {
+            Scene::Town => {
+                for (i, n) in self.npcs.iter().enumerate() { if !n.inside { cand(n.pos, 1.7, 1., Tg::Npc(i), None) } }
+                for b in 0..BLDS.len() { cand(door_face(b), 1.35, 0.6, Tg::Door(b), None) }
+                for (i, t) in self.w.trees.iter().enumerate() { cand(tc((t.x, t.z)), 1.45, 1., Tg::Tree(i), Some((t.x, t.z))) }
+                for (i, g) in self.w.ground.iter().enumerate() { cand(vec2(g.x, g.z), 1.2, 0.8, Tg::Item(i), None) }
+                for (i, &w) in self.w.weeds.iter().enumerate() { cand(tc(w), 1.2, 1., Tg::Weed(i), None) }
+            }
+            Scene::Room(b) => {
+                for fu in self.room_furn(b) { cand(fcenter(&fu), 1.5, 1., Tg::Furn(fu.uid, fu.def), None) }
+                if BLDS[b].kind == BK::Shop { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Counter, None); cand(vec2(3.5, 0.5), 2.6, 1.3, Tg::Keeper, None); for (i, &d) in DISPLAYS.iter().enumerate() { cand(tc(d), 1.5, 1., Tg::Display(i), None) } }
+                if let BK::Res(r) = BLDS[b].kind { if where_(r, self.hr) == Loc::Home { cand(res_spot(), 1.7, 0.9, Tg::Npc(r), None) } }
+            }
+        }
+        best.map(|b| b.1)
+    }
+    fn los(&self, a: Vec2, b: Vec2, own: Option<(i32, i32)>) -> bool { (1..10).all(|k| { let t = tile_of(a.lerp(b, k as f32 / 10.)); Some(t) == own || !matches!(self.tile(t.0, t.1), BLD | PINE) }) }
+    pub fn tg_pos(&self, tg: Tg) -> Vec3 {
+        let v = |p: Vec2, y: f32| vec3(p.x, y, p.y);
+        match tg {
+            Tg::Npc(i) => v(if self.scene == Scene::Town { self.npcs[i].pos } else { res_spot() }, 1.5), Tg::Door(b) => v(door_face(b), 1.3),
+            Tg::Tree(i) => v(tc((self.w.trees[i].x, self.w.trees[i].z)), 2.15), Tg::Item(i) => vec3(self.w.ground[i].x, 0.45, self.w.ground[i].z),
+            Tg::Weed(i) => v(tc(self.w.weeds[i]), 0.55), Tg::Counter => vec3(3.5, 1.3, 1.5), Tg::Keeper => vec3(3.5, 1.7, 0.5), Tg::Display(i) => v(tc(DISPLAYS[i]), 1.3),
+            Tg::Furn(uid, d) => { let c = self.room_furn(match self.scene { Scene::Room(b) => b, _ => HOME }).into_iter().find(|f| f.uid == uid && f.def == d).map(|f| fcenter(&f)).unwrap_or_default(); v(c, if def(d).wall { 1.9 } else { 1.2 }) }
+        }
+    }
+    pub fn tg_label(&self, tg: Tg) -> String {
+        match tg {
+            Tg::Npc(i) => format!("Talk to {}", RES[i].name), Tg::Door(b) => format!("Enter {}", BLDS[b].name),
+            Tg::Tree(i) => if self.w.trees[i].fruit { "Shake tree".into() } else { "Shake tree (no fruit)".into() },
+            Tg::Item(i) => format!("Pick up {}", def(self.w.ground[i].def).name), Tg::Weed(_) => "Pull weed".into(),
+            Tg::Furn(uid, d) => { let a = match def(d).act { Act::Sit => "Sit on", Act::Bed => "Lie on", Act::Lamp => "Toggle", Act::Storage => "Open", Act::None => "Look at" };
+                if uid != 0 && self.scene == Scene::Room(HOME) { format!("{a} {}   [F] Move  [G] Pick up", def(d).name) } else { format!("{a} {}", def(d).name) } }
+            Tg::Counter => "Sell items".into(), Tg::Keeper => "Talk to Mr. Tumble".into(),
+            Tg::Display(i) => if i < 5 { let s = self.w.stock[i]; if s.sold { "Sold out".into() } else { format!("Buy {} ({} coins)", def(s.def).name, def(s.def).buy) } } else { let t = TOOL_DISPLAY[i - 5]; format!("Buy {} ({} coins)", def(t).name, def(t).buy) },
+        }
+    }
+
+    // ---- interaction ----
+    pub fn interact(&mut self) {
+        let Some(tg) = self.target() else { return };
+        self.snd.push(Snd::Blip);
+        match tg {
+            Tg::Npc(i) => self.talk(i),
+            Tg::Door(b) => self.door(b),
+            Tg::Tree(i) => self.shake_tree(i),
+            Tg::Item(i) => { let it = self.w.ground[i]; if self.add(it.def) { self.w.ground.retain(|g| g.uid != it.uid) } }
+            Tg::Weed(i) => { self.w.weeds.remove(i); self.note("You pulled a weed. Tidy!") }
+            Tg::Furn(uid, d) => self.use_furn(uid, d),
+            Tg::Counter => self.ui = Ui::Sell(0),
+            Tg::Keeper => self.ui = Ui::Talk { npc: None, who: "Mr. Tumble the tortoise".into(), lines: KEEPER.iter().map(|s| s.to_string()).collect(), i: 0 },
+            Tg::Display(i) => {
+                if i < 5 && self.w.stock[i].sold { self.note("That one's sold out. New stock arrives at 6:00.") }
+                else if i >= 5 && self.w.tools.contains(&TOOL_DISPLAY[i - 5]) { self.note("You already own this tool.") } else { self.ui = Ui::Confirm(i) }
+            }
+        }
+    }
+    fn door(&mut self, b: usize) {
+        match BLDS[b].kind {
+            BK::Home => self.go(Scene::Room(b)),
+            BK::Shop => if shop_open(self.hr) { self.go(Scene::Room(b)) } else { self.note("The General Store is closed. Hours: 8:00-22:00.") },
+            BK::Res(r) => match where_(r, self.hr) { Loc::Home => self.go(Scene::Room(b)), Loc::Asleep => self.note(format!("It's late. {} is asleep.", RES[r].name)), Loc::Out => self.note(format!("{} isn't home right now.", RES[r].name)) },
+            BK::Civic => self.note("The Town Hall isn't open yet. Maybe someday!"),
+        }
+    }
+    pub fn talk(&mut self, i: usize) {
+        let r = &RES[i]; let pers = r.pers; let hr = self.hr;
+        let slot = if !(5..21).contains(&hr) { 3 } else if hr < 12 { 0 } else if hr < 17 { 1 } else { 2 };
+        let fruit = def(self.w.native).name.to_lowercase(); let fruits = if fruit.ends_with("ch") { format!("{fruit}es") } else { format!("{fruit}s") }; let name = self.w.name.clone();
+        let fill = |s: &str, item: &str| s.replace("{p}", &name).replace("{fs}", &fruits).replace("{f}", &fruit).replace("{i}", item);
+        let indoor = self.scene != Scene::Town;
+        let mut lines = vec![fill(if indoor { HOMEL[pers] } else { GREET[pers][slot] }, "")];
+        if rainy(self.w.day) && !indoor { lines.push(fill(RAIN[pers], "")) }
+        if let Some(q) = self.w.npcs[i].req {
+            let item = def(q).name;
+            if self.remove_one(q) {
+                lines.push(fill(THANKS[pers], item));
+                let s = &mut self.w.npcs[i]; s.req = None; s.friend += 3; let fr = s.friend;
+                self.npcs[i].happy = 2.5; let hp = if indoor { res_spot() } else { self.npcs[i].pos };
+                for k in 0..6 { self.hearts.push((vec3(hp.x + (k as f32 - 2.5) * 0.12, 1.3, hp.y), -(k as f32) * 0.12)) }
+                if fr >= 6 && self.w.inv.len() < INV_CAP { let f = FURN_IDS[gen_range(0, 8)]; self.add_furn(f); self.note(format!("{} gave you a {}!", r.name, def(f).name)) }
+                else { let m = def(q).sell * 2; self.w.money += m; self.note(format!("{} gave you {m} coins.", r.name)) }
+                self.snd.push(Snd::Coin);
+            } else { lines.push(fill(ASK[pers], item)) }
+        } else if self.w.npcs[i].talked { lines.push(AGAIN[pers].to_string()) }
+        else { let mut k = gen_range(0, 4); if k == self.npcs[i].last_chat { k = (k + 1) % 4 } self.npcs[i].last_chat = k; lines.push(fill(CHAT[pers][k], "")) }
+        if !self.w.npcs[i].talked { self.w.npcs[i].talked = true; self.w.npcs[i].friend += 1 } // temporary prototype relationship rule
+        self.ui = Ui::Talk { npc: Some(i), who: format!("{} the {}", r.name, r.species), lines, i: 0 };
+    }
+    fn shake_tree(&mut self, ti: usize) {
+        self.shake.push((ti, 0.6)); self.snd.push(Snd::Rustle);
+        let tr = self.w.trees[ti]; if !tr.fruit { return self.note("Rustle rustle... no fruit right now.") }
+        self.w.trees[ti].fruit = false; self.w.trees[ti].shaken = self.w.day; let mut n = 0;
+        for (dx, dz) in [(0, 1), (-1, 1), (1, 1), (-1, 0), (1, 0), (0, -1), (-1, -1), (1, -1)] {
+            if n == 3 { break } let (x, z) = (tr.x + dx, tr.z + dz);
+            if self.walk_tile(x, z) && !self.item_at(x, z) { self.drop_item(self.w.native, x, z); n += 1 }
+        }
+        self.note(format!("{n} {}s fell from the tree!", def(self.w.native).name));
+    }
+    pub fn add(&mut self, d: u16) -> bool {
+        if let Some(s) = self.w.inv.iter_mut().find(|s| s.def == d && s.uid == 0 && s.qty < STACK) { s.qty += 1 }
+        else if self.w.inv.len() < INV_CAP { self.w.inv.push(Slot { def: d, qty: 1, uid: 0 }) } else { self.note("Your pockets are full!"); return false }
+        if !self.w.seen.contains(&d) { self.w.seen.push(d) }
+        self.note(format!("Got: {}!", def(d).name)); true
+    }
+    pub fn add_furn(&mut self, d: u16) -> bool { if self.w.inv.len() >= INV_CAP { self.note("Your pockets are full!"); return false } let uid = self.uid(); self.w.inv.push(Slot { def: d, qty: 1, uid }); true }
+    pub fn remove_one(&mut self, d: u16) -> bool {
+        let Some(i) = self.w.inv.iter().position(|s| s.def == d && s.uid == 0) else { return false };
+        self.w.inv[i].qty -= 1; if self.w.inv[i].qty == 0 { self.w.inv.remove(i); } true
+    }
+
+    // ---- shop ----
+    pub fn sell_slot(&mut self, i: usize) { if i >= self.w.inv.len() { return } let s = self.w.inv.remove(i); let v = def(s.def).sell * s.qty as u32; self.w.money += v; self.snd.push(Snd::Coin); self.note(format!("Sold {} x{} for {v} coins.", def(s.def).name, s.qty)) }
+    pub fn sell_all(&mut self) {
+        let (keep, sell): (Vec<Slot>, Vec<Slot>) = self.w.inv.iter().copied().partition(|s| def(s.def).k == K::Furn);
+        let v: u32 = sell.iter().map(|s| def(s.def).sell * s.qty as u32).sum(); self.w.inv = keep; self.w.money += v;
+        if v > 0 { self.snd.push(Snd::Coin) } self.note(format!("Sold all your finds for {v} coins."));
+    }
+    pub fn buy(&mut self, disp: usize) -> Result<(), &'static str> {
+        if disp >= 5 {
+            let t = TOOL_DISPLAY[disp - 5]; if self.w.tools.contains(&t) { return Err("You already own one.") }
+            if self.w.money < def(t).buy { return Err("Not enough coins.") }
+            self.w.money -= def(t).buy; self.w.tools.push(t); self.w.equip = Some(t); return Ok(())
+        }
+        let st = self.w.stock[disp]; if st.sold { return Err("Sold out!") }
+        let p = def(st.def).buy; if self.w.money < p { return Err("Not enough coins.") }
+        if self.w.inv.len() >= INV_CAP { return Err("Your pockets are full.") }
+        self.w.money -= p; self.w.stock[disp].sold = true; self.add_furn(st.def); Ok(())
+    }
+
+    // ---- furniture ----
+    fn use_furn(&mut self, uid: u32, d: u16) {
+        let df = def(d);
+        if uid == 0 { return self.note(format!("A cozy {}. Better not touch someone else's things.", df.name.to_lowercase())) }
+        let Some(idx) = self.w.room.iter().position(|f| f.uid == uid) else { return }; let f = self.w.room[idx];
+        match df.act {
+            Act::Sit => { self.stand_from = self.ipos; let ip = self.ipos; self.ipos = foot(f.def, f.x, f.z, f.rot).into_iter().map(tc).min_by(|a, b| a.distance(ip).total_cmp(&b.distance(ip))).unwrap(); self.face = dir(f.rot); self.pose = Pose::Sit(uid); self.note("You sit down. Move to stand up.") }
+            Act::Bed => { self.stand_from = self.ipos; self.ipos = fcenter(&f); self.face = dir(f.rot); self.pose = Pose::Lie(uid); self.note("You lie down for a rest. Time keeps flowing as usual.") }
+            Act::Lamp => { self.w.room[idx].on = !f.on; self.note(if f.on { "Lamp off." } else { "Lamp on." }) }
+            Act::Storage => self.ui = Ui::Storage(0, 0),
+            Act::None => self.note(format!("Your {} looks great here.", df.name.to_lowercase())),
+        }
+    }
+    pub fn start_place(&mut self, uid: u32) {
+        let Some(s) = self.w.inv.iter().find(|s| s.uid == uid).copied() else { return };
+        let t = tile_of(self.ipos + self.face); let wall = def(s.def).wall;
+        self.placing = Some(Placing { f: Furn { uid, def: s.def, x: t.0, z: if wall { -1 } else { t.1 }, rot: 0, on: false }, orig: None, slot_uid: Some(uid) });
+    }
+    pub fn start_move(&mut self, uid: u32) { if let Some(i) = self.w.room.iter().position(|f| f.uid == uid) { let f = self.w.room.remove(i); self.placing = Some(Placing { f, orig: Some(f), slot_uid: None }) } }
+    pub fn place_cancel(&mut self) { if let Some(p) = self.placing.take() { if let Some(o) = p.orig { self.w.room.push(o) } } }
+    pub fn place_ok(&self, f: &Furn) -> Result<(), &'static str> {
+        let (w, d) = room_dims(HOME); let df = def(f.def);
+        if df.wall {
+            if f.z != -1 || f.x < 0 || f.x >= w { return Err("Wall items go on the back wall.") }
+            if self.w.room.iter().any(|o| def(o.def).wall && o.x == f.x && o.uid != f.uid) { return Err("Something already hangs there.") }
+            return Ok(())
+        }
+        let fp = foot(f.def, f.x, f.z, f.rot);
+        if fp.iter().any(|&(x, z)| x < 0 || z < 0 || x >= w || z >= d) { return Err("It doesn't fit there.") }
+        if fp.contains(&(w / 2, d - 1)) { return Err("Keep the doorway clear.") }
+        if fp.iter().any(|&t| self.room_block(HOME, t.0, t.1, f.uid)) { return Err("Something is in the way.") }
+        let me: Vec<(i32, i32)> = [(-PR, -PR), (PR, -PR), (-PR, PR), (PR, PR)].iter().map(|&(a, b)| tile_of(self.ipos + vec2(a, b))).collect();
+        if fp.iter().any(|t| me.contains(t)) { return Err("You're standing there.") }
+        if !self.reach(tile_of(self.ipos), (w / 2, d - 1), &fp) { return Err("That would block your way out.") }
+        Ok(())
+    }
+    fn reach(&self, a: (i32, i32), b: (i32, i32), extra: &[(i32, i32)]) -> bool {
+        let mut seen = HashSet::from([a]); let mut q = VecDeque::from([a]);
+        while let Some(c) = q.pop_front() { if c == b { return true }
+            for d in [(1, 0), (-1, 0), (0, 1), (0, -1)] { let n = (c.0 + d.0, c.1 + d.1); if !seen.contains(&n) && !self.room_block(HOME, n.0, n.1, 0) && !extra.contains(&n) { seen.insert(n); q.push_back(n) } } }
+        false
+    }
+    pub fn place_confirm(&mut self) -> Result<(), &'static str> {
+        let (f, su) = { let p = self.placing.as_ref().ok_or("Nothing to place.")?; (p.f, p.slot_uid) };
+        self.place_ok(&f)?;
+        if let Some(uid) = su { let i = self.w.inv.iter().position(|s| s.uid == uid).ok_or("Item missing.")?; self.w.inv.remove(i); }
+        self.w.room.push(f); self.placing = None; Ok(())
+    }
+    pub fn pick_furn(&mut self, uid: u32) {
+        if self.w.inv.len() >= INV_CAP { return self.note("Your pockets are full!") }
+        if let Some(i) = self.w.room.iter().position(|f| f.uid == uid) { let f = self.w.room.remove(i); self.w.inv.push(Slot { def: f.def, qty: 1, uid }); self.note(format!("Picked up the {}.", def(f.def).name)) }
+    }
+    pub fn transfer(&mut self, col: usize, s: usize) {
+        let w = &mut self.w; let (src, dst, cap) = if col == 0 { (&mut w.inv, &mut w.storage, STORE_CAP) } else { (&mut w.storage, &mut w.inv, INV_CAP) };
+        if s >= src.len() { return } if dst.len() >= cap { return self.note("No room there.") }
+        let it = src.remove(s); dst.push(it);
+    }
+
+    // ---- tools ----
+    pub fn cycle_tool(&mut self) {
+        let mut opts: Vec<Option<u16>> = vec![None]; let mut ts = self.w.tools.clone(); ts.sort(); opts.extend(ts.into_iter().map(Some));
+        let i = opts.iter().position(|&o| o == self.w.equip).unwrap_or(0); self.w.equip = opts[(i + 1) % opts.len()];
+        self.note(match self.w.equip { Some(t) => format!("Equipped: {}", def(t).name), None => "Tools put away.".into() });
+    }
+    pub fn use_tool(&mut self) {
+        if self.scene != Scene::Town { return }
+        if self.fish.is_some() { return self.reel() }
+        let (p, f) = (self.pos, self.face);
+        match self.w.equip {
+            None => self.note("No tool equipped. Press Tab to cycle tools."),
+            Some(60) => { self.swing = 0.35; let at = p + f * 0.7; if let Some(j) = self.bugs.iter().position(|b| b.1.distance(at) < 0.8) { let d = self.bugs.remove(j).0; self.add(d); } else { self.snd.push(Snd::Rustle) } }
+            Some(61) => {
+                let spot = [1.6, 2.2, 2.8].iter().map(|&k| p + f * k).find(|&q| { let t = tile_of(q); matches!(self.tile(t.0, t.1), RIVER | SEA) });
+                let Some(bob) = spot else { return self.note("Face the water to cast.") };
+                self.swing = 0.35; let bt = tile_of(bob); let hab = if self.tile(bt.0, bt.1) == SEA { 2 } else { 1 };
+                let fish = self.shadows.iter().enumerate().filter(|(_, s)| def(s.def).hab == hab && s.pos.distance(bob) < 5.).min_by(|a, b| a.1.pos.distance(bob).total_cmp(&b.1.pos.distance(bob))).map(|(i, _)| i);
+                self.fish = Some(Fishing { bob, fish, t: 0., nib: 0, need: gen_range(1u8, 4), bite: false, dip: 0.3 }); self.snd.push(Snd::Splash);
+            }
+            Some(_) => {
+                self.swing = 0.35; let t = tile_of(p + f * 0.9);
+                if let Some(i) = self.w.holes.iter().position(|&h| h == t) { self.w.holes.remove(i); self.snd.push(Snd::Dig); self.note("You filled the hole.") }
+                else if let Some(i) = self.w.digs.iter().position(|&h| h == t) { self.w.digs.remove(i); self.w.holes.push(t); self.snd.push(Snd::Dig); let d = if gen_range(0, 3) == 0 { 46 } else { 45 }; self.add(d); }
+                else if matches!(self.tile(t.0, t.1), GRASS | SAND | PATH) && self.walk_tile(t.0, t.1) && !self.occupied(t.0, t.1) && t != tile_of(p) { self.w.holes.push(t); self.snd.push(Snd::Dig); self.note("You dug a hole.") }
+                else { self.note("You can't dig there.") }
+            }
+        }
+    }
+    fn reel(&mut self) {
+        let Some(f) = self.fish.take() else { return };
+        match f.fish {
+            Some(si) if f.bite => { let d = self.shadows.remove(si).def; self.snd.push(Snd::Splash); if self.add(d) { self.note(format!("You caught a {}!", def(d).name)) } }
+            Some(si) => { self.shadows.remove(si); self.note("Too early! The fish swam off.") }
+            None => self.note("You reel in your line."),
+        }
+    }
+
+    // ---- simulation ----
+    fn sim(&mut self, dt: f32) {
+        self.swing = (self.swing - dt).max(0.);
+        for s in &mut self.shake { s.1 -= dt } self.shake.retain(|s| s.1 > 0.);
+        for h in &mut self.hearts { h.1 += dt; if h.1 > 0. { h.0.y += dt * 0.8 } } self.hearts.retain(|h| h.1 < 1.6);
+        if self.spd > 0.1 { self.anim += dt * self.spd * 3.2 }
+        self.sim_npcs(dt);
+        if self.scene == Scene::Town { self.sim_life(dt) }
+        self.sim_fish(dt);
+    }
+    fn sim_fish(&mut self, dt: f32) {
+        let Some(mut f) = self.fish.take() else { return };
+        f.t += dt; f.dip = (f.dip - dt * 2.5).max(0.); let mut keep = true;
+        match f.fish {
+            None => if f.t > 6. { keep = false; self.note("Nothing seems interested...") },
+            Some(si) => if f.bite { if f.t > 0.8 { keep = false; self.shadows.remove(si); self.note("It got away!") } }
+                else { let sh = &mut self.shadows[si]; let to = f.bob - sh.pos;
+                    if to.length() > 0.3 { sh.pos += to.normalize() * 0.8 * dt; f.t = 0. }
+                    else if f.t > 0.9 { f.t = 0.; f.nib += 1; f.dip = 0.5; self.snd.push(Snd::Blip); if f.nib >= f.need { f.bite = true; f.dip = 1.2; self.snd.push(Snd::Splash) } } },
+        }
+        if keep { self.fish = Some(f) }
+    }
+    fn sim_life(&mut self, dt: f32) {
+        let (p, mo, hr, t) = (self.pos, self.mo, self.hr, self.t); let map = &self.map;
+        if self.fish.is_none() { self.shadows.retain(|s| s.pos.distance(p) < 18.) }
+        self.bugs.retain(|b| b.1.distance(p) < 16.);
+        if self.shadows.len() < 4 && gen_range(0, 30) == 0 {
+            let tt = tile_of(p + vec2(gen_range(-11., 11.), gen_range(-11., 11.))); let c = tile_at(map, tt.0, tt.1);
+            if matches!(c, RIVER | SEA) { let hab = if c == SEA { 2 } else { 1 };
+                let av: Vec<u16> = DEFS.iter().filter(|d| d.k == K::Fish && d.hab == hab && avail(d, mo, hr)).map(|d| d.id).collect();
+                if !av.is_empty() { let d = loop { let d = av[gen_range(0, av.len())]; if def(d).sell < 1000 || gen_range(0, 4) == 0 { break d } }; self.shadows.push(Shadow { pos: tc(tt), def: d, vel: Vec2::ZERO }) } }
+        }
+        let att = self.fish.as_ref().and_then(|f| f.fish);
+        for (i, s) in self.shadows.iter_mut().enumerate() { if Some(i) == att { continue }
+            if gen_range(0, 60) == 0 { s.vel = vec2(gen_range(-0.5, 0.5), gen_range(-0.5, 0.5)) }
+            let n = s.pos + s.vel * dt; let nt = tile_of(n); if matches!(tile_at(map, nt.0, nt.1), RIVER | SEA) { s.pos = n } else { s.vel = -s.vel } }
+        if self.bugs.len() < 4 && gen_range(0, if rainy(self.w.day) { 400 } else { 90 }) == 0 {
+            let tt = tile_of(p + vec2(gen_range(-9., 9.), gen_range(-9., 9.)));
+            if matches!(tile_at(map, tt.0, tt.1), GRASS | FLOWER) { let av: Vec<u16> = DEFS.iter().filter(|d| d.k == K::Bug && avail(d, mo, hr)).map(|d| d.id).collect();
+                if !av.is_empty() { self.bugs.push((av[gen_range(0, av.len())], tc(tt), gen_range(0., 6.28))) } }
+        }
+        for b in &mut self.bugs { b.1 += vec2((t * 2. + b.2).sin(), (t * 1.3 + b.2).cos()) * 0.5 * dt }
+    }
+    fn sim_npcs(&mut self, dt: f32) {
+        let talk_with = if let Ui::Talk { npc: Some(j), .. } = self.ui { Some(j) } else { None };
+        for i in 0..4 {
+            let loc = where_(i, self.hr);
+            { let n = &mut self.npcs[i]; n.happy = (n.happy - dt).max(0.); n.moving = false; }
+            if talk_with == Some(i) { let d = self.ppos() - self.npcs[i].pos; if self.scene == Scene::Town && d.length() > 0.01 { self.npcs[i].yaw = yaw_of(d) } continue }
+            if loc == Loc::Out {
+                if self.npcs[i].inside { let n = &mut self.npcs[i]; n.inside = false; n.pos = door_stand(RES[i].bld); n.path.clear(); n.wait = 1.; continue }
+                if self.npcs[i].wait > 0. { self.npcs[i].wait -= dt; continue }
+                if self.npcs[i].path.is_empty() {
+                    let cur = tile_of(self.npcs[i].pos); let mut found = None;
+                    for _ in 0..6 { let t = (cur.0 + gen_range(-6, 7), cur.1 + gen_range(-6, 7)); if self.walk_tile(t.0, t.1) { if let Some(p) = self.bfs(cur, t, true) { found = Some(p); break } } }
+                    match found { Some(p) => self.npcs[i].path = p, None => self.npcs[i].wait = 1. }
+                    continue;
+                }
+                if self.follow(i, dt) { self.npcs[i].wait = gen_range(1.5, 5.) } // idle pause between strolls
+            } else if !self.npcs[i].inside {
+                let door = door_tile(RES[i].bld); let cur = tile_of(self.npcs[i].pos);
+                if cur == door { self.npcs[i].inside = true }
+                else if self.npcs[i].path.last() != Some(&door) { match self.bfs(cur, door, true) { Some(p) => self.npcs[i].path = p, None => self.npcs[i].inside = true } }
+                else { self.follow(i, dt); }
+            }
+        }
+    }
+    fn follow(&mut self, i: usize, dt: f32) -> bool {
+        let Some(&nt) = self.npcs[i].path.first() else { return true };
+        if !self.walk_tile(nt.0, nt.1) { self.npcs[i].path.clear(); return true }
+        let n = &mut self.npcs[i]; let to = tc(nt) - n.pos; let st = 1.3 * dt;
+        if to.length() <= st { n.pos = tc(nt); n.path.remove(0); } else { n.pos += to.normalize() * st; n.yaw = yaw_of(to) }
+        n.moving = true; n.anim += dt * 7.; n.path.is_empty()
+    }
+    /// 4-neighbour BFS. `town` = outdoor walkability, else the current scene's passability.
+    pub fn bfs(&self, a: (i32, i32), b: (i32, i32), town: bool) -> Option<Vec<(i32, i32)>> {
+        if a == b { return Some(vec![]) }
+        let pass = |t: (i32, i32)| match (town, self.scene) { (false, Scene::Room(r)) => !self.room_block(r, t.0, t.1, 0), _ => self.walk_tile(t.0, t.1) };
+        if !pass(b) { return None }
+        let mut prev = HashMap::from([(a, a)]); let mut q = VecDeque::from([a]);
+        while let Some(c) = q.pop_front() { if c == b { break } if prev.len() > 2500 { return None }
+            for d in [(1, 0), (-1, 0), (0, 1), (0, -1)] { let n = (c.0 + d.0, c.1 + d.1); if !prev.contains_key(&n) && pass(n) { prev.insert(n, c); q.push_back(n) } } }
+        if !prev.contains_key(&b) { return None }
+        let mut path = vec![b]; let mut c = b; while prev[&c] != a { c = prev[&c]; path.push(c) } path.reverse(); Some(path)
+    }
+
+    // ---- per-frame update through the input layer ----
+    pub fn update(&mut self, inp: &Inp, dt: f32, now: NaiveDateTime) -> bool {
+        self.t += dt; self.hr = now.hour(); self.mo = now.month();
+        let fresh = self.catch_up(now);
+        self.sim(dt);
+        let pp = self.ppos(); self.cam = self.cam.lerp(pp, 1. - (-12. * dt).exp());
+        if let Some((t, to, done)) = self.trans {
+            let t = t + dt; let mut done = done; if t >= 0.22 && !done { self.swap(to); done = true }
+            self.trans = if t >= 0.45 { None } else { Some((t, to, done)) }; self.spd = 0.; return fresh
+        }
+        if self.ui_input(inp) { self.spd = 0.; return fresh }
+        if self.placing.is_some() { self.place_input(inp); self.spd = 0.; return fresh }
+        use KeyCode::*;
+        let mut d = Vec2::ZERO;
+        if inp.d(W) || inp.d(Up) { d.y -= 1. } if inp.d(S) || inp.d(Down) { d.y += 1. }
+        if inp.d(A) || inp.d(Left) { d.x -= 1. } if inp.d(D) || inp.d(Right) { d.x += 1. }
+        self.step_move(d, inp.d(LeftShift) || inp.d(RightShift), dt);
+        if self.trans.is_some() { return fresh }
+        if inp.p(E) { self.interact() }
+        if inp.p(Space) { self.use_tool() }
+        if inp.p(Tab) || inp.p(Q) { self.cycle_tool() }
+        if inp.p(I) { self.ui = Ui::Inv(0) }
+        if inp.p(J) { self.ui = Ui::Journal }
+        if inp.p(F) || inp.p(G) { match self.target() { Some(Tg::Furn(uid, _)) if self.scene == Scene::Room(HOME) && uid != 0 => if inp.p(F) { self.start_move(uid) } else { self.pick_furn(uid) }, _ => self.note("Face your own furniture to move (F) or pick it up (G).") } }
+        if inp.p(Escape) && self.fish.is_some() { self.fish = None; self.note("You reel in your line.") }
+        fresh
+    }
+    fn ui_input(&mut self, inp: &Inp) -> bool {
+        use KeyCode::*;
+        if self.ui == Ui::Play { return false }
+        let (up, down) = (inp.p(Up) || inp.p(W), inp.p(Down) || inp.p(S)); let (left, right) = (inp.p(Left) || inp.p(A), inp.p(Right) || inp.p(D));
+        let ok = inp.p(Enter) || inp.p(KpEnter) || inp.p(E); let esc = inp.p(Escape);
+        if let Ui::Talk { lines, i, .. } = &mut self.ui { if ok || inp.p(Space) { *i += 1; if *i >= lines.len() { self.ui = Ui::Play } } else if esc { self.ui = Ui::Play } return true }
+        let n = self.w.inv.len();
+        let mv = |s: usize, len: usize| if up && s > 0 { s - 1 } else if down && s + 1 < len { s + 1 } else { s.min(len.saturating_sub(1)) };
+        match self.ui {
+            Ui::Inv(s) => { let s = mv(s, n); self.ui = Ui::Inv(s);
+                if esc || inp.p(I) { self.ui = Ui::Play }
+                else if ok && s < n { let sl = self.w.inv[s];
+                    if def(sl.def).k != crate::data::K::Furn { self.note(format!("{} sells for {} coins at the shop.", def(sl.def).name, def(sl.def).sell)) }
+                    else if self.scene == Scene::Room(HOME) { self.ui = Ui::Play; self.start_place(sl.uid) } else { self.note("Furniture can be placed inside your home.") } } }
+            Ui::Sell(s) => { let s = mv(s, n); self.ui = Ui::Sell(s); if esc { self.ui = Ui::Play } else if ok && s < n { self.sell_slot(s) } else if inp.p(A) { self.sell_all() } }
+            Ui::Confirm(d) => { if ok || inp.p(Y) { self.ui = Ui::Play; match self.buy(d) { Ok(()) => { self.snd.push(Snd::Coin); self.note("Thank you for your purchase!") } Err(e) => self.note(e) } } else if esc || inp.p(N) { self.ui = Ui::Play } }
+            Ui::Storage(c, s) => { let c = if left { 0 } else if right { 1 } else { c }; let len = if c == 0 { n } else { self.w.storage.len() }; let s = mv(s, len); self.ui = Ui::Storage(c, s);
+                if esc { self.ui = Ui::Play } else if ok && s < len { self.transfer(c, s) } }
+            Ui::Journal => if esc || inp.p(J) { self.ui = Ui::Play },
+            _ => {}
+        }
+        true
+    }
+    fn place_input(&mut self, inp: &Inp) {
+        use KeyCode::*;
+        let Some(p) = self.placing.as_mut() else { return };
+        let df = def(p.f.def);
+        if inp.p(A) || inp.p(Left) { p.f.x -= 1 } if inp.p(D) || inp.p(Right) { p.f.x += 1 }
+        if !df.wall { if inp.p(W) || inp.p(Up) { p.f.z -= 1 } if inp.p(S) || inp.p(Down) { p.f.z += 1 } if inp.p(R) && df.rot { p.f.rot = (p.f.rot + 1) % 4 } }
+        let (w, d) = room_dims(HOME); p.f.x = p.f.x.clamp(-1, w); p.f.z = if df.wall { -1 } else { p.f.z.clamp(-1, d) };
+        if inp.p(Enter) || inp.p(KpEnter) { match self.place_confirm() { Ok(()) => { self.snd.push(Snd::Blip); self.note("Placed!") } Err(e) => self.note(e) } }
+        else if inp.p(Escape) { self.place_cancel(); self.note("Cancelled.") }
+    }
+}
