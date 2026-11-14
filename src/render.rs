@@ -261,6 +261,7 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
     // static scenery
     for z in z0..z1 { for x in x0..x1 { let (px, pz) = (x as f32 + 0.5, z as f32 + 0.5); if !near(px, pz) { continue } let hsh = hash(x, z);
         match ext(x, z) {
+            PINE if (px - g.me.pos.x).abs() < 1.1 && pz > g.me.pos.y + 0.2 && pz < g.me.pos.y + 2.6 => {} // drawn translucent later (occlusion fade)
             PINE => pine(r, px, pz, 1.1 + (hsh % 3) as f32 * 0.12),
             b'f' if hsh % 3 == 0 => pine(r, px + ((hsh % 5) as f32 - 2.) * 0.1, pz, 1.2 + (hsh % 4) as f32 * 0.15),
             ROCK => { r.sphere(vec3(px, 0.12, pz), vec3(0.42, 0.28, 0.36), Color::new(0.6, 0.6, 0.62, 1.)); r.sphere(vec3(px + 0.25, 0.08, pz + 0.18), vec3(0.18, 0.13, 0.16), Color::new(0.52, 0.52, 0.55, 1.)) }
@@ -302,10 +303,10 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
         for s in [-1f32, 1.] { r.sphere(vec3(b.1.x + s * 0.07, y + fl * 0.04, b.1.y), vec3(0.07, 0.01 + fl * 0.03, 0.05), c) } r.sphere(vec3(b.1.x, y, b.1.y), Vec3::splat(0.03), DARK) }
     if let Some(f) = &g.me.fish { let y = -0.15 - f.dip * 0.1; r.sphere(vec3(f.bob.x, y, f.bob.y), Vec3::splat(0.06), RED); r.sphere(vec3(f.bob.x, y + 0.05, f.bob.y), Vec3::splat(0.04), WHITE);
         let tip = g.me.pos + g.me.face * 0.75; r.seg(vec3(tip.x, 1.05, tip.y), vec3(f.bob.x, y + 0.05, f.bob.y), 0.004, Color::new(0.95, 0.95, 0.95, 1.)) }
-    r.alpha = 0.32; for &i in &fade_t { tree_at(r, i) } for &bi in &fade_b { building(r, bi, lt.night) } r.alpha = 1.;
+    r.alpha = 0.32; for z in (pp.y as i32)..(pp.y as i32 + 3) { for x in (pp.x as i32 - 1)..=(pp.x as i32 + 1) { let (px, pz) = (x as f32 + 0.5, z as f32 + 0.5); if ext(x, z) == PINE && (px - pp.x).abs() < 1.1 && pz > pp.y + 0.2 && pz < pp.y + 2.6 { pine(r, px, pz, 1.1 + (hash(x, z) % 3) as f32 * 0.12) } } } for &i in &fade_t { tree_at(r, i) } for &bi in &fade_b { building(r, bi, lt.night) } r.alpha = 1.;
     for &(p, a, k) in &g.fx { let s = a / 0.8; match k {
         0 => for i in 0..10 { let an = i as f32 / 10. * 2. * PI; let rr = 0.15 + s * 0.6; r.sphere(p + vec3(an.cos() * rr, 0.02, an.sin() * rr), vec3(0.05, 0.015, 0.05), Color::new(0.92, 0.97, 1., 1. - s)) },
-        1 => for i in 0..6 { let an = i as f32 * 1.05; r.sphere(p + vec3(an.cos() * s * 0.45, s * 0.5 - s * s * 0.4, an.sin() * s * 0.45), Vec3::splat(0.07 * (1. - s) + 0.02), Color::new(0.55, 0.4, 0.26, 1.)) },
+        1 => for i in 0..6 { let an = i as f32 * 1.05; r.sphere(p + vec3(an.cos() * s * 0.45, s * 1.1 - s * s * 0.8, an.sin() * s * 0.6), Vec3::splat(0.12 * (1. - s) + 0.03), Color::new(0.86, 0.74, 0.55, 1.)) },
         _ => for i in 0..5 { let an = -0.8 + i as f32 * 0.4; let d = vec3(an.sin() * 0.35, 0., an.cos() * 0.35); r.sphere(p + d * (0.5 + s), Vec3::splat(0.035), Color::new(1., 1., 1., 1. - s)) },
     } }
     for h in &g.hearts { if h.1 > 0. { r.sphere(h.0, Vec3::splat(0.06), Color::new(1., 0.4, 0.55, 1.)) } }

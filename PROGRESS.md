@@ -4,7 +4,7 @@
 - Current task: C-03 resident moving out/in (provisional, with safeguards)
 - Last completed: R15 FX capture phase 15 (splash ring verified)
 - Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
-- Next action: decide a minimal original rule set: a resident with low friendship across all profiles (max < 3) for 14+ processed days announces a move (letter + dialogue), moves out 2 days later unless a player talks them into staying (dialogue option); a replacement resident from a small reserve (1-2 new original characters reusing the house) moves in. Record as provisional; tests for timing and the "stay" path.
+- Next action: C-03 resident moving needs a roster refactor (slot -> character mapping `World.roster`, 2 new original reserve characters, RES[i] call sites via accessor). Do it in two slices: (a) roster indirection with no behaviour change + tests; (b) move-out/in rules.
 
 ## Baseline verification (before this run)
 - 19 headless tests pass. Executable bot run (2 launches) completed the full loop; screenshots inspected:
@@ -103,3 +103,7 @@ schedules, resume-outdoors policy, clock-rollback pause).
 
 ### 03:55 — R15 recheck
 - Phase 15 captures FX right after Space. Inspected fx_cast_splash.png: white splash ring around the bobber clearly visible. fx_net_swish.png: swish dots visible but small. Dig puff remains indistinct (PARTIAL).
+
+### 04:10 — R15 done; pine occlusion
+- Dig puff recoloured (light tan, larger, rises higher). Inspected p3m/p3_dig_site.png: puff clearly distinct over the dark hole. R15 complete.
+- First rerun showed a pine fully hiding the player/hole (pines were not part of the occlusion fade). Pines between camera and player are now drawn translucent like trees (code + build only; not yet seen in a screenshot).
