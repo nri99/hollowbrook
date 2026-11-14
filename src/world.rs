@@ -34,6 +34,7 @@ pub struct World {
     pub inv: Vec<Slot>, pub storage: Vec<Slot>, pub room: Vec<Furn>, pub npcs: Vec<NpcS>, pub trees: Vec<Tree>, pub ground: Vec<GItem>,
     pub weeds: Vec<(i32, i32)>, pub holes: Vec<(i32, i32)>, pub digs: Vec<(i32, i32)>, pub stock: Vec<Stock>, pub stock_day: i64,
     pub seen: Vec<u16>, pub uid: u32, pub tools: Vec<u16>, pub equip: Option<u16>, pub pos: [f32; 2],
+    #[serde(default)] pub trampled: Vec<(i32, i32)>,
 }
 impl World {
     pub fn fresh(name: String, day: i64, map: &[u8]) -> World {
@@ -41,7 +42,7 @@ impl World {
         let p = door_stand(HOME);
         World { version: SAVE_VERSION, name, day, money: 1000, home: 0, native: FRUITS[gen_range(0usize, 4)], inv: vec![], storage: vec![], room: vec![],
             npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false }).collect(), trees, ground: vec![], weeds: vec![], holes: vec![], digs: vec![],
-            stock: vec![], stock_day: i64::MIN, seen: vec![], uid: 1, tools: vec![60, 61], equip: None, pos: [p.x, p.y] }
+            stock: vec![], stock_day: i64::MIN, seen: vec![], uid: 1, tools: vec![60, 61], equip: None, pos: [p.x, p.y], trampled: vec![] }
     }
 }
 
@@ -79,6 +80,8 @@ pub struct Game {
     pub msgs: Vec<(String, f32)>, pub t: f32, pub log: Vec<String>, pub rolled: bool, pub fish: Option<Fishing>, pub shadows: Vec<Shadow>,
     pub bugs: Vec<(u16, Vec2, f32)>, pub trans: Option<(f32, Scene, bool)>, pub shake: Vec<(usize, f32)>, pub hearts: Vec<(Vec3, f32)>,
     pub placing: Option<Placing>, pub snd: Vec<Snd>, pub hr: u32, pub mo: u32, pub swing: f32, pub curve: f32,
+    /// transient tool effects: (position, age, kind 0 splash / 1 dirt / 2 swish)
+    pub fx: Vec<(Vec3, f32, u8)>,
 }
 
 impl Game {
@@ -92,7 +95,7 @@ impl Game {
         let npcs = (0..4).map(|i| NpcRt { pos: door_stand(RES[i].bld), path: vec![], wait: gen_range(0., 2.), yaw: 0., inside: true, happy: 0., moving: false, last_chat: 9, anim: 0. }).collect();
         let mut g = Game { w, map, scene: Scene::Town, pos, ipos: Vec2::ZERO, face: vec2(0., 1.), cam: pos, anim: 0., spd: 0., pose: Pose::Stand, stand_from: Vec2::ZERO, step_acc: 0.,
             npcs, ui: Ui::Play, msgs: vec![], t: 0., log: vec![], rolled: false, fish: None, shadows: vec![], bugs: vec![], trans: None, shake: vec![], hearts: vec![],
-            placing: None, snd: vec![], hr: 12, mo: 6, swing: 0., curve: 0.01 };
+            placing: None, snd: vec![], hr: 12, mo: 6, swing: 0., curve: 0.01, fx: vec![] };
         if !g.free(pos) { g.pos = door_stand(HOME); g.cam = g.pos }
         if g.w.stock.is_empty() { g.refresh_world() } // migrated saves get shop stock, shells and dig sites
         g
@@ -125,7 +128,7 @@ impl Game {
         self.refresh_world();
     }
     pub fn refresh_world(&mut self) {
-        let day = self.w.day;
+        let day = self.w.day; self.w.trampled.clear(); // flattened flowers recover each morning
         for t in &mut self.w.trees { if !t.fruit && day - t.shaken >= 3 { t.fruit = true } } // persisted elapsed-time regrowth rule
         for _ in 0..2 { if self.w.weeds.len() < 12 { if let Some(t) = self.rand_tile(GRASS) { self.w.weeds.push(t) } } }
         while self.w.ground.iter().filter(|g| def(g.def).k == K::Shell).count() < 4 { let Some(t) = self.rand_tile(SAND) else { break }; self.drop_item([40, 42, 40, 42, 41][gen_range(0, 5)], t.0, t.1) }
@@ -166,7 +169,8 @@ impl Game {
         if self.free(nz) { p = nz } else if let Scene::Room(b) = self.scene { let (w, dd) = room_dims(b); if d.y > 0. && p.x.floor() as i32 == w / 2 && p.y > dd as f32 - 0.5 { self.set_ppos(p); self.go(Scene::Town); return } }
         self.set_ppos(p); let moved = (p - p0).length(); self.spd = moved / dt.max(1e-4); self.step_acc += moved;
         if self.step_acc > if run { 0.9 } else { 0.6 } { self.step_acc = 0.; self.snd.push(Snd::Step) }
-        if run && self.scene == Scene::Town { self.bugs.retain(|b| b.1.distance(p) > 2.5) }
+        if run && self.scene == Scene::Town { self.bugs.retain(|b| b.1.distance(p) > 2.5);
+            let t = tile_of(p); if self.tile(t.0, t.1) == FLOWER && !self.w.trampled.contains(&t) && gen_range(0, 25) == 0 { self.w.trampled.push(t); self.note("Oops, you trampled a flower. It'll perk up by morning.") } }
     }
     pub fn go(&mut self, to: Scene) { if self.trans.is_none() { self.trans = Some((0., to, false)); self.snd.push(Snd::Door) } }
     pub fn swap(&mut self, to: Scene) {
@@ -385,16 +389,16 @@ impl Game {
         let (p, f) = (self.pos, self.face);
         match self.w.equip {
             None => self.note("No tool equipped. Press Tab to cycle tools."),
-            Some(60) => { self.swing = 0.35; let at = p + f * 0.7; if let Some(j) = self.bugs.iter().position(|b| b.1.distance(at) < 0.8) { let d = self.bugs.remove(j).0; self.add(d); } else { self.snd.push(Snd::Rustle) } }
+            Some(60) => { self.swing = 0.35; let at = p + f * 0.7; self.fx.push((vec3(at.x, 0.6, at.y), 0., 2)); if let Some(j) = self.bugs.iter().position(|b| b.1.distance(at) < 0.8) { let d = self.bugs.remove(j).0; self.add(d); } else { self.snd.push(Snd::Rustle) } }
             Some(61) => {
                 let spot = [1.6, 2.2, 2.8].iter().map(|&k| p + f * k).find(|&q| { let t = tile_of(q); matches!(self.tile(t.0, t.1), RIVER | SEA) });
                 let Some(bob) = spot else { return self.note("Face the water to cast.") };
                 self.swing = 0.35; let bt = tile_of(bob); let hab = if self.tile(bt.0, bt.1) == SEA { 2 } else { 1 };
                 let fish = self.shadows.iter().enumerate().filter(|(_, s)| def(s.def).hab == hab && s.pos.distance(bob) < 5.).min_by(|a, b| a.1.pos.distance(bob).total_cmp(&b.1.pos.distance(bob))).map(|(i, _)| i);
-                self.fish = Some(Fishing { bob, fish, t: 0., nib: 0, need: gen_range(1u8, 4), bite: false, dip: 0.3 }); self.snd.push(Snd::Splash);
+                self.fish = Some(Fishing { bob, fish, t: 0., nib: 0, need: gen_range(1u8, 4), bite: false, dip: 0.3 }); self.snd.push(Snd::Splash); self.fx.push((vec3(bob.x, -0.17, bob.y), 0., 0));
             }
             Some(_) => {
-                self.swing = 0.35; let t = tile_of(p + f * 0.9);
+                self.swing = 0.35; let t = tile_of(p + f * 0.9); self.fx.push((vec3(t.0 as f32 + 0.5, 0.05, t.1 as f32 + 0.5), 0., 1));
                 if let Some(i) = self.w.holes.iter().position(|&h| h == t) { self.w.holes.remove(i); self.snd.push(Snd::Dig); self.note("You filled the hole.") }
                 else if let Some(i) = self.w.digs.iter().position(|&h| h == t) { self.w.digs.remove(i); self.w.holes.push(t); self.snd.push(Snd::Dig); let d = if gen_range(0, 3) == 0 { 46 } else { 45 }; self.add(d); }
                 else if matches!(self.tile(t.0, t.1), GRASS | SAND | PATH) && self.walk_tile(t.0, t.1) && !self.occupied(t.0, t.1) && t != tile_of(p) { self.w.holes.push(t); self.snd.push(Snd::Dig); self.note("You dug a hole.") }
@@ -405,7 +409,7 @@ impl Game {
     fn reel(&mut self) {
         let Some(f) = self.fish.take() else { return };
         match f.fish {
-            Some(si) if f.bite => { let d = self.shadows.remove(si).def; self.snd.push(Snd::Splash); if self.add(d) { self.note(format!("You caught a {}!", def(d).name)) } }
+            Some(si) if f.bite => { self.fx.push((vec3(f.bob.x, -0.17, f.bob.y), 0., 0)); let d = self.shadows.remove(si).def; self.snd.push(Snd::Splash); if self.add(d) { self.note(format!("You caught a {}!", def(d).name)) } }
             Some(si) => { self.shadows.remove(si); self.note("Too early! The fish swam off.") }
             None => self.note("You reel in your line."),
         }
@@ -413,7 +417,7 @@ impl Game {
 
     // ---- simulation ----
     fn sim(&mut self, dt: f32) {
-        self.swing = (self.swing - dt).max(0.);
+        self.swing = (self.swing - dt).max(0.); for e in &mut self.fx { e.1 += dt } self.fx.retain(|e| e.1 < 0.8);
         for s in &mut self.shake { s.1 -= dt } self.shake.retain(|s| s.1 > 0.);
         for h in &mut self.hearts { h.1 += dt; if h.1 > 0. { h.0.y += dt * 0.8 } } self.hearts.retain(|h| h.1 < 1.6);
         if self.spd > 0.1 { self.anim += dt * self.spd * 3.2 }

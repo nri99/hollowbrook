@@ -17,7 +17,7 @@ Status: `[ ]` open · `[x]` done · `[B]` blocked (reason given)
 ## P2 — presentation and readability
 - [x] **P2-01 Occlusion fade.** Buildings/trees between camera and player are drawn translucent/cut so the player stays visible. *AC:* behind-house screenshot shows player.
 - [ ] **P2-02 Tool feedback.** Swing animation + small effect (splash ring, dirt puff) for each tool. *AC:* screenshot during use.
-- [ ] **P2-03 Running tramples flowers.** Running over a flower tile can flatten it (persisted, regrows next day). *AC:* unit test.
+- [x] **P2-03 Running tramples flowers.** Running over a flower tile can flatten it (persisted, regrows next day). *AC:* unit test.
 
 ## P3 — collections and museum
 - [ ] **P3-01 Museum building + donations.** New building on free grass (town otherwise unchanged; saves remap safely). Curator interaction donates any undonated fish/bug/treasure; donation log persisted. *AC:* tests: donate once, no duplicate donation, item leaves pockets.
