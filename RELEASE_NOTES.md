@@ -1,3 +1,18 @@
+# Hollowbrook v1.1.0 — release notes
+
+## New in v1.1.0
+- **Residents**: friendship levels (Acquaintance to Best friend) with their own dialogue, seasonal and contextual lines,
+  gossip, personal hobbies, a best-friend portrait keepsake, emotes, idle hobby props, and a Friends page in the journal.
+- **Festivals**: Blossom Picnic (Apr 10-12), Starlit Regatta (Jul 24-26), Frost Lantern Festival (Dec 20-24) and
+  First Light (Jan 1-2) join the Harvest Fair: decorations, a plaza host, a small task and a yearly keepsake, festive music.
+- **Daily surprises**: a message bottle, a resident's lost scarf to return, or a gift drifting down on a balloon.
+- **General Store renovations**: town spending unlocks a weekly special and an extra daily item.
+- **Gardening**: seeds and a watering can from Mr. Tumble; plant, water, grow, pick and cross-breed flowers.
+- **Tool upgrades**: two upgrade levels for the net, rod, shovel and watering can with real effects.
+- **Home Society**: a weekly letter scores your home with tips and one-time rewards; repaint your house at the Town Hall.
+- **Controllers**: hold View and press Menu to move a controller between Player 1 and Player 2.
+- **Town detail**: riverside fences, chimney smoke, birds.
+
 # Hollowbrook v1.0.0-rc1 — release notes
 
 Build and launch: `cargo run --release` (from the project folder). The build id is shown on the title screen and in the journal.

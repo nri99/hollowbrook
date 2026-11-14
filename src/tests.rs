@@ -492,7 +492,7 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     g.w.p.inv = vec![Slot { def: 41, qty: 2, uid: 0 }]; g.sell_all(); assert_eq!(g.w.p.tasks[1].prog, 500);
     g.bubbles = vec![(vec2(5.5, 5.5), 70)]; g.me.pos = vec2(5.5, 5.5); g.dive(); assert_eq!(g.w.p.tasks[2].prog, 1);
 }
-#[test] fn version_and_help_present() { assert!(VERSION.starts_with("v1.0.0")); assert!(HELP_KEYS.len() >= 8 && HELP_PAD.len() >= 8 && GUIDE.len() >= 8); }
+#[test] fn version_and_help_present() { assert!(VERSION.starts_with("v1.1.0")); assert!(HELP_KEYS.len() >= 8 && HELP_PAD.len() >= 8 && GUIDE.len() >= 8); }
 #[test] fn release_content_acquisition_audit() {
     let g = g0(at(11, 12, 0, 0)); let mut src: Vec<u16> = vec![];
     for m in 1..=12 { for h in 0..24 { for rain in [false, true] { src.extend(Game::bug_pool(rain, m, h)) } src.extend(Game::islet_bug_pool(m, h)); for hab in [1, 2] { for mouth in [false, true] { src.extend(Game::fish_pool(hab, mouth, m, h)) } } } }
