@@ -4,3 +4,4 @@ save_backups/
 shot_*.png
 test_output/
 *.tmp
+hollowbrook_settings.json

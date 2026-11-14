@@ -149,6 +149,8 @@ pub struct Game {
     pub imap: Vec<u8>, pub ibubbles: Vec<(Vec2, u16)>, pub pell_talked: bool,
     /// residents chatting with each other: (slot a, slot b, seconds left)
     pub chats: Vec<(usize, usize, f32)>,
+    /// audio settings (stored in hollowbrook_settings.json, not the world save)
+    pub music_vol: f32, pub sfx_vol: f32, pub muted: bool, pub settings_dirty: bool,
     /// resident currently visiting a player's home: (resident, home building, seconds left)
     pub visit: Option<(usize, usize, f32)>,
 }
@@ -162,7 +164,7 @@ impl Game {
     pub fn from_world(w: World, map: Vec<u8>) -> Game {
         let pos = vec2(w.p.pos[0], w.p.pos[1]);
         let npcs = (0..4).map(|i| NpcRt { pos: door_stand(HOUSES[i]), path: vec![], wait: gen_range(0., 2.), yaw: 0., inside: true, happy: 0., moving: false, last_chat: 9, anim: 0. }).collect();
-        let mut g = Game { me: Player::new(w.p.id, pos), w, map, others: vec![], npcs, t: 0., log: vec![], rolled: false, shadows: vec![], bugs: vec![], shake: vec![], hearts: vec![], snd: vec![], hr: 12, mo: 6, curve: 0.01, dom: 1, yr: 2026, bubbles: vec![], visit: None, imap: islet(), ibubbles: vec![], pell_talked: false, chats: vec![], fx: vec![] };
+        let mut g = Game { me: Player::new(w.p.id, pos), w, map, others: vec![], npcs, t: 0., log: vec![], rolled: false, shadows: vec![], bugs: vec![], shake: vec![], hearts: vec![], snd: vec![], hr: 12, mo: 6, curve: 0.01, dom: 1, yr: 2026, bubbles: vec![], visit: None, imap: islet(), ibubbles: vec![], pell_talked: false, chats: vec![], music_vol: 0.6, sfx_vol: 0.8, muted: false, settings_dirty: false, fx: vec![] };
         if !g.free(g.me.pos) { g.me.pos = door_stand(HOME); g.me.cam = g.me.pos }
         let map = &g.map; let open = |t: &(i32, i32)| tile_at(map, t.0, t.1) != BLD && *t != mailbox_tile(0) && *t != mailbox_tile(1); // objects saved before a building existed there
         g.w.weeds.retain(open); g.w.digs.retain(open); g.w.holes.retain(open); g.w.ground.retain(|i| open(&tile_of(vec2(i.x, i.z))));
@@ -980,7 +982,12 @@ impl Game {
             Ui::Confirm(d) => { if ok || inp.p(Y) { self.me.ui = Ui::Play; match self.buy(d) { Ok(()) => { self.snd.push(Snd::Coin); self.note("Thank you for your purchase!") } Err(e) => self.note(e) } } else if esc || inp.p(N) { self.me.ui = Ui::Play } }
             Ui::Storage(c, s) => { let c = if left { 0 } else if right { 1 } else { c }; let len = if c == 0 { n } else { self.w.p.storage.len() }; let s = mv(s, len); self.me.ui = Ui::Storage(c, s);
                 if esc { self.me.ui = Ui::Play } else if ok && s < len { self.transfer(c, s) } }
-            Ui::Journal => if esc || inp.p(J) { self.me.ui = Ui::Play },
+            Ui::Journal => { if esc || inp.p(J) { self.me.ui = Ui::Play }
+                let (mv0, sv0, mu0) = (self.music_vol, self.sfx_vol, self.muted);
+                if left { self.music_vol = (self.music_vol - 0.1).max(0.) } if right { self.music_vol = (self.music_vol + 0.1).min(1.) }
+                if down { self.sfx_vol = (self.sfx_vol - 0.1).max(0.) } if up { self.sfx_vol = (self.sfx_vol + 0.1).min(1.) } if inp.p(X) { self.muted = !self.muted }
+                self.music_vol = (self.music_vol * 10.).round() / 10.; self.sfx_vol = (self.sfx_vol * 10.).round() / 10.;
+                if (mv0, sv0, mu0) != (self.music_vol, self.sfx_vol, self.muted) { self.settings_dirty = true } }
             Ui::Gift(j, s) => { let s = mv(s, n); self.me.ui = Ui::Gift(j, s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.give_gift(j, s) } }
             Ui::Travel(go_out) => { if ok || inp.p(Y) { self.me.ui = Ui::Play; if go_out { if self.w.p.money < FARE { self.note("Not enough coins for the fare.") } else { self.w.p.money -= FARE; self.go(Scene::Islet) } } else { self.go(Scene::Town) } } else if esc || inp.p(N) { self.me.ui = Ui::Play } }
             Ui::IStall(s) => { let s = mv(s, ISTALL_ITEMS.len()); self.me.ui = Ui::IStall(s); if esc { self.me.ui = Ui::Play } else if ok { match self.istall_buy(s) { Ok(()) => { self.snd.push(Snd::Coin); self.note(format!("Traded for a {}!", def(ISTALL_ITEMS[s].0).name)) } Err(e) => self.note(e) } } }

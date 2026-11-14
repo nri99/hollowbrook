@@ -525,7 +525,8 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
             for (col, (k, title)) in [(K::Fish, "Fish & sea"), (K::Bug, "Bugs"), (K::Shell, "Shells & finds")].iter().enumerate() { let x = 80. + col as f32 * 380.; txt(title, x, 155., 26., BLACK);
                 for (j, dd) in DEFS.iter().filter(|dd| dd.k == *k || (*k == K::Shell && matches!(dd.k, K::Treasure | K::Fruit | K::Fossil)) || (*k == K::Fish && dd.k == K::Sea)).enumerate() { let seen = g.w.p.seen.contains(&dd.id);
                     txt(&format!("{}{}", if avail(dd, g.mo, g.hr) && matches!(dd.k, K::Fish | K::Bug) { "* " } else { "  " }, if seen { format!("{}  {}c{}", dd.name, dd.sell, if g.w.donated.iter().any(|x| x.0 == dd.id) { "  [museum]" } else { "" }) } else { "???".into() }), x, 185. + j as f32 * 24., 20., if seen { BLACK } else { GRAY }) } }
-            txt("* = active right now", 80., sh - 100., 18., DARKGRAY); txt(&format!("Town liveliness: {} ({})", g.liveliness(), Game::live_word(g.liveliness())), 80., sh - 125., 20., Color::new(0.3, 0.5, 0.3, 1.)) }
+            txt("* = active right now", 80., sh - 100., 18., DARKGRAY); txt(&format!("Town liveliness: {} ({})", g.liveliness(), Game::live_word(g.liveliness())), 80., sh - 125., 20., Color::new(0.3, 0.5, 0.3, 1.));
+            txt(&format!("Music {:.0}%{}  ({})    Sound effects {:.0}%  ({})    {} mute music", g.music_vol * 100., if g.muted { " (muted)" } else { "" }, if g.me.pad { "stick left/right" } else { "Left/Right" }, g.sfx_vol * 100., if g.me.pad { "stick up/down" } else { "Up/Down" }, if g.me.pad { "[Y]" } else { "[X]" }), 80., sh - 150., 20., Color::new(0.3, 0.3, 0.55, 1.)) }
     }
     if let Some(src) = dbg {
         let lines = [format!("[{src} clock] {}", now.format("%a %Y-%m-%d %H:%M:%S")), format!("gameplay day {} last processed {}", crate::clock::day_id(now), g.w.day),

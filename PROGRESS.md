@@ -155,3 +155,9 @@ schedules, resume-outdoors policy, clock-rollback pause).
 
 ### Audio fix
 - Root cause of silence: macroquad 0.4.16 has no default features; the `audio` feature (quad-snd) was never enabled, so all sounds used the silent dummy backend. Enabled `features = ["audio"]`. Evidence: quad-snd compiled; game process now loads AudioSes.dll/MMDevApi.dll (audio session opened). Audible output still to be confirmed by the user.
+
+### Music overhaul
+- `src/audio.rs`: 24 original hourly compositions (key walks the circle of fifths, mode/tempo/progression/swing/lead per hour; 16-bar A A' B A'' form, 30-45 s loops), shared palette (music box, FM keys, flute, pad, bass, soft shaker/tick), quieter sparse nights, Normal/Rain/Indoor arrangements, seamless wrapped loops, generation on a worker thread, 3 s crossfades, one track for both players (outdoor if any player is outdoors). Music/SFX volumes + mute saved in hollowbrook_settings.json (gitignored), set in the journal.
+- H: 57/57 (new: hourly_melodies_are_distinct, loops_are_long_clean_and_unclipped, nights_quieter_and_indoor_muffled, settings_roundtrip_and_volume_math). Release build includes quad-snd (cargo tree).
+- X: phase 23: 16:59:55 -> hour 16 loaded (37.3 s), 17:00 crossfade to hour 17 (44.7 s) over ~3 s, entering home -> Indoor arrangement crossfade, journal X mute -> applied 0.00, unmute + volume steps applied.
+- NOT verified: how it sounds (agent cannot listen).

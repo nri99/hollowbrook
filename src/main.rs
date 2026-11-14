@@ -1,3 +1,4 @@
+mod audio;
 mod clock;
 mod data;
 mod pad;
@@ -36,22 +37,9 @@ fn synth(s: Snd) -> Vec<f32> {
 }
 impl Sounds {
     async fn load() -> Sounds { let mut v = vec![]; for s in [Snd::StepPath, Snd::StepSand, Snd::StepWood, Snd::StepFloor, Snd::Swim, Snd::Step, Snd::Blip, Snd::Splash, Snd::Coin, Snd::Dig, Snd::Rustle, Snd::Door] { if let Ok(x) = load_sound_from_bytes(&wav(&synth(s))).await { v.push((s, x)) } } Sounds(v) }
-    fn play(&self, q: &mut Vec<Snd>) { for s in q.drain(..) { if let Some((_, x)) = self.0.iter().find(|e| e.0 == s) { play_sound(x, PlaySoundParams { looped: false, volume: if matches!(s, Snd::Step | Snd::StepPath | Snd::StepSand | Snd::StepWood | Snd::StepFloor | Snd::Swim) { 0.2 } else { 0.45 } }) } } }
+    fn play(&self, q: &mut Vec<Snd>, vol: f32) { for s in q.drain(..) { if vol <= 0. { continue } if let Some((_, x)) = self.0.iter().find(|e| e.0 == s) { play_sound(x, PlaySoundParams { looped: false, volume: vol * if matches!(s, Snd::Step | Snd::StepPath | Snd::StepSand | Snd::StepWood | Snd::StepFloor | Snd::Swim) { 0.2 } else { 0.45 } }) } } }
 }
 
-/// Original procedural background music: a slow pentatonic melody over a soft bass, three moods
-/// (day / evening / night), generated at start-up and looped quietly. (Audio output has not been heard by the agent.)
-fn music(mood: usize) -> Vec<f32> {
-    let sr = 22050.; let bpm = [96., 80., 64.][mood]; let beat = 60. / bpm; let scale = [[261.6, 293.7, 329.6, 392.0, 440.0, 523.3], [220.0, 261.6, 293.7, 329.6, 392.0, 440.0], [196.0, 220.0, 261.6, 293.7, 329.6, 392.0]][mood];
-    let pattern = [0, 2, 4, 3, 2, 1, 2, 5, 4, 2, 3, 1, 0, 2, 1, 0]; let bass = [0, 0, 3, 3, 1, 1, 2, 2];
-    let n = (pattern.len() as f32 * beat * sr) as usize; let mut out = vec![0f32; n];
-    for (k, &note) in pattern.iter().enumerate() { let f = scale[note]; let start = (k as f32 * beat * sr) as usize; let len = (beat * 0.9 * sr) as usize;
-        for i in 0..len.min(n - start) { let t = i as f32 / sr; let env = (t * 30.).min(1.) * (1. - i as f32 / len as f32).powf(1.5); out[start + i] += ((t * f * std::f32::consts::TAU).sin() * 0.6 + (t * f * 2. * std::f32::consts::TAU).sin() * 0.15) * env * 0.22 } }
-    for (k, &b) in bass.iter().enumerate() { let f = scale[b] / 2.; let start = (k as f32 * 2. * beat * sr) as usize; let len = (2. * beat * sr) as usize;
-        for i in 0..len.min(n.saturating_sub(start)) { let t = i as f32 / sr; let env = (t * 8.).min(1.) * (1. - i as f32 / len as f32); out[start + i] += (t * f * std::f32::consts::TAU).sin() * env * 0.16 } }
-    let peak = out.iter().fold(0f32, |m, v| m.max(v.abs())).max(1e-6); for v in &mut out { *v *= 0.8 / peak } // normalize to a clear level
-    out
-}
 fn load_game() -> Option<Game> {
     match save::load_checked(SAVE) {
         save::Loaded::Ok(w) => { save::backup(SAVE, save::BACKUPS); return Some(Game::from_world(w, town())) }
@@ -67,7 +55,7 @@ async fn main() {
     let clock = Clock::from_env(); let dbg = clock.dev.is_some() || std::env::var("HOLLOWBROOK_DEBUG").is_ok();
     rand::srand(Local::now().timestamp() as u64);
     let sounds = Sounds::load().await;
-    let mut tracks = vec![]; for m in 0..3 { if let Ok(x) = load_sound_from_bytes(&wav(&music(m))).await { tracks.push(x) } } eprintln!("[audio] {} music tracks, {} sound effects loaded", tracks.len(), sounds.0.len());
+    eprintln!("[audio] backend: quad-snd; {} sound effects loaded", sounds.0.len());
     let auto = std::env::var("HOLLOWBROOK_AUTOTEST").ok();
     let mut g = match load_game() {
         Some(g) => g,
@@ -86,11 +74,12 @@ async fn main() {
             Game::new(name.trim().to_string(), clock.now())
         }
     };
+    { let st = audio::load_settings(audio::SETTINGS); g.music_vol = st.music; g.sfx_vol = st.sfx; g.muted = st.muted; }
     g.curve = std::env::var("HOLLOWBROOK_CURVE").ok().and_then(|s| s.parse().ok()).unwrap_or(0.012); // dev setting
     if g.catch_up(clock.now()) { save::save(&g.persist(), SAVE) }
     prevent_quit();
     if let Some(dir) = auto { autotest(&mut g, &clock, &dir).await; save::save(&g.persist(), SAVE); return }
-    let mut playing: Option<usize> = None;
+    let mut music = audio::Music::new();
     let (mut st, mut shots) = (0., 0); let mut pads = pad::Pads::new(); eprintln!("[pad] {} gamepad(s) detected", pads.count());
     loop {
         let dt = get_frame_time().min(0.05); let now = clock.now(); let kb = Inp { down: get_keys_down(), pressed: get_keys_pressed() };
@@ -103,8 +92,9 @@ async fn main() {
         g.activate(0);
         if kb.p(KeyCode::F2) { if g.ids().len() == 1 { g.join("Player 2"); g.note("Player 2 joined (split-screen).") } else { g.leave(1); g.note("Player 2 left; their progress is saved.") } save::save(&g.persist(), SAVE) }
         render::draw(&mut g, now, dbg.then(|| clock.source()));
-        sounds.play(&mut g.snd);
-        let mood = match now.hour() { 6..=16 => 0, 17..=20 => 1, _ => 2 }; if tracks.len() == 3 && playing != Some(mood) { if let Some(p) = playing { macroquad::audio::stop_sound(&tracks[p]) } play_sound(&tracks[mood], PlaySoundParams { looped: true, volume: 0.5 }); playing = Some(mood) }
+        sounds.play(&mut g.snd, g.sfx_vol);
+        music.tick((now.hour(), audio::variant(&g)), dt, g.music_vol, g.muted).await; for l in music.log.drain(..) { eprintln!("[audio] {l}") }
+        if g.settings_dirty { g.settings_dirty = false; audio::save_settings(audio::SETTINGS, &audio::Settings { music: g.music_vol, sfx: g.sfx_vol, muted: g.muted }) }
         if dbg && is_key_pressed(KeyCode::F12) { shots += 1; screenshot(&format!("shot_{shots}.png")); eprintln!("[shot] shot_{shots}.png") }
         st += dt; if st > 15. { save::save(&g.persist(), SAVE); st = 0. }
         if is_quit_requested() { save::save(&g.persist(), SAVE); break }
@@ -342,6 +332,15 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         g.join("Player 2"); let i = (0..4).find(|&i| !g.npcs[i].inside).unwrap_or(0);
         for _ in 0..1500 { let np = g.npcs[i].pos; if !g.npcs[i].inside && g.me.pos.distance(np) < 1.1 { break } let path = g.bfs(tile_of(g.me.pos), tile_of(np), false).unwrap_or_default(); let wp = if path.len() > 1 { tc(path[0]) } else { np }; step2(g, c, Inp::keys(&keys_toward(wp - g.me.pos), &[]), Inp::none()).await }
         face(g, c, g.npcs[i].pos).await; step2(g, c, Inp::keys(&[KeyCode::E], &[KeyCode::E]), Inp::none()).await; step2(g, c, Inp::none(), Inp::none()).await; log!("P1 ui={:?}", g.me.ui); shot!("x06_split_dialogue");
+    } else if phase == "23" {
+        // audio: hourly crossfade (dev clock crosses 17:00), indoor arrangement switch, journal mute/volume
+        let mut m = audio::Music::new(); let mut frame = 0usize;
+        macro_rules! tickn { ($n:expr, $d:expr, $p:expr) => {{ for _ in 0..$n { m.tick((c.now().hour(), audio::variant(g)), 1. / 60., g.music_vol, g.muted).await; step(g, c, $d, $p).await; frame += 1;
+            if frame % 60 == 0 { log!("t={} cur={:?} fading_out={} applied={:.2}", c.now().format("%H:%M:%S"), m.current(), m.fading_out(), m.applied) } } for l in m.log.drain(..) { log!("{l}") } }} }
+        tickn!(600, &[], &[]);
+        go(g, c, door_stand(HOME), 0.12).await; face(g, c, door_face(HOME)).await; press(g, c, KeyCode::E).await; tickn!(300, &[], &[]); log!("scene={:?} variant={:?}", g.me.scene, audio::variant(g));
+        press(g, c, KeyCode::J).await; press(g, c, KeyCode::X).await; tickn!(10, &[], &[]); log!("after mute: muted={} applied={:.2}", g.muted, m.applied);
+        press(g, c, KeyCode::X).await; press(g, c, KeyCode::Left).await; press(g, c, KeyCode::Down).await; tickn!(10, &[], &[]); log!("after unmute/-music/-sfx: music_vol={:.1} sfx_vol={:.1} applied={:.2} dirty={}", g.music_vol, g.sfx_vol, m.applied, g.settings_dirty);
     } else if phase == "0" {
         log!("load-only check");
     } else if phase == "3" && c.now().hour() < 18 {
