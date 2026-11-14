@@ -152,3 +152,6 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - H: 53/53 (new: footstep_surfaces). X: [audio] 3 music tracks, 12 sound effects loaded (log). Audio output NOT heard (no audio verification possible for the agent).
 - S (inspected): x06/p7_weather.png (autumn leaves), x06/x06_split_dialogue.png (dialogue inside P1 half; "[E] next" hint not visible -> small open issue).
 - Open: X-04 collections; X-06 remainder (animation/face polish, materials).
+
+### Audio fix
+- Root cause of silence: macroquad 0.4.16 has no default features; the `audio` feature (quad-snd) was never enabled, so all sounds used the silent dummy backend. Enabled `features = ["audio"]`. Evidence: quad-snd compiled; game process now loads AudioSes.dll/MMDevApi.dll (audio session opened). Audible output still to be confirmed by the user.
