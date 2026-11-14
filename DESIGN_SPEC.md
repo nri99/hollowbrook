@@ -122,3 +122,7 @@ original sample, not a claim of full coverage.
 | Tropical travel / medals / reward shop | — | BLOCKED | original design needed (user decision) |
 | Campground / initiatives | — | BLOCKED | original design needed (user decision) |
 | Music | — | NOT IMPLEMENTED | direction unspecified |
+
+## Original expansion — product decisions (approved directions; values are initial balance choices, not reference rules)
+- **Community projects:** one active project at a time, proposed by a resident at the daily refresh (or at load if none). Cycle: bench -> lamp post -> planter -> bridge (bridge once). Costs: bench 5 Branch + 2 Stone; lamp 3 Branch + 4 Stone + 2 shells; planter 4 Stone + 3 fruit; bridge 12 Branch + 8 Stone. Branch: 1 per tree per day when shaken; Stone: 1 per rock per day with the shovel. Sites come from authored candidate lists and are rejected if they would block any building route.
+- **Liveliness:** 0-100 = 10 x built projects + 2 x museum donations + flowers/2 - 3 x weeds (Quiet < 20 <= Cozy < 45 <= Lively < 70 <= Bustling).

@@ -31,6 +31,13 @@ pub struct Tree { pub x: i32, pub z: i32, pub fruit: bool, pub shaken: i64 }
 pub struct GItem { pub uid: u32, pub def: u16, pub x: f32, pub z: f32 }
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
 pub struct Stock { pub def: u16, pub sold: bool }
+/// Active community project: needs are (material code, required, contributed); `log` = (player id, items given).
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub struct Project { pub kind: u8, pub x: i32, pub z: i32, pub need: Vec<(u8, u16, u16)>, pub by: usize, pub log: Vec<(usize, u16)> }
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
+pub struct Built { pub kind: u8, pub x: i32, pub z: i32, pub day: i64 }
+pub fn ptiles(kind: u8, x: i32, z: i32) -> Vec<(i32, i32)> { if kind == PK_BRIDGE { vec![(x, z), (x + 1, z)] } else { vec![(x, z)] } }
+pub fn mat_ok(code: u8, d: u16) -> bool { match code { 0 => d == 80, 1 => d == 81, 2 => def(d).k == K::Fruit, _ => def(d).k == K::Shell } }
 /// A stored letter. Gifts (coins and/or an item) can be claimed exactly once.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Letter { pub from: String, pub text: String, pub coins: u32, pub item: Option<u16>, pub read: bool, pub claimed: bool }
@@ -67,6 +74,9 @@ pub struct World {
     /// per house slot: gameplay day the current resident arrived, and the day they leave (0 = not moving)
     #[serde(default)] pub arrived: Vec<i64>,
     #[serde(default)] pub moving: Vec<i64>,
+    #[serde(default)] pub project: Option<Project>, #[serde(default)] pub built: Vec<Built>,
+    /// trees already yielding a branch / rocks already yielding a stone today
+    #[serde(default)] pub branches: Vec<(i32, i32)>, #[serde(default)] pub rocks_hit: Vec<(i32, i32)>,
     /// profile of the player currently being processed (swapped in by `Game::activate`)
     pub p: Profile,
     #[serde(default)] pub others: Vec<Profile>,
@@ -75,7 +85,7 @@ pub fn roster0() -> Vec<usize> { vec![0, 1, 2, 3] }
 impl World {
     pub fn fresh(name: String, day: i64, map: &[u8]) -> World {
         let trees = (0..W * H).filter(|&i| map[i] == TREE).map(|i| Tree { x: (i % W) as i32, z: (i / W) as i32, fruit: true, shaken: i64::MIN / 2 }).collect();
-        World { version: SAVE_VERSION, day, native: FRUITS[gen_range(0usize, 4)], trees, ground: vec![], weeds: vec![], holes: vec![], digs: vec![], stock: vec![], stock_day: i64::MIN, uid: 1, trampled: vec![], donated: vec![], roster: roster0(), arrived: vec![day; 4], moving: vec![0; 4], p: Profile::new(0, name, door_stand(HOME)), others: vec![] }
+        World { version: SAVE_VERSION, day, native: FRUITS[gen_range(0usize, 4)], trees, ground: vec![], weeds: vec![], holes: vec![], digs: vec![], stock: vec![], stock_day: i64::MIN, uid: 1, trampled: vec![], donated: vec![], roster: roster0(), arrived: vec![day; 4], moving: vec![0; 4], project: None, built: vec![], branches: vec![], rocks_hit: vec![], p: Profile::new(0, name, door_stand(HOME)), others: vec![] }
     }
 }
 
@@ -84,7 +94,7 @@ impl World {
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Pose { Stand, Sit(u32), Lie(u32) }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Loc { Out, Home, Asleep }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Snd { Step, Blip, Splash, Coin, Dig, Rustle, Door }
-#[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize), Stall }
+#[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize), Stall, Site, Board, Built(usize) }
 #[derive(Clone, PartialEq, Debug)]
 pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize), Tint(usize) }
 pub struct Placing { pub f: Furn, pub orig: Option<Furn>, pub slot_uid: Option<u32> }
@@ -147,6 +157,7 @@ impl Game {
         let map = &g.map; let open = |t: &(i32, i32)| tile_at(map, t.0, t.1) != BLD && *t != mailbox_tile(0) && *t != mailbox_tile(1); // objects saved before a building existed there
         g.w.weeds.retain(open); g.w.digs.retain(open); g.w.holes.retain(open); g.w.ground.retain(|i| open(&tile_of(vec2(i.x, i.z))));
         for p in std::iter::once(&mut g.w.p).chain(g.w.others.iter_mut()) { let owned: Vec<u16> = p.room.iter().map(|f| f.def).chain(p.inv.iter().chain(p.storage.iter()).map(|s| s.def)).filter(|&d| matches!(def(d).k, K::Furn | K::Cloth)).chain(p.shirt).collect(); for d in owned { if !p.catalog.contains(&d) { p.catalog.push(d) } } }
+        if g.w.project.is_none() { g.propose() } // first project for new and older saves
         if g.w.arrived.len() != 4 { g.w.arrived = vec![g.w.day; 4] } if g.w.moving.len() != 4 { g.w.moving = vec![0; 4] } // older saves start the 14-day clock now
         if g.w.stock.is_empty() { g.refresh_world() } // migrated saves get shop stock, shells and dig sites
         g
@@ -240,7 +251,7 @@ impl Game {
         }
     }
     pub fn refresh_world(&mut self) {
-        let day = self.w.day; self.w.trampled.clear(); // flattened flowers recover each morning
+        let day = self.w.day; self.w.trampled.clear(); self.w.branches.clear(); self.w.rocks_hit.clear(); if self.w.project.is_none() { self.propose() } // flattened flowers recover each morning
         for t in &mut self.w.trees { if !t.fruit && day - t.shaken >= 3 { t.fruit = true } } // persisted elapsed-time regrowth rule
         for _ in 0..2 { if self.w.weeds.len() < 12 { if let Some(t) = self.rand_tile(GRASS) { self.w.weeds.push(t) } } }
         while self.w.ground.iter().filter(|g| def(g.def).k == K::Shell).count() < 4 { let Some(t) = self.rand_tile(SAND) else { break }; self.drop_item([40, 42, 40, 42, 41][gen_range(0, 5)], t.0, t.1) }
@@ -263,7 +274,10 @@ impl Game {
     /// Character living in house slot `slot`.
     pub fn res(&self, slot: usize) -> &'static Res { &CHARS[self.w.roster[slot]] }
     pub fn walk_tile(&self, x: i32, z: i32) -> bool {
-        if self.fair() && (x, z) == STALL { return false } matches!(self.tile(x, z), GRASS | PATH | SAND | BRIDGE | FLOWER) && !self.w.holes.contains(&(x, z)) && (x, z) != mailbox_tile(0) && (x, z) != mailbox_tile(1) }
+        if self.fair() && (x, z) == STALL { return false }
+        if (x, z) == BOARD { return false }
+        if let Some(b) = self.w.built.iter().find(|b| ptiles(b.kind, b.x, b.z).contains(&(x, z))) { return b.kind == PK_BRIDGE }
+        if self.w.project.as_ref().is_some_and(|p| p.kind != PK_BRIDGE && (p.x, p.z) == (x, z)) { return false } matches!(self.tile(x, z), GRASS | PATH | SAND | BRIDGE | FLOWER) && !self.w.holes.contains(&(x, z)) && (x, z) != mailbox_tile(0) && (x, z) != mailbox_tile(1) }
     pub fn room_furn(&self, b: usize) -> Vec<Furn> {
         match BLDS[b].kind { BK::Home(o) => if self.w.p.id == o { self.w.p.room.clone() } else { self.w.others.iter().find(|p| p.id == o).map(|p| p.room.clone()).unwrap_or_default() }, BK::Res(r) => TEMPL[r].iter().map(|&(def, x, z, rot)| Furn { uid: 0, def, x, z, rot, on: true }).collect(), _ => vec![] }
     }
@@ -279,7 +293,7 @@ impl Game {
     pub fn step_move(&mut self, d: Vec2, run: bool, dt: f32) {
         self.me.spd = 0.;
         if d == Vec2::ZERO { return }
-        if self.me.pose != Pose::Stand { self.me.pose = Pose::Stand; self.me.ipos = self.me.stand_from; return }
+        if self.me.pose != Pose::Stand { self.me.pose = Pose::Stand; let sf = self.me.stand_from; self.set_ppos(sf); return }
         if self.me.fish.is_some() { self.me.fish = None; self.note("You reel in your line.") }
         let d = d.normalize(); self.me.face = d; let s = (if self.swimming() { 2.0 } else if run { 5.5 } else { 3.0 }) * dt;
         let p0 = self.ppos(); let mut p = p0;
@@ -316,6 +330,9 @@ impl Game {
                 for (i, g) in self.w.ground.iter().enumerate() { cand(vec2(g.x, g.z), 1.2, 0.8, Tg::Item(i), None) }
                 for (i, &w) in self.w.weeds.iter().enumerate() { cand(tc(w), 1.2, 1., Tg::Weed(i), None) }
                 for o in 0..2 { cand(tc(mailbox_tile(o)), 1.4, 0.9, Tg::Mailbox(o), Some(mailbox_tile(o))) }
+                if let Some(p) = &self.w.project { let c = if p.kind == PK_BRIDGE { vec2(p.x as f32 + 1., p.z as f32 + 1.2) } else { tc((p.x, p.z)) }; cand(c, 1.5, 0.8, Tg::Site, Some((p.x, p.z))) }
+                cand(tc(BOARD), 1.5, 0.8, Tg::Board, Some(BOARD));
+                for (i, b) in self.w.built.iter().enumerate() { if b.kind == 0 { cand(tc((b.x, b.z)), 1.4, 0.9, Tg::Built(i), Some((b.x, b.z))) } }
                 if self.fair() { cand(tc(STALL), 1.5, 0.8, Tg::Stall, Some(STALL)) }
             }
             Scene::Room(b) => {
@@ -335,7 +352,7 @@ impl Game {
         match tg {
             Tg::Npc(i) => v(match self.me.scene { Scene::Town => self.npcs[i].pos, Scene::Room(b) if self.visit.is_some_and(|x| x.0 == i && x.1 == b) => self.visit_spot(b), _ => res_spot() }, 1.5), Tg::Door(b) => v(door_face(b), 1.3),
             Tg::Tree(i) => v(tc((self.w.trees[i].x, self.w.trees[i].z)), 2.15), Tg::Item(i) => vec3(self.w.ground[i].x, 0.45, self.w.ground[i].z),
-            Tg::Weed(i) => v(tc(self.w.weeds[i]), 0.55), Tg::Rack => vec3(1.5, 1.8, 1.5), Tg::Mailbox(o) => v(tc(mailbox_tile(o)), 1.4), Tg::Stall => v(tc(STALL), 1.9), Tg::Curator => vec3(3.5, 1.3, 1.5), Tg::Exhibit(k) => match k { 0 => vec3(0.5, 1.5, 2.5), 1 => vec3(6.5, 1.5, 2.5), _ => { let p = tc(MUSEUM_PED[k - 2].0); vec3(p.x, 1.2, p.y) } }, Tg::Counter => vec3(3.5, 1.3, 1.5), Tg::Keeper => vec3(3.5, 1.7, 0.5), Tg::Display(i) => v(tc(DISPLAYS[i]), 1.3),
+            Tg::Weed(i) => v(tc(self.w.weeds[i]), 0.55), Tg::Rack => vec3(1.5, 1.8, 1.5), Tg::Mailbox(o) => v(tc(mailbox_tile(o)), 1.4), Tg::Stall => v(tc(STALL), 1.9), Tg::Board => v(tc(BOARD), 1.9), Tg::Built(i) => v(tc((self.w.built[i].x, self.w.built[i].z)), 1.2), Tg::Site => self.w.project.as_ref().map_or(Vec3::ZERO, |p| v(tc((p.x, p.z)), 1.6)), Tg::Curator => vec3(3.5, 1.3, 1.5), Tg::Exhibit(k) => match k { 0 => vec3(0.5, 1.5, 2.5), 1 => vec3(6.5, 1.5, 2.5), _ => { let p = tc(MUSEUM_PED[k - 2].0); vec3(p.x, 1.2, p.y) } }, Tg::Counter => vec3(3.5, 1.3, 1.5), Tg::Keeper => vec3(3.5, 1.7, 0.5), Tg::Display(i) => v(tc(DISPLAYS[i]), 1.3),
             Tg::Furn(uid, d) => { let c = self.room_furn(match self.me.scene { Scene::Room(b) => b, _ => HOME }).into_iter().find(|f| f.uid == uid && f.def == d).map(|f| fcenter(&f)).unwrap_or_default(); v(c, if def(d).wall { 1.9 } else { 1.2 }) }
         }
     }
@@ -346,7 +363,8 @@ impl Game {
             Tg::Item(i) => format!("Pick up {}", def(self.w.ground[i].def).name), Tg::Weed(_) => "Pull weed".into(),
             Tg::Furn(uid, d) => { let a = match def(d).act { Act::Sit => "Sit on", Act::Bed => "Lie on", Act::Lamp => "Toggle", Act::Storage => "Open", Act::None => "Look at" };
                 if uid != 0 && self.me.scene == Scene::Room(self.home()) { format!("{a} {}   [F] Move  [G] Pick up", def(d).name) } else { format!("{a} {}", def(d).name) } }
-            Tg::Counter => "Sell items".into(), Tg::Keeper => "Talk to Mr. Tumble".into(), Tg::Curator => "Donate / identify fossils".into(), Tg::Rack => "Browse clothes".into(), Tg::Stall => if self.w.p.fair_year == self.yr { "Harvest Fair stall (prize claimed)".into() } else { "Claim a Harvest Fair prize".into() }, Tg::Mailbox(o) => if o == self.me.id { let n = self.w.p.mail.iter().filter(|l| !l.read).count(); if n > 0 { format!("Check mailbox ({n} new)") } else { "Check mailbox".into() } } else { format!("Player {}'s mailbox", o + 1) },
+            Tg::Counter => "Sell items".into(), Tg::Keeper => "Talk to Mr. Tumble".into(), Tg::Curator => "Donate / identify fossils".into(), Tg::Rack => "Browse clothes".into(), Tg::Site => self.w.project.as_ref().map_or(String::new(), |p| format!("Contribute to the {}", PROJECTS[p.kind as usize].0)), Tg::Board => "Read the town notice board".into(), Tg::Built(_) => "Sit on the bench".into(),
+            Tg::Stall => if self.w.p.fair_year == self.yr { "Harvest Fair stall (prize claimed)".into() } else { "Claim a Harvest Fair prize".into() }, Tg::Mailbox(o) => if o == self.me.id { let n = self.w.p.mail.iter().filter(|l| !l.read).count(); if n > 0 { format!("Check mailbox ({n} new)") } else { "Check mailbox".into() } } else { format!("Player {}'s mailbox", o + 1) },
             Tg::Exhibit(k) => match k { 0 => "Look at the fish tank".into(), 1 => "Look at the bug case".into(), _ => format!("Look at the {} pedestal", def(MUSEUM_PED[k - 2].1).name) },
             Tg::Display(i) => if i < 5 { let s = self.w.stock[i]; if s.sold { "Sold out".into() } else { format!("Buy {} ({} coins)", def(s.def).name, def(s.def).buy) } } else { let t = TOOL_DISPLAY[i - 5]; format!("Buy {} ({} coins)", def(t).name, def(t).buy) },
         }
@@ -367,6 +385,9 @@ impl Game {
             Tg::Curator => self.donate(),
             Tg::Rack => self.me.ui = Ui::Rack(0),
             Tg::Stall => self.fair_prize(),
+            Tg::Site => self.contribute(),
+            Tg::Board => { let lines = self.board_lines(); self.me.ui = Ui::Talk { npc: None, who: "Town notice board".into(), lines, i: 0 } }
+            Tg::Built(i) => { let b = self.w.built[i]; self.me.stand_from = self.me.pos; self.me.pos = tc((b.x, b.z)); self.me.face = vec2(0., 1.); self.me.pose = Pose::Sit(0); self.note("You sit on the bench. Move to stand up.") }
             Tg::Mailbox(o) => if o == self.me.id { self.me.ui = Ui::Mail(0) } else { self.note(format!("That's Player {}'s mailbox. Better not peek.", o + 1)) },
             Tg::Exhibit(k) => { let (n, t) = match k { 0 => (self.donated_of(K::Fish), DEFS.iter().filter(|d| d.k == K::Fish).count()), 1 => (self.donated_of(K::Bug), DEFS.iter().filter(|d| d.k == K::Bug).count()), _ => (self.w.donated.iter().any(|x| x.0 == MUSEUM_PED[k - 2].1) as usize, 1) };
                 let who = if k >= 2 { self.w.donated.iter().find(|x| x.0 == MUSEUM_PED[k - 2].1).map(|x| format!(" (donated by Player {})", x.1 + 1)).unwrap_or_default() } else { String::new() };
@@ -396,6 +417,8 @@ impl Game {
         let visiting = self.visit.is_some_and(|v| v.0 == i);
         let mut lines = vec![fill(if visiting { VISIT[pers] } else if indoor { HOMEL[pers] } else { GREET[pers][slot] }, "")];
         if self.w.moving.get(i).is_some_and(|&m| m != 0) && !visiting { lines.push("I'm planning to move away soon... unless someone gives me a reason to stay.".into()) }
+        if let Some(p) = &self.w.project { if p.by == i { lines.push(format!("How's our {} coming along? {}", PROJECTS[p.kind as usize].0, Game::remaining(p))) } }
+        if let Some(b) = self.w.built.iter().rev().find(|b| self.w.day - b.day <= 2) { lines.push(format!("Have you seen the new {}? The town feels {} already!", PROJECTS[b.kind as usize].0, Game::live_word(self.liveliness()).to_lowercase())) }
         if self.fair() { lines.push("The Harvest Fair is on! There's a prize stall by the plaza.".into()) }
         match weather(self.w.day, self.mo) { Wx::Rain if !indoor => lines.push(fill(RAIN[pers], "")), Wx::Snow if !indoor => lines.push(fill(SNOW[pers], "")), _ => {} }
         if let Some(q) = self.w.p.npcs[i].req {
@@ -414,9 +437,12 @@ impl Game {
         if !self.w.p.npcs[i].talked { self.w.p.npcs[i].talked = true; self.w.p.npcs[i].friend += 1 } // temporary prototype relationship rule
         self.me.ui = Ui::Talk { npc: Some(i), who: format!("{} the {}", r.name, r.species), lines, i: 0 };
     }
+    #[cfg(test)] pub fn shake_tree_pub(&mut self, ti: usize) { self.shake_tree(ti) }
     fn shake_tree(&mut self, ti: usize) {
         self.shake.push((ti, 0.6)); self.snd.push(Snd::Rustle);
-        let tr = self.w.trees[ti]; if !tr.fruit { return self.note("Rustle rustle... no fruit right now.") }
+        let tr = self.w.trees[ti];
+        if !self.w.branches.contains(&(tr.x, tr.z)) { if let Some((x, z)) = [(0, 1), (1, 0), (-1, 0), (0, -1), (1, 1), (-1, 1)].iter().map(|&(dx, dz)| (tr.x + dx, tr.z + dz)).find(|&(x, z)| self.walk_tile(x, z) && !self.item_at(x, z)) { self.w.branches.push((tr.x, tr.z)); self.drop_item(80, x, z) } }
+        if !tr.fruit { return self.note("Rustle rustle... no fruit right now.") }
         self.w.trees[ti].fruit = false; self.w.trees[ti].shaken = self.w.day; let mut n = 0;
         for (dx, dz) in [(0, 1), (-1, 1), (1, 1), (-1, 0), (1, 0), (0, -1), (-1, -1), (1, -1)] {
             if n == 3 { break } let (x, z) = (tr.x + dx, tr.z + dz);
@@ -525,6 +551,50 @@ impl Game {
             self.w.p.tints.retain(|x| x.0 != s.uid); if nt != 0 { self.w.p.tints.push((s.uid, nt)) } Ok(format!("Your {} is now {}.", def(s.def).name, TINT_NAMES[nt as usize])) }
         else if sel == t.len() { self.w.p.wall = (self.w.p.wall + 1) % WALLS.len() as u8; Ok("New wallpaper installed at home.".into()) }
         else { self.w.p.floor = (self.w.p.floor + 1) % FLOORS.len() as u8; Ok("New flooring installed at home.".into()) }
+    }
+
+    // ---- community projects ----
+    pub fn remaining(p: &Project) -> String { let r: Vec<String> = p.need.iter().filter(|n| n.2 < n.1).map(|n| format!("{} {}", n.1 - n.2, MAT_NAMES[n.0 as usize])).collect(); if r.is_empty() { "It's ready!".into() } else { format!("Still needed: {}.", r.join(", ")) } }
+    pub fn liveliness(&self) -> i32 { let flowers = self.map.iter().filter(|&&c| c == FLOWER).count() as i32 - self.w.trampled.len() as i32; (10 * self.w.built.len() as i32 + 2 * self.w.donated.len() as i32 + flowers / 2 - 3 * self.w.weeds.len() as i32).clamp(0, 100) }
+    pub fn live_word(l: i32) -> &'static str { if l < 20 { "Quiet" } else if l < 45 { "Cozy" } else if l < 70 { "Lively" } else { "Bustling" } }
+    pub fn board_lines(&self) -> Vec<String> {
+        let mut v = vec![format!("Town liveliness: {} / 100 ({}).", self.liveliness(), Game::live_word(self.liveliness()))];
+        if let Some(p) = &self.w.project { v.push(format!("Current project: a {} proposed by {}. {}", PROJECTS[p.kind as usize].0, self.res(p.by).name, Game::remaining(p))) }
+        v.push(if self.w.built.is_empty() { "Built so far: nothing yet.".into() } else { format!("Built so far: {}.", self.w.built.iter().map(|b| PROJECTS[b.kind as usize].0).collect::<Vec<_>>().join(", ")) }); v
+    }
+    /// A resident proposes the next project at the first valid candidate site (never blocking a building route).
+    pub fn propose(&mut self) {
+        if self.w.project.is_some() { return }
+        let has_bridge = self.w.built.iter().any(|b| b.kind == PK_BRIDGE);
+        for step in 0..4 { let kind = ((self.w.built.len() + step) % 4) as u8; if kind == PK_BRIDGE && has_bridge { continue }
+            for &(x, z) in SITES[kind as usize] {
+                let ts = ptiles(kind, x, z);
+                let ok = if kind == PK_BRIDGE { ts.iter().all(|t| tile_at(&self.map, t.0, t.1) == RIVER) } else { ts.iter().all(|t| tile_at(&self.map, t.0, t.1) == GRASS && self.walk_tile(t.0, t.1) && !self.occupied(t.0, t.1) && *t != mailbox_tile(0) && *t != mailbox_tile(1) && *t != STALL) };
+                if !ok { continue }
+                let by = gen_range(0, 4); self.w.project = Some(Project { kind, x, z, need: PROJECTS[kind as usize].1.iter().map(|&(c, q)| (c, q, 0)).collect(), by, log: vec![] });
+                let routes = kind == PK_BRIDGE || (0..BLDS.len()).all(|b| self.bfs(door_tile(SHOP), door_tile(b), true).is_some());
+                if !routes { self.w.project = None; continue }
+                let r = self.res(by); self.mail_all(r.name, &format!("Let's build a {} together! I put up a sign where it should go. Bring materials when you can.", PROJECTS[kind as usize].0));
+                return;
+            }
+        }
+    }
+    /// Contribute matching pocket items to the active project (never more than still needed); completes it when full.
+    pub fn contribute(&mut self) {
+        let Some(mut p) = self.w.project.clone() else { return };
+        let mut given = 0u16;
+        for n in p.need.iter_mut() { while n.2 < n.1 { let Some(d) = self.w.p.inv.iter().find(|s| s.uid == 0 && mat_ok(n.0, s.def)).map(|s| s.def) else { break }; self.remove_one(d); n.2 += 1; given += 1 } }
+        if given > 0 { if let Some(l) = p.log.iter_mut().find(|l| l.0 == self.me.id) { l.1 += given } else { p.log.push((self.me.id, given)) } self.snd.push(Snd::Coin) }
+        let name = PROJECTS[p.kind as usize].0;
+        if p.need.iter().all(|n| n.2 >= n.1) {
+            self.w.built.push(Built { kind: p.kind, x: p.x, z: p.z, day: self.w.day }); self.w.project = None;
+            for (k, n) in self.npcs.iter_mut().enumerate() { if !n.inside { n.happy = 3.; let hp = n.pos; for j in 0..4 { self.hearts.push((vec3(hp.x + (j as f32 - 1.5) * 0.12, 1.3, hp.y), -(j as f32) * 0.12)) } } let _ = k; }
+            self.fx.push((vec3(p.x as f32 + 0.5, 0.05, p.z as f32 + 0.5), 0., 1));
+            self.me.ui = Ui::Talk { npc: None, who: "Project sign".into(), lines: vec![format!("You gave {given} item(s). The {name} is finished! Everyone gathers to admire it."), format!("Town liveliness is now {} ({}).", self.liveliness(), Game::live_word(self.liveliness()))], i: 0 };
+        } else {
+            let msg = if given > 0 { format!("You contributed {given} item(s) to the {name}.") } else { format!("You have nothing the {name} needs right now.") };
+            self.me.ui = Ui::Talk { npc: None, who: "Project sign".into(), lines: vec![msg, Game::remaining(&p)], i: 0 }; self.w.project = Some(p);
+        }
     }
 
     // ---- clothing ----
@@ -667,6 +737,7 @@ impl Game {
             }
             Some(_) => {
                 self.me.swing = 0.35; let t = tile_of(p + f * 0.9); self.fx.push((vec3(t.0 as f32 + 0.5, 0.05, t.1 as f32 + 0.5), 0., 1));
+                if self.tile(t.0, t.1) == ROCK { self.snd.push(Snd::Dig); if self.w.rocks_hit.contains(&t) { return self.note("This rock has nothing more to give today.") } if self.add(81) { self.w.rocks_hit.push(t) } return }
                 if let Some(i) = self.w.holes.iter().position(|&h| h == t) { self.w.holes.remove(i); self.snd.push(Snd::Dig); self.note("You filled the hole.") }
                 else if let Some(i) = self.w.digs.iter().position(|&h| h == t) { self.w.digs.remove(i); self.w.holes.push(t); self.snd.push(Snd::Dig); let d = [47, 47, 47, 45, 46][gen_range(0, 5)]; self.add(d); }
                 else if matches!(self.tile(t.0, t.1), GRASS | SAND | PATH) && self.walk_tile(t.0, t.1) && !self.occupied(t.0, t.1) && t != tile_of(p) { self.w.holes.push(t); self.snd.push(Snd::Dig); self.note("You dug a hole.") }

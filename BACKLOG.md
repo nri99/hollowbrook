@@ -59,3 +59,11 @@ Status: `[ ]` open · `[x]` done · `[B]` blocked (reason given)
 - [x] **C-03 Resident moving out/in** with safeguards (announce a day ahead, never while a request is active) — provisional. *AC:* H.
 - [x] **C-04 Furniture customization** (re-colour at the counter) and wallpaper/flooring items. *AC:* H + S.
 - [x] **C-05 More clothing slots** (hats) and a hairstyle choice at the shop. *AC:* H + S.
+
+## Approved original expansion (user-approved 5 directions) — finite, in order
+- [x] **X-01 Community projects.** Materials (Branch from shaking trees, Stone from hitting rocks with the shovel, any fruit/shell) fund resident-proposed bench / lamp post / planter / bridge at validated sites; both players contribute at the site sign; progress shown; completed objects usable (sit on bench, lamps light at night, planters bloom, bridge walkable); persisted. *AC:* H (contribution caps, two players, persistence, route safety) + X + S.
+- [x] **X-02 Liveliness + reactions.** Town liveliness score (notice board, journal), residents react to completed projects (dialogue + happy). *AC:* H + S.
+- [ ] **X-03 Islet getaway.** Dock + boat (confirm, fare), Scene::Islet with own scenery/wildlife, rotating daily activity, Sea Glass reward + islet stall with original items; per-player travel; no item loss. *AC:* H + X + S (split-screen with one player away).
+- [ ] **X-04 Collections.** Themed furniture sets, more critters with habitat/season rules, art wing with procedural original paintings, museum labels. *AC:* H + S; counts updated.
+- [ ] **X-05 Social depth.** Birthdays, resident-to-resident chats (speech bubbles), varied requests (deliver furniture / catch at location / weather-specific), more dialogue variety. *AC:* H + S.
+- [ ] **X-06 Atmosphere.** Procedural music by hour/weather, surface-dependent footsteps, seasonal particles (leaves, fireflies, petals), animation/face polish, dialogue framing in split-screen. *AC:* S (+ audio by code inspection only).

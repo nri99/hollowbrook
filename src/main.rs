@@ -286,6 +286,23 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         go(g, c, vec2(3.5, 4.5), 0.12).await; for _ in 0..30 { if g.me.scene == Scene::Town { break } step(g, c, &[KeyCode::S], &[]).await } wait(g, c, 40).await;
         g.join("Player 2"); g.activate(1); g.me.pos = g.ids().iter().map(|_| door_stand(SHOP) + vec2(1., 0.)).next().unwrap(); g.me.cam = g.me.pos; g.activate(0); log!("P2 placed beside P1 (test positioning)");
         for _ in 0..10 { step2(g, c, Inp::none(), Inp::none()).await } face(g, c, door_stand(SHOP) + vec2(0., 2.)).await; shot!("c05_looks");
+    } else if phase == "19" {
+        // X-01: gather branches (trees) and stones (rocks + shovel) normally, build the proposed bench, sit on it
+        log!("project={:?}", g.w.project);
+        go(g, c, door_stand(SHOP), 0.12).await; face(g, c, door_face(SHOP)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
+        approach(g, c, tc(DISPLAYS[5])).await; press(g, c, KeyCode::E).await; press(g, c, KeyCode::Enter).await; go(g, c, vec2(3.5, 4.5), 0.12).await; for _ in 0..30 { if g.me.scene == Scene::Town { break } step(g, c, &[KeyCode::S], &[]).await } wait(g, c, 40).await;
+        let have = |g: &Game, d: u16| g.w.p.inv.iter().filter(|s| s.def == d).map(|s| s.qty).sum::<u16>();
+        for _ in 0..10 { if have(g, 80) >= 5 { break }
+            let Some(ti) = (0..g.w.trees.len()).filter(|&i| !g.w.branches.contains(&(g.w.trees[i].x, g.w.trees[i].z))).min_by(|&a, &b| tc((g.w.trees[a].x, g.w.trees[a].z)).distance(g.me.pos).total_cmp(&tc((g.w.trees[b].x, g.w.trees[b].z)).distance(g.me.pos))) else { break };
+            approach(g, c, tc((g.w.trees[ti].x, g.w.trees[ti].z))).await; press(g, c, KeyCode::E).await;
+            while let Some(it) = g.w.ground.iter().filter(|i| i.def == 80).map(|i| vec2(i.x, i.z)).min_by(|a, b| a.distance(g.me.pos).total_cmp(&b.distance(g.me.pos))) { if it.distance(g.me.pos) > 4. { break } approach(g, c, it).await; press(g, c, KeyCode::E).await; if g.w.ground.iter().any(|i| vec2(i.x, i.z) == it) { break } } }
+        log!("branches={}", have(g, 80));
+        for _ in 0..4 { if g.w.p.equip == Some(62) { break } press(g, c, KeyCode::Tab).await }
+        let rocks: Vec<(i32, i32)> = (0..W * H).filter(|&i| g.map[i] == ROCK).map(|i| ((i % W) as i32, (i / W) as i32)).collect();
+        for _ in 0..4 { if have(g, 81) >= 2 { break } let Some(&rk) = rocks.iter().filter(|r| !g.w.rocks_hit.contains(r)).min_by(|a, b| tc(**a).distance(g.me.pos).total_cmp(&tc(**b).distance(g.me.pos))) else { break }; approach(g, c, tc(rk)).await; press(g, c, KeyCode::Space).await }
+        log!("stones={}", have(g, 81));
+        if let Some(p) = g.w.project.clone() { approach(g, c, tc((p.x, p.z))).await; shot!("x01_site_before"); press(g, c, KeyCode::E).await; log!("after contribute: project={:?} built={:?} ui={:?}", g.w.project, g.w.built, g.me.ui); for _ in 0..4 { if g.me.ui == Ui::Play { break } press(g, c, KeyCode::E).await } }
+        if let Some(b) = g.w.built.first().copied() { approach(g, c, tc((b.x, b.z))).await; press(g, c, KeyCode::E).await; log!("pose={:?}", g.me.pose); wait(g, c, 30).await; shot!("x01_bench_built") }
     } else if phase == "0" {
         log!("load-only check");
     } else if phase == "3" && c.now().hour() < 18 {

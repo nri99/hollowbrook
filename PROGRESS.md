@@ -1,10 +1,10 @@
 # Progress log
 
 ## Current
-- Current task: none (run stopped; see FINAL_REPORT.md)
-- Last completed: C-04 furniture tint + wallpaper/flooring
+- Current task: X-03 islet getaway
+- Last completed: X-01/X-02 community projects + liveliness
 - Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
-- Next action: human verification (HUMAN_VERIFICATION.md) and user decisions on blocked systems.
+- Next action: add a dock on the beach (tile + boat model), Ui confirm with fare, Scene::Islet (own small map rendered outdoors without town), islet critters + Sea Glass from a daily activity, islet stall, return trip; tests for per-player travel and item safety.
 
 ## Baseline verification (before this run)
 - 19 headless tests pass. Executable bot run (2 launches) completed the full loop; screenshots inspected:
@@ -128,3 +128,11 @@ schedules, resume-outdoors policy, clock-rollback pause).
 ### 05:50 — Regression pass + stop
 - H 48/48; X phases 1, 2, 4 re-run (single-player loop + relaunch persistence, two-player independence) passed; S regress/12_relaunch_home inspected.
 - Remaining work is blocked (user decisions), unspecified content, or physical verification -> FINAL_REPORT.md written, loop cancelled.
+
+## Expansion run (user-approved five directions)
+### X-01 + X-02 done (community projects, liveliness, reactions)
+- Materials: Branch (1 per tree per day when shaken), Stone (1 per rock per day with the shovel), plus any fruit/shell. One resident-proposed project at a time (bench -> lamp post -> planter -> bridge), validated sites that never block a building route; translucent preview + sign with progress bar/label; both players contribute at the sign (capped at what is still needed, transaction log per player); completion builds a usable object (bench: sit outdoors; lamp: lights + glow at night; planter; bridge: walkable river crossing), residents outdoors react (happy + hearts), dialogue mentions it for 2 days, proposer asks about progress. Liveliness 0-100 on the notice board (plaza) and in the journal.
+- H: 50/50 (new: community_project_two_players_build_bench, bridge_project_becomes_walkable_and_materials_once_per_day; two older tests adjusted: P1 now receives the proposal letter; v3-upgrade test compares only v3-era fields).
+- X: phase 19 bought shovel, shook trees -> 5 Branch, hit rocks -> 2 Stone, contributed at the sign -> bench built, sat on it.
+- S (inspected): x01_site_before (ghost bench, sign "bench 0/7", notice board), x01_bench_built (player seated on the bench, hearts).
+- Next: X-03 islet getaway.

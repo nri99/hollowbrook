@@ -198,6 +198,17 @@ fn building(r: &mut R, bi: usize, night: f32) {
     }
 }
 impl R { fn cylinder_clock(&mut self, x: f32, y: f32, z: f32) { self.with(Mat4::from_translation(vec3(x, y, z)) * Mat4::from_rotation_x(FRAC_PI_2), |r| { r.cyl(Vec3::ZERO, 0.22, 0.02, WHITE); r.cube(vec3(0., 0.03, -0.08), vec3(0.015, 0.01, 0.09), DARK) }) } }
+/// Community project models (also drawn translucent as a site preview).
+fn draw_project(r: &mut R, kind: u8, x: i32, z: i32, night: f32, ghost: bool) {
+    let (px, pz) = (x as f32 + 0.5, z as f32 + 0.5);
+    match kind {
+        0 => { r.cube(vec3(px, 0.38, pz), vec3(0.45, 0.05, 0.2), WOOD); r.cube(vec3(px, 0.62, pz - 0.18), vec3(0.45, 0.16, 0.03), WOOD); for xx in [-0.38, 0.38] { r.cube(vec3(px + xx, 0.19, pz), vec3(0.04, 0.19, 0.18), DARKGRAY) } }
+        1 => { r.cyl(vec3(px, 0., pz), 0.06, 1.6, Color::new(0.25, 0.27, 0.3, 1.)); let lit = night > 0.3 && !ghost; let u = r.unlit; r.unlit = lit; r.cube(vec3(px, 1.72, pz), vec3(0.14, 0.16, 0.14), if lit { Color::new(1., 0.88, 0.55, 1.) } else { Color::new(0.85, 0.85, 0.75, 1.) }); r.unlit = u;
+            r.roof(vec3(px, 1.88, pz), 0.18, 0.18, 0.12, Color::new(0.25, 0.27, 0.3, 1.)); if lit { r.disc(vec3(px, 0.025, pz), vec2(1.3, 1.3), Color::new(1., 0.85, 0.45, 0.22)) } }
+        2 => { r.cube(vec3(px, 0.22, pz), vec3(0.42, 0.22, 0.42), Color::new(0.62, 0.6, 0.58, 1.)); r.cube(vec3(px, 0.45, pz), vec3(0.38, 0.02, 0.38), Color::new(0.4, 0.28, 0.18, 1.)); for (k, (ox, oz)) in [(-0.2, -0.2), (0.2, -0.15), (0., 0.1), (-0.15, 0.22), (0.22, 0.2)].iter().enumerate() { r.sphere(vec3(px + ox, 0.58, pz + oz), Vec3::splat(0.09), [RED, YELLOW, PINK, PURPLE, WHITE][k]) } }
+        _ => { for k in 0..2 { let bx = px + k as f32; r.cube(vec3(bx, 0.06, pz), vec3(0.5, 0.06, 0.48), Color::new(0.65, 0.62, 0.58, 1.)); for zz in [pz - 0.45, pz + 0.45] { r.cube(vec3(bx, 0.35, zz), vec3(0.5, 0.05, 0.04), Color::new(0.55, 0.52, 0.5, 1.)); r.cube(vec3(bx - 0.4, 0.2, zz), vec3(0.05, 0.2, 0.05), Color::new(0.55, 0.52, 0.5, 1.)) } } }
+    }
+}
 fn tree(r: &mut R, p: Vec2, fruit: Option<Color>, shake: f32, t: f32, fol: Color) {
     r.cyl(vec3(p.x, 0., p.y), 0.13, 0.85, Color::new(0.5, 0.33, 0.2, 1.));
     let o = vec3(p.x + (t * 45.).sin() * 0.08 * shake, 0., p.y);
@@ -293,6 +304,13 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
         let u = r.unlit; for (px, pz) in [(-2.5, -1.5), (2.5, -1.5), (-2.5, 1.5), (2.5, 1.5)] { let p = vec3(c.x + px, 0., c.y + pz); r.unlit = false; r.cube(p + vec3(0., 0.7, 0.), vec3(0.04, 0.7, 0.04), WOOD); r.unlit = true; r.sphere(p + vec3(0., 1.45, 0.), Vec3::splat(0.12), Color::new(1., 0.75 + 0.1 * px.signum(), 0.35, 1.)) } r.unlit = u;
         if g.me.pos.distance(c) < 5. { labels.push((vec3(c.x, 2.0, c.y), "Harvest Fair".into(), Color::new(1., 0.8, 0.4, 1.))) } }
     for b in &g.bubbles { for k in 0..3 { let ph = (t * 1.5 + k as f32 * 2.1) % 1.; r.sphere(vec3(b.0.x + (k as f32 - 1.) * 0.12, -0.18 + ph * 0.05, b.0.y + ph * 0.1), Vec3::splat(0.04 + ph * 0.03), Color::new(0.95, 0.98, 1., 1.)) } }
+    { let b = tc(BOARD); r.cube(vec3(b.x - 0.35, 0.6, b.y), vec3(0.04, 0.6, 0.04), WOOD); r.cube(vec3(b.x + 0.35, 0.6, b.y), vec3(0.04, 0.6, 0.04), WOOD); r.cube(vec3(b.x, 0.95, b.y), vec3(0.45, 0.3, 0.04), Color::new(0.5, 0.35, 0.22, 1.));
+        for (k, c) in [WHITE, Color::new(1., 0.9, 0.6, 1.), Color::new(0.8, 0.9, 1., 1.)].iter().enumerate() { r.cube(vec3(b.x - 0.25 + k as f32 * 0.25, 0.97, b.y + 0.045), vec3(0.09, 0.12, 0.005), *c) } }
+    for bt in &g.w.built { draw_project(r, bt.kind, bt.x, bt.z, lt.night, false) }
+    if let Some(p) = &g.w.project { let (sx, sz) = if p.kind == PK_BRIDGE { (p.x as f32 + 1., p.z as f32 + 1.3) } else { (p.x as f32 + 0.5, p.z as f32 + 0.5) };
+        r.cube(vec3(sx, 0.45, sz + 0.3), vec3(0.04, 0.45, 0.04), WOOD); r.cube(vec3(sx, 0.85, sz + 0.3), vec3(0.3, 0.18, 0.03), Color::new(0.85, 0.75, 0.55, 1.)); r.cube(vec3(sx, 0.85, sz + 0.335), vec3(0.3 * p.need.iter().map(|n| n.2 as f32 / n.1 as f32).sum::<f32>() / p.need.len() as f32, 0.04, 0.005), Color::new(0.3, 0.7, 0.35, 1.));
+        r.alpha = 0.35; draw_project(r, p.kind, p.x, p.z, 0., true); r.alpha = 1.;
+        if g.me.pos.distance(vec2(sx, sz)) < 4. { let done: u16 = p.need.iter().map(|n| n.2).sum(); let tot: u16 = p.need.iter().map(|n| n.1).sum(); labels.push((vec3(sx, 1.4, sz + 0.3), format!("{} {done}/{tot}", PROJECTS[p.kind as usize].0), Color::new(0.8, 1., 0.8, 1.))) } }
     for o in 0..2 { let p = tc(mailbox_tile(o)); let unread = if g.w.p.id == o { g.w.p.mail.iter().any(|l| !l.read) } else { g.w.others.iter().find(|pr| pr.id == o).is_some_and(|pr| pr.mail.iter().any(|l| !l.read)) };
         r.cube(vec3(p.x, 0.35, p.y), vec3(0.04, 0.35, 0.04), WOOD); r.cube(vec3(p.x, 0.78, p.y), vec3(0.16, 0.12, 0.22), if o == 0 { Color::new(0.85, 0.3, 0.3, 1.) } else { Color::new(0.3, 0.6, 0.5, 1.) });
         r.with(Mat4::from_translation(vec3(p.x + 0.18, 0.8, p.y - 0.05)) * Mat4::from_rotation_z(if unread { 0. } else { -FRAC_PI_2 }), |r| { r.cube(vec3(0., 0.12, 0.), vec3(0.012, 0.12, 0.012), DARKGRAY); r.cube(vec3(0., 0.2, 0.06), vec3(0.01, 0.04, 0.06), YELLOW) }) }
@@ -305,7 +323,8 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
         resident_u(r, g.w.roster[i], vec3(n.pos.x, 0., n.pos.y), n.yaw, n.anim, n.moving, t, talking, n.happy, weather(g.w.day, now.month()) == Wx::Rain);
         if n.pos.distance(g.me.pos) < 4. { labels.push((vec3(n.pos.x, 1.75, n.pos.y), g.res(i).name.into(), Color::new(1., 0.95, 0.7, 1.))) } }
     let sy = if g.swimming() { for k in 0..10 { let a = k as f32 * 0.63 + t; r.sphere(vec3(g.me.pos.x + a.cos() * 0.38, -0.17, g.me.pos.y + a.sin() * 0.3), vec3(0.05, 0.015, 0.05), Color::new(0.9, 0.97, 1., 1.)) } -0.55 } else { 0. };
-    human(r, g.me.id, (g.w.p.shirt, g.w.p.hat, g.w.p.hair), vec3(g.me.pos.x, sy, g.me.pos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, 0, g.w.p.equip, t, g.me.swing);
+    let opose = match g.me.pose { Pose::Stand => 0, Pose::Sit(_) => 1, Pose::Lie(_) => 2 };
+    human(r, g.me.id, (g.w.p.shirt, g.w.p.hat, g.w.p.hair), vec3(g.me.pos.x, sy + if opose == 1 { 0.02 } else { 0. }, g.me.pos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, opose, g.w.p.equip, t, g.me.swing);
     others(r, g, t);
     for b in &g.bugs { let c = rgb(def(b.0).col); let fl = (t * 20. + b.2).sin().abs(); let y = 0.6 + (t * 3. + b.2).sin() * 0.15;
         for s in [-1f32, 1.] { r.sphere(vec3(b.1.x + s * 0.07, y + fl * 0.04, b.1.y), vec3(0.07, 0.01 + fl * 0.03, 0.05), c) } r.sphere(vec3(b.1.x, y, b.1.y), Vec3::splat(0.03), DARK) }
@@ -450,7 +469,7 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
             for (col, (k, title)) in [(K::Fish, "Fish & sea"), (K::Bug, "Bugs"), (K::Shell, "Shells & finds")].iter().enumerate() { let x = 80. + col as f32 * 380.; txt(title, x, 155., 26., BLACK);
                 for (j, dd) in DEFS.iter().filter(|dd| dd.k == *k || (*k == K::Shell && matches!(dd.k, K::Treasure | K::Fruit | K::Fossil)) || (*k == K::Fish && dd.k == K::Sea)).enumerate() { let seen = g.w.p.seen.contains(&dd.id);
                     txt(&format!("{}{}", if avail(dd, g.mo, g.hr) && matches!(dd.k, K::Fish | K::Bug) { "* " } else { "  " }, if seen { format!("{}  {}c{}", dd.name, dd.sell, if g.w.donated.iter().any(|x| x.0 == dd.id) { "  [museum]" } else { "" }) } else { "???".into() }), x, 185. + j as f32 * 24., 20., if seen { BLACK } else { GRAY }) } }
-            txt("* = active right now", 80., sh - 100., 18., DARKGRAY) }
+            txt("* = active right now", 80., sh - 100., 18., DARKGRAY); txt(&format!("Town liveliness: {} ({})", g.liveliness(), Game::live_word(g.liveliness())), 80., sh - 125., 20., Color::new(0.3, 0.5, 0.3, 1.)) }
     }
     if let Some(src) = dbg {
         let lines = [format!("[{src} clock] {}", now.format("%a %Y-%m-%d %H:%M:%S")), format!("gameplay day {} last processed {}", crate::clock::day_id(now), g.w.day),

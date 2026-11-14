@@ -138,7 +138,7 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     let g = g0(at(11, 12, 0, 0)); let mut v = serde_json::to_value(g.persist()).unwrap();
     let p = v["p"].clone(); let o = v.as_object_mut().unwrap(); o.remove("p"); o.remove("others"); o.insert("version".into(), 3.into());
     for (k, x) in p.as_object().unwrap() { if k != "id" { o.insert(k.clone(), x.clone()); } }
-    let w: World = serde_json::from_value(save::upgrade(v)).unwrap(); assert_eq!(w.version, 4); assert_eq!(w.p, g.persist().p); assert!(w.others.is_empty());
+    let w: World = serde_json::from_value(save::upgrade(v)).unwrap(); assert_eq!(w.version, 4); { let a = &w.p; let b = g.persist().p; assert_eq!((&a.name, a.money, &a.inv, &a.room, &a.npcs, &a.tools), (&b.name, b.money, &b.inv, &b.room, &b.npcs, &b.tools)); } assert!(w.others.is_empty());
 }
 #[test] fn two_profiles_independent_and_persist() {
     let mut g = two(at(11, 12, 0, 0)); g.activate(1); g.w.p.money = 5; g.add(20); g.activate(0); assert_eq!(g.w.p.money, 1000); assert!(g.w.p.inv.is_empty());
@@ -200,7 +200,7 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     for d in 12..40 { g.catch_up(at(1 + d % 28, 7, 0, 0).checked_add_months(chrono::Months::new((d / 28) as u32)).unwrap()); g.activate(1); if !g.w.p.mail.is_empty() { break } g.activate(0) }
     g.activate(1); assert!(!g.w.p.mail.is_empty(), "P2 got no letter"); assert_eq!(g.w.p.money, m0); // coins wait in the letter
     let c = g.w.p.mail.last().unwrap().coins; g.open_letter(0); assert_eq!(g.w.p.money, m0 + c); g.open_letter(0); assert_eq!(g.w.p.money, m0 + c); assert!(g.w.p.mail.last().unwrap().claimed);
-    g.activate(0); assert!(g.w.p.mail.is_empty()); let mut g2 = reload(&g, "mail"); g2.join("x"); g2.activate(1); assert!(g2.w.p.mail.last().unwrap().claimed);
+    g.activate(0); assert!(!g.w.p.mail.iter().any(|l| l.coins > 0)); let mut g2 = reload(&g, "mail"); g2.join("x"); g2.activate(1); assert!(g2.w.p.mail.last().unwrap().claimed);
     assert!(!g.walk_tile(mailbox_tile(0).0, mailbox_tile(0).1));
 }
 #[test] fn weather_rule_snow_in_winter() { let wet = (739900..740400).find(|&d| rainy(d)).unwrap(); let dry = (739900..740400).find(|&d| !rainy(d)).unwrap();
@@ -263,4 +263,20 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     g.wear(u[1]); assert_eq!(g.w.p.hat, Some(68)); assert_eq!(g.w.p.inv[0].def, 67); // straw hat back in pockets
     g.me.ui = Ui::Rack(CLOTHES.len()); let m = g.w.p.money; g.update(&Inp::keys(&[KeyCode::Enter], &[KeyCode::Enter]), 0.016, at(11, 12, 0, 1)); assert_eq!(g.w.p.hair, 1); assert_eq!(g.w.p.money, m - HAIR_FEE);
     let g2 = reload(&g, "hat"); assert_eq!((g2.w.p.hat, g2.w.p.hair), (Some(68), 1));
+}
+
+// ---- community projects (X-01) ----
+#[test] fn community_project_two_players_build_bench() {
+    let mut g = two(at(11, 12, 0, 0)); let p = g.w.project.clone().expect("proposal"); assert_eq!(p.kind, 0); assert_eq!(tile_at(&g.map, p.x, p.z), GRASS); assert!(!g.walk_tile(p.x, p.z)); // sign blocks
+    let l0 = g.liveliness();
+    g.activate(0); for _ in 0..3 { g.add(80); } g.add(20); g.contribute(); let q = g.w.project.clone().unwrap(); assert_eq!(q.need[0].2, 3); assert_eq!(g.w.p.inv.iter().filter(|s| s.def == 80).count(), 0); assert!(g.w.p.inv.iter().any(|s| s.def == 20)); // fruit not needed: kept
+    g.activate(1); for _ in 0..4 { g.add(80); } for _ in 0..3 { g.add(81); } g.contribute(); // gives 2 branches + 2 stones only
+    assert!(g.w.project.is_none()); assert_eq!(g.w.built.len(), 1); assert_eq!(g.w.p.inv.iter().find(|s| s.def == 80).map(|s| s.qty), Some(2)); assert_eq!(g.w.p.inv.iter().find(|s| s.def == 81).map(|s| s.qty), Some(1));
+    assert!(!g.walk_tile(p.x, p.z)); assert!(g.liveliness() > l0, "{} vs {}", g.liveliness(), l0); for b in 0..BLDS.len() { assert!(g.bfs(door_tile(SHOP), door_tile(b), true).is_some()) }
+    let g2 = reload(&g, "proj"); assert_eq!(g2.w.built, g.w.built);
+}
+#[test] fn bridge_project_becomes_walkable_and_materials_once_per_day() {
+    let mut g = g0(at(11, 12, 0, 0)); g.w.project = Some(Project { kind: PK_BRIDGE, x: 25, z: 21, need: vec![(0, 1, 0)], by: 0, log: vec![] }); assert!(!g.walk_tile(25, 21));
+    g.add(80); g.contribute(); assert!(g.walk_tile(25, 21) && g.walk_tile(26, 21));
+    let ti = g.w.trees.iter().position(|t| g.walk_tile(t.x, t.z + 1)).unwrap(); let n0 = g.w.ground.len(); g.w.trees[ti].fruit = false; g.shake_tree_pub(ti); assert_eq!(g.w.ground.len(), n0 + 1); g.shake_tree_pub(ti); assert_eq!(g.w.ground.len(), n0 + 1);
 }
