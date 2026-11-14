@@ -41,7 +41,7 @@ Status: `[ ]` open · `[x]` done · `[B]` blocked (reason given)
 
 ## P5 — housing, clothing, catalog, shop growth
 - [ ] **P5-01 Home expansion.** Pay at the shop counter to enlarge the home room (4×4 → 5×5 → 6×5); furniture keeps positions. *AC:* tests for cost, persistence, room dims; rendered check.
-- [ ] **P5-02 Clothing.** Shop sells 4 shirts; equipping changes outfit colour; persisted. *AC:* test + screenshot.
+- [x] **P5-02 Clothing.** Shop sells 4 shirts; equipping changes outfit colour; persisted. *AC:* test + screenshot.
 - [ ] **P5-03 Catalog reorder.** Furniture ever owned can be re-ordered at the counter at full price. *AC:* test.
 
 ## P6 — residents

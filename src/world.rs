@@ -33,9 +33,11 @@ pub struct Stock { pub def: u16, pub sold: bool }
 pub struct Profile {
     #[serde(default)] pub id: usize, pub name: String, pub money: u32, pub home: u32, pub inv: Vec<Slot>, pub storage: Vec<Slot>, pub room: Vec<Furn>,
     pub npcs: Vec<NpcS>, pub seen: Vec<u16>, pub tools: Vec<u16>, pub equip: Option<u16>, pub pos: [f32; 2],
+    /// worn shirt (item def); None = starting outfit
+    #[serde(default)] pub shirt: Option<u16>,
 }
 impl Profile {
-    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y] } }
+    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None } }
 }
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct World {
@@ -60,9 +62,9 @@ impl World {
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Pose { Stand, Sit(u32), Lie(u32) }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Loc { Out, Home, Asleep }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Snd { Step, Blip, Splash, Coin, Dig, Rustle, Door }
-#[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize) }
+#[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack }
 #[derive(Clone, PartialEq, Debug)]
-pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal }
+pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize) }
 pub struct Placing { pub f: Furn, pub orig: Option<Furn>, pub slot_uid: Option<u32> }
 pub struct Fishing { pub bob: Vec2, pub fish: Option<usize>, pub t: f32, pub nib: u8, pub need: u8, pub bite: bool, pub dip: f32 }
 pub struct Shadow { pub pos: Vec2, pub def: u16, pub vel: Vec2 }
@@ -206,7 +208,7 @@ impl Game {
     }
     pub fn room_block(&self, b: usize, x: i32, z: i32, skip: u32) -> bool {
         let (w, d) = room_dims(b); if x < 0 || z < 0 || x >= w || z >= d { return true }
-        if BLDS[b].kind == BK::Shop { return COUNTER.contains(&(x, z)) || DISPLAYS.contains(&(x, z)) }
+        if BLDS[b].kind == BK::Shop { return COUNTER.contains(&(x, z)) || DISPLAYS.contains(&(x, z)) || (x, z) == RACK }
         if BLDS[b].kind == BK::Museum { return MUSEUM_DESK.contains(&(x, z)) || MUSEUM_TANK.contains(&(x, z)) || MUSEUM_CASE.contains(&(x, z)) || MUSEUM_PED.iter().any(|p| p.0 == (x, z)) }
         self.room_furn(b).iter().filter(|f| !def(f.def).wall && !(skip != 0 && f.uid == skip)).any(|f| foot(f.def, f.x, f.z, f.rot).contains(&(x, z)))
     }
@@ -255,7 +257,7 @@ impl Game {
             }
             Scene::Room(b) => {
                 for fu in self.room_furn(b) { cand(fcenter(&fu), 1.5, 1., Tg::Furn(fu.uid, fu.def), None) }
-                if BLDS[b].kind == BK::Shop { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Counter, None); cand(vec2(3.5, 0.5), 2.6, 1.3, Tg::Keeper, None); for (i, &d) in DISPLAYS.iter().enumerate() { cand(tc(d), 1.5, 1., Tg::Display(i), None) } }
+                if BLDS[b].kind == BK::Shop { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Counter, None); cand(vec2(3.5, 0.5), 2.6, 1.3, Tg::Keeper, None); for (i, &d) in DISPLAYS.iter().enumerate() { cand(tc(d), 1.5, 1., Tg::Display(i), None) } cand(tc(RACK), 1.5, 1., Tg::Rack, None) }
                 if BLDS[b].kind == BK::Museum { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Curator, None); cand(vec2(0.5, 2.5), 1.5, 1., Tg::Exhibit(0), None); cand(vec2(6.5, 2.5), 1.5, 1., Tg::Exhibit(1), None);
                     for (k, p) in MUSEUM_PED.iter().enumerate() { cand(tc(p.0), 1.5, 1., Tg::Exhibit(2 + k), None) } }
                 if let BK::Res(r) = BLDS[b].kind { if where_(r, self.hr) == Loc::Home { cand(res_spot(), 1.7, 0.9, Tg::Npc(r), None) } }
@@ -269,7 +271,7 @@ impl Game {
         match tg {
             Tg::Npc(i) => v(if self.me.scene == Scene::Town { self.npcs[i].pos } else { res_spot() }, 1.5), Tg::Door(b) => v(door_face(b), 1.3),
             Tg::Tree(i) => v(tc((self.w.trees[i].x, self.w.trees[i].z)), 2.15), Tg::Item(i) => vec3(self.w.ground[i].x, 0.45, self.w.ground[i].z),
-            Tg::Weed(i) => v(tc(self.w.weeds[i]), 0.55), Tg::Curator => vec3(3.5, 1.3, 1.5), Tg::Exhibit(k) => match k { 0 => vec3(0.5, 1.5, 2.5), 1 => vec3(6.5, 1.5, 2.5), _ => { let p = tc(MUSEUM_PED[k - 2].0); vec3(p.x, 1.2, p.y) } }, Tg::Counter => vec3(3.5, 1.3, 1.5), Tg::Keeper => vec3(3.5, 1.7, 0.5), Tg::Display(i) => v(tc(DISPLAYS[i]), 1.3),
+            Tg::Weed(i) => v(tc(self.w.weeds[i]), 0.55), Tg::Rack => vec3(1.5, 1.8, 1.5), Tg::Curator => vec3(3.5, 1.3, 1.5), Tg::Exhibit(k) => match k { 0 => vec3(0.5, 1.5, 2.5), 1 => vec3(6.5, 1.5, 2.5), _ => { let p = tc(MUSEUM_PED[k - 2].0); vec3(p.x, 1.2, p.y) } }, Tg::Counter => vec3(3.5, 1.3, 1.5), Tg::Keeper => vec3(3.5, 1.7, 0.5), Tg::Display(i) => v(tc(DISPLAYS[i]), 1.3),
             Tg::Furn(uid, d) => { let c = self.room_furn(match self.me.scene { Scene::Room(b) => b, _ => HOME }).into_iter().find(|f| f.uid == uid && f.def == d).map(|f| fcenter(&f)).unwrap_or_default(); v(c, if def(d).wall { 1.9 } else { 1.2 }) }
         }
     }
@@ -280,7 +282,7 @@ impl Game {
             Tg::Item(i) => format!("Pick up {}", def(self.w.ground[i].def).name), Tg::Weed(_) => "Pull weed".into(),
             Tg::Furn(uid, d) => { let a = match def(d).act { Act::Sit => "Sit on", Act::Bed => "Lie on", Act::Lamp => "Toggle", Act::Storage => "Open", Act::None => "Look at" };
                 if uid != 0 && self.me.scene == Scene::Room(self.home()) { format!("{a} {}   [F] Move  [G] Pick up", def(d).name) } else { format!("{a} {}", def(d).name) } }
-            Tg::Counter => "Sell items".into(), Tg::Keeper => "Talk to Mr. Tumble".into(), Tg::Curator => "Donate / identify fossils".into(),
+            Tg::Counter => "Sell items".into(), Tg::Keeper => "Talk to Mr. Tumble".into(), Tg::Curator => "Donate / identify fossils".into(), Tg::Rack => "Browse clothes".into(),
             Tg::Exhibit(k) => match k { 0 => "Look at the fish tank".into(), 1 => "Look at the bug case".into(), _ => format!("Look at the {} pedestal", def(MUSEUM_PED[k - 2].1).name) },
             Tg::Display(i) => if i < 5 { let s = self.w.stock[i]; if s.sold { "Sold out".into() } else { format!("Buy {} ({} coins)", def(s.def).name, def(s.def).buy) } } else { let t = TOOL_DISPLAY[i - 5]; format!("Buy {} ({} coins)", def(t).name, def(t).buy) },
         }
@@ -299,6 +301,7 @@ impl Game {
             Tg::Furn(uid, d) => self.use_furn(uid, d),
             Tg::Counter => self.me.ui = Ui::Sell(0),
             Tg::Curator => self.donate(),
+            Tg::Rack => self.me.ui = Ui::Rack(0),
             Tg::Exhibit(k) => { let (n, t) = match k { 0 => (self.donated_of(K::Fish), DEFS.iter().filter(|d| d.k == K::Fish).count()), 1 => (self.donated_of(K::Bug), DEFS.iter().filter(|d| d.k == K::Bug).count()), _ => (self.w.donated.iter().any(|x| x.0 == MUSEUM_PED[k - 2].1) as usize, 1) };
                 let who = if k >= 2 { self.w.donated.iter().find(|x| x.0 == MUSEUM_PED[k - 2].1).map(|x| format!(" (donated by Player {})", x.1 + 1)).unwrap_or_default() } else { String::new() };
                 self.note(format!("{}: {n}/{t} on display.{who}", ["Fish tank", "Bug case"].get(k).copied().unwrap_or(def(MUSEUM_PED[k.max(2) - 2].1).name))) }
@@ -362,6 +365,19 @@ impl Game {
     pub fn remove_one(&mut self, d: u16) -> bool {
         let Some(i) = self.w.p.inv.iter().position(|s| s.def == d && s.uid == 0) else { return false };
         self.w.p.inv[i].qty -= 1; if self.w.p.inv[i].qty == 0 { self.w.p.inv.remove(i); } true
+    }
+
+    // ---- clothing ----
+    pub fn buy_cloth(&mut self, d: u16) -> Result<(), &'static str> {
+        let p = def(d).buy; if self.w.p.money < p { return Err("Not enough coins.") } if self.w.p.inv.len() >= INV_CAP { return Err("Your pockets are full.") }
+        self.w.p.money -= p; self.add_furn(d); Ok(())
+    }
+    /// Wear a shirt from pockets; the shirt worn before goes back into the same pocket slot (no duplication, no loss).
+    pub fn wear(&mut self, uid: u32) {
+        let Some(i) = self.w.p.inv.iter().position(|s| s.uid == uid && def(s.def).k == K::Cloth) else { return };
+        let d = self.w.p.inv[i].def;
+        match self.w.p.shirt.replace(d) { Some(old) => { self.w.p.inv[i].def = old } None => { self.w.p.inv.remove(i); } }
+        self.note(format!("You put on the {}.", def(d).name));
     }
 
     // ---- museum ----
@@ -628,13 +644,15 @@ impl Game {
             Ui::Inv(s) => { let s = mv(s, n); self.me.ui = Ui::Inv(s);
                 if esc || inp.p(I) { self.me.ui = Ui::Play }
                 else if ok && s < n { let sl = self.w.p.inv[s];
-                    if def(sl.def).k != crate::data::K::Furn { self.note(format!("{} sells for {} coins at the shop.", def(sl.def).name, def(sl.def).sell)) }
+                    if def(sl.def).k == crate::data::K::Cloth { self.me.ui = Ui::Play; self.wear(sl.uid) }
+                    else if def(sl.def).k != crate::data::K::Furn { self.note(format!("{} sells for {} coins at the shop.", def(sl.def).name, def(sl.def).sell)) }
                     else if self.me.scene == Scene::Room(self.home()) { self.me.ui = Ui::Play; self.start_place(sl.uid) } else { self.note("Furniture can be placed inside your home.") } } }
             Ui::Sell(s) => { let s = mv(s, n); self.me.ui = Ui::Sell(s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.sell_slot(s) } else if inp.p(A) || inp.p(X) { self.sell_all() } }
             Ui::Confirm(d) => { if ok || inp.p(Y) { self.me.ui = Ui::Play; match self.buy(d) { Ok(()) => { self.snd.push(Snd::Coin); self.note("Thank you for your purchase!") } Err(e) => self.note(e) } } else if esc || inp.p(N) { self.me.ui = Ui::Play } }
             Ui::Storage(c, s) => { let c = if left { 0 } else if right { 1 } else { c }; let len = if c == 0 { n } else { self.w.p.storage.len() }; let s = mv(s, len); self.me.ui = Ui::Storage(c, s);
                 if esc { self.me.ui = Ui::Play } else if ok && s < len { self.transfer(c, s) } }
             Ui::Journal => if esc || inp.p(J) { self.me.ui = Ui::Play },
+            Ui::Rack(s) => { let s = mv(s, CLOTHES.len()); self.me.ui = Ui::Rack(s); if esc { self.me.ui = Ui::Play } else if ok { match self.buy_cloth(CLOTHES[s]) { Ok(()) => { self.snd.push(Snd::Coin); self.note(format!("Bought the {}. Open your pockets to wear it.", def(CLOTHES[s]).name)) } Err(e) => self.note(e) } } }
             _ => {}
         }
         true

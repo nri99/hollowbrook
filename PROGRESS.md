@@ -1,10 +1,10 @@
 # Progress log
 
 ## Current
-- Current task: P5-02 Clothing (personal outfit per profile; required for multiplayer identity)
-- Last completed: P3-01..03 museum (shared donations, fossil identification, visible exhibits, journal marks)
+- Current task: P5-01 Home expansion (paid up front, per profile, no debt)
+- Last completed: P5-02 clothing (rack, buy, wear, per-profile, persisted)
 - Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
-- Next action: add 4 shirt defs (K::Cloth) sold at a shop tool-style stand; Profile.shirt Option<u16> (serde default); equip from pockets (Enter on a shirt in Inv); human() uses profile shirt colour; tests + screenshot. Then P5-01 home expansion (paid up front, no debt).
+- Next action: counter menu option "Expand home" (cost table [PROV] 3000/15000); Profile.home level -> room_dims for Home(o) buildings (4x4, 5x5, 6x5) with furniture kept; place_ok uses owner room dims; tests; rendered check of larger room.
 
 ## Baseline verification (before this run)
 - 19 headless tests pass. Executable bot run (2 launches) completed the full loop; screenshots inspected:
@@ -59,3 +59,8 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - H: 34/34 (new: museum_shared_donation_once_and_fossil_id, museum_reachable_and_blocks; dig test updated for fossils).
 - X: phase 3A extended: dug Unknown Fossil, caught Trout, netted Pill Bug, entered museum, curator identified Shark Tooth and took all three; pockets empty.
 - S (inspected): p3_museum_exhibits (trout in tank, bug in case, shark tooth on pedestal, curator).
+
+### 01:00 — P5-02 done (clothing)
+- 4 original shirts (K::Cloth, prices [PROV]) on a shop rack (tile (1,1)); Ui::Rack menu (keyboard + pad prompts). Wearing from pockets swaps with the previously worn shirt in the same slot. `Profile.shirt` (serde default) drives the character shirt colour for each player.
+- H: 35/35 (new: clothing_buy_wear_swap_persist). X: phase 6 bought Sunflower Tee at the rack (1000->600), wore it via pockets.
+- S (inspected): p5_new_outfit (yellow shirt, rack with 4 shirts; also confirms shop painting display now renders on its stand).

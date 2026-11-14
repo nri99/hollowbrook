@@ -16,7 +16,7 @@ pub const FLOWER: u8 = b'*';
 pub const BLD: u8 = b'#';
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum K { Bug, Fish, Fruit, Shell, Treasure, Fossil, Furn, Tool }
+pub enum K { Bug, Fish, Fruit, Shell, Treasure, Fossil, Furn, Tool, Cloth }
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Act { None, Sit, Bed, Lamp, Storage }
 
@@ -27,9 +27,10 @@ const fn b(id: u16, name: &'static str, k: K, sell: u32, col: (f32, f32, f32)) -
 #[allow(clippy::too_many_arguments)]
 const fn cr(id: u16, name: &'static str, k: K, sell: u32, col: (f32, f32, f32), size: f32, hab: u8, m0: u32, m1: u32, h0: u32, h1: u32) -> D { D { size, hab, m: (m0, m1), h: (h0, h1), ..b(id, name, k, sell, col) } }
 const fn fu(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32), fp: (i32, i32), rot: bool, wall: bool, act: Act) -> D { D { buy, fp, rot, wall, act, ..b(id, name, K::Furn, buy / 4, col) } }
+const fn cl(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32)) -> D { D { buy, ..b(id, name, K::Cloth, buy / 4, col) } }
 const fn tl(id: u16, name: &'static str, buy: u32) -> D { D { buy, ..b(id, name, K::Tool, 0, (0.6, 0.45, 0.3)) } }
 
-pub static DEFS: [D; 44] = [
+pub static DEFS: [D; 48] = [
     cr(0, "Cabbage White", K::Bug, 90, (1., 1., 0.95), 0.2, 0, 3, 10, 6, 17), cr(1, "Honeybee", K::Bug, 160, (1., 0.85, 0.2), 0.2, 0, 3, 7, 8, 17),
     cr(2, "Ladybug", K::Bug, 120, (0.9, 0.15, 0.1), 0.2, 0, 3, 6, 8, 17), cr(3, "Dragonfly", K::Bug, 230, (0.3, 0.8, 0.9), 0.2, 0, 5, 10, 8, 19),
     cr(4, "Cicada", K::Bug, 300, (0.4, 0.6, 0.3), 0.2, 0, 7, 8, 8, 17), cr(5, "Firefly", K::Bug, 450, (0.8, 1., 0.3), 0.2, 0, 6, 7, 19, 4),
@@ -49,6 +50,7 @@ pub static DEFS: [D; 44] = [
     fu(52, "Table", 800, (0.66, 0.46, 0.3), (1, 1), false, false, Act::None), fu(53, "Bed", 1800, (0.55, 0.7, 0.9), (1, 2), true, false, Act::Bed),
     fu(54, "Lamp", 700, (0.95, 0.88, 0.65), (1, 1), false, false, Act::Lamp), fu(55, "Cabinet", 1500, (0.58, 0.38, 0.24), (1, 1), true, false, Act::Storage),
     fu(56, "Potted Plant", 500, (0.3, 0.62, 0.3), (1, 1), false, false, Act::None), fu(57, "Painting", 900, (0.4, 0.62, 0.88), (1, 1), false, true, Act::None),
+    cl(63, "Sky Tee", 400, (0.45, 0.7, 0.95)), cl(64, "Sunflower Tee", 400, (0.98, 0.82, 0.3)), cl(65, "Forest Hoodie", 650, (0.25, 0.5, 0.32)), cl(66, "Berry Sweater", 650, (0.75, 0.25, 0.45)),
     tl(60, "Net", 0), tl(61, "Fishing Rod", 400), tl(62, "Shovel", 500),
 ];
 pub const FRUITS: [u16; 4] = [20, 21, 22, 23];
@@ -114,6 +116,9 @@ pub const THEME: [((f32, f32, f32), (f32, f32, f32)); 4] = [((0.85, 0.6, 0.4), (
 pub const DISPLAYS: [(i32, i32); 7] = [(0, 1), (0, 3), (6, 1), (6, 3), (1, 3), (5, 3), (5, 1)];
 pub const TOOL_DISPLAY: [u16; 2] = [62, 61];
 pub const COUNTER: [(i32, i32); 3] = [(2, 1), (3, 1), (4, 1)];
+/// Clothing rack in the shop (always stocked; provisional).
+pub const RACK: (i32, i32) = (1, 1);
+pub const CLOTHES: [u16; 4] = [63, 64, 65, 66];
 pub const KEEPER: [&str; 2] = ["Welcome to the General Store! New furniture arrives every morning at 6.", "Sell your finds at the counter. We're open from 8:00 until 22:00."];
 
 fn put(m: &mut [u8], x: i32, z: i32, c: u8) { if x >= 0 && z >= 0 && (x as usize) < W && (z as usize) < H { m[z as usize * W + x as usize] = c } }

@@ -180,3 +180,10 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     let g2 = reload(&g, "mus"); assert_eq!(g2.w.donated, g.w.donated);
 }
 #[test] fn museum_reachable_and_blocks() { let g = g0(at(11, 12, 0, 0)); let m = BLDS.iter().position(|b| b.kind == BK::Museum).unwrap(); let t = door_tile(m); assert!(g.walk_tile(t.0, t.1)); assert!(g.bfs(door_tile(HOME), t, true).is_some()); assert!(g.room_block(m, 0, 2, 0) && !g.room_block(m, 3, 3, 0)) }
+#[test] fn clothing_buy_wear_swap_persist() {
+    let mut g = two(at(11, 12, 0, 0)); g.activate(1); g.w.p.money = 2000; assert!(g.buy_cloth(63).is_ok()); assert!(g.buy_cloth(65).is_ok()); assert_eq!(g.w.p.money, 2000 - 400 - 650);
+    let (a, b) = (g.w.p.inv[0].uid, g.w.p.inv[1].uid); g.wear(a); assert_eq!(g.w.p.shirt, Some(63)); assert_eq!(g.w.p.inv.len(), 1);
+    g.wear(b); assert_eq!(g.w.p.shirt, Some(65)); assert_eq!(g.w.p.inv.len(), 1); assert_eq!(g.w.p.inv[0].def, 63); // old shirt back in pockets
+    g.w.p.money = 10; assert_eq!(g.buy_cloth(64), Err("Not enough coins.")); g.activate(0); assert_eq!(g.w.p.shirt, None);
+    let mut g2 = reload(&g, "cloth"); g2.join("x"); g2.activate(1); assert_eq!(g2.w.p.shirt, Some(65));
+}

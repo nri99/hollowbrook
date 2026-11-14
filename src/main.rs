@@ -192,6 +192,13 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         let i = m.map(&ps(&[pad::B::East], 0., 0.), 1. / 60.); step2(g, c, Inp::none(), i).await; g.activate(1); log!("P2 after B: ui={:?}", g.me.ui); g.activate(0);
         sl.disconnect(5); g.activate(1); g.me.pad_lost = sl.lost(1); g.activate(0); log!("disconnect: lost={}", sl.lost(1)); shot!("mp_pad_disconnected");
         sl.connect(6); log!("pad 6 claims {:?}; lost={}", sl.claim(6), sl.lost(1)); g.activate(1); g.me.pad_lost = sl.lost(1); log!("P2 progress intact: scene={:?} money={}", g.me.scene, g.w.p.money); g.activate(0);
+    } else if phase == "6" {
+        // P5-02: buy a shirt at the rack, wear it from the pockets menu
+        go(g, c, door_stand(SHOP), 0.12).await; face(g, c, door_face(SHOP)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
+        approach(g, c, tc(RACK)).await; press(g, c, KeyCode::E).await; log!("rack ui={:?}", g.me.ui); press(g, c, KeyCode::S).await; shot!("p5_rack"); press(g, c, KeyCode::Enter).await; press(g, c, KeyCode::Escape).await;
+        log!("after buy: money={} inv={:?}", g.w.p.money, g.w.p.inv);
+        let idx = g.w.p.inv.iter().position(|s| def(s.def).k == K::Cloth).unwrap_or(0); press(g, c, KeyCode::I).await; for _ in 0..idx { press(g, c, KeyCode::S).await } press(g, c, KeyCode::Enter).await;
+        log!("wearing={:?} inv={:?}", g.w.p.shirt, g.w.p.inv); go(g, c, vec2(3.5, 2.6), 0.12).await; face(g, c, vec2(3.5, 4.)).await; shot!("p5_new_outfit");
     } else if phase == "0" {
         log!("load-only check");
     } else if phase == "3" && c.now().hour() < 18 {
