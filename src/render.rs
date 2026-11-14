@@ -247,9 +247,9 @@ pub fn painting(r: &mut R, d: u16, p: Vec3, w: f32, h: f32) {
     }
 }
 pub fn fbase(f: &Furn) -> Mat4 { let c = if def(f.def).wall { vec2(f.x as f32 + 0.5, 0.) } else { fcenter(f) }; Mat4::from_rotation_translation(Quat::from_rotation_y(f.rot as f32 * FRAC_PI_2), vec3(c.x, 0., c.y)) }
-fn building(r: &mut R, bi: usize, night: f32) {
+fn building(r: &mut R, bi: usize, night: f32, paint: Option<((f32, f32, f32), (f32, f32, f32))>) {
     let b = &BLDS[bi]; let (x, z, w, d) = (b.x as f32, b.z as f32, b.w as f32, b.d as f32); let civic = b.kind == BK::Civic;
-    let hg = if civic { 2.0 } else { 1.5 }; let (wall, roof) = (rgb(b.wall), rgb(b.roof)); let c = vec3(x + w / 2., 0., z + d / 2.);
+    let hg = if civic { 2.0 } else { 1.5 }; let (wall, roof) = paint.map_or((rgb(b.wall), rgb(b.roof)), |(w, r)| (rgb(w), rgb(r))); let c = vec3(x + w / 2., 0., z + d / 2.);
     r.cube(c + vec3(0., 0.08, 0.), vec3(w / 2. + 0.04, 0.08, d / 2. + 0.04), Color::new(0.62, 0.6, 0.57, 1.));
     r.cube(c + vec3(0., hg / 2., 0.), vec3(w / 2. - 0.05, hg / 2., d / 2. - 0.05), wall);
     let (sid, trim) = (sh(wall, 0.9), sh(wall, 1.12)); let n = (hg / 0.22) as i32;
@@ -422,7 +422,7 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
     let fade_t: Vec<usize> = (0..g.w.trees.len()).filter(|&i| { let p = tc((g.w.trees[i].x, g.w.trees[i].z)); (p.x - pp.x).abs() < 1.1 && p.y > pp.y + 0.2 && p.y < pp.y + 2.6 }).collect();
     let tree_at = |r: &mut R, i: usize| { let tr = &g.w.trees[i]; let sk = g.shake.iter().find(|s| s.0 == i).map_or(0., |s| s.1); tree(r, tc((tr.x, tr.z)), tr.fruit.then(|| rgb(def(g.w.native).col)), sk, t, fol) };
     for (i, tr) in g.w.trees.iter().enumerate() { let p = tc((tr.x, tr.z)); if near(p.x, p.y) && !fade_t.contains(&i) { let sk = g.shake.iter().find(|s| s.0 == i).map_or(0., |s| s.1); tree(r, p, tr.fruit.then(|| rgb(def(g.w.native).col)), sk, t, fol) } }
-    for bi in 0..BLDS.len() { let b = &BLDS[bi]; if near(b.x as f32 + b.w as f32 / 2., b.z as f32 + b.d as f32 / 2.) && !fade_b.contains(&bi) { building(r, bi, lt.night) }
+    for bi in 0..BLDS.len() { let b = &BLDS[bi]; if near(b.x as f32 + b.w as f32 / 2., b.z as f32 + b.d as f32 / 2.) && !fade_b.contains(&bi) { let b = &BLDS[bi]; let paint = if let BK::Home(o) = b.kind { g.owner(o).paint.map(|k| (PAINTS[k as usize % PAINTS.len()].1, PAINTS[k as usize % PAINTS.len()].2)) } else { None }; building(r, bi, lt.night, paint) }
         if g.me.pos.distance(door_stand(bi)) < 3.5 { let p = door_face(bi); labels.push((vec3(p.x, 2.7, p.y), g.bname(bi), WHITE)) } }
     for z in 0..H as i32 { for x in 0..W as i32 { if !near(x as f32 + 0.5, z as f32 + 0.5) || !matches!(tile_at(&g.map, x, z), GRASS | FLOWER) { continue }
         for (dx, dz) in [(1, 0), (-1, 0), (0, 1), (0, -1)] { if tile_at(&g.map, x + dx, z + dz) != RIVER { continue }
@@ -525,7 +525,7 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
         for s in [-1f32, 1.] { r.sphere(vec3(b.1.x + s * 0.07, y + fl * 0.04, b.1.y), vec3(0.07, 0.01 + fl * 0.03, 0.05), c) } r.sphere(vec3(b.1.x, y, b.1.y), Vec3::splat(0.03), DARK) }
     if let Some(f) = &g.me.fish { let y = -0.15 - f.dip * 0.1; r.sphere(vec3(f.bob.x, y, f.bob.y), Vec3::splat(0.06), RED); r.sphere(vec3(f.bob.x, y + 0.05, f.bob.y), Vec3::splat(0.04), WHITE);
         let tip = g.me.pos + g.me.face * 0.75; r.seg(vec3(tip.x, 1.05, tip.y), vec3(f.bob.x, y + 0.05, f.bob.y), 0.004, Color::new(0.95, 0.95, 0.95, 1.)) }
-    r.alpha = 0.32; for z in (pp.y as i32)..(pp.y as i32 + 3) { for x in (pp.x as i32 - 1)..=(pp.x as i32 + 1) { let (px, pz) = (x as f32 + 0.5, z as f32 + 0.5); if ext(x, z) == PINE && (px - pp.x).abs() < 1.1 && pz > pp.y + 0.2 && pz < pp.y + 2.6 { pine(r, px, pz, 1.1 + (hash(x, z) % 3) as f32 * 0.12) } } } for &i in &fade_t { tree_at(r, i) } for &bi in &fade_b { building(r, bi, lt.night) } r.alpha = 1.;
+    r.alpha = 0.32; for z in (pp.y as i32)..(pp.y as i32 + 3) { for x in (pp.x as i32 - 1)..=(pp.x as i32 + 1) { let (px, pz) = (x as f32 + 0.5, z as f32 + 0.5); if ext(x, z) == PINE && (px - pp.x).abs() < 1.1 && pz > pp.y + 0.2 && pz < pp.y + 2.6 { pine(r, px, pz, 1.1 + (hash(x, z) % 3) as f32 * 0.12) } } } for &i in &fade_t { tree_at(r, i) } for &bi in &fade_b { let b = &BLDS[bi]; let paint = if let BK::Home(o) = b.kind { g.owner(o).paint.map(|k| (PAINTS[k as usize % PAINTS.len()].1, PAINTS[k as usize % PAINTS.len()].2)) } else { None }; building(r, bi, lt.night, paint) } r.alpha = 1.;
     for &(p, a, k) in &g.fx { let s = a / 0.8; match k {
         0 => for i in 0..10 { let an = i as f32 / 10. * 2. * PI; let rr = 0.15 + s * 0.6; r.sphere(p + vec3(an.cos() * rr, 0.02, an.sin() * rr), vec3(0.05, 0.015, 0.05), Color::new(0.92, 0.97, 1., 1. - s)) },
         1 => for i in 0..6 { let an = i as f32 * 1.05; r.sphere(p + vec3(an.cos() * s * 0.45, s * 1.1 - s * s * 0.8, an.sin() * s * 0.6), Vec3::splat(0.12 * (1. - s) + 0.03), Color::new(0.86, 0.74, 0.55, 1.)) },
@@ -680,6 +680,10 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
             txt("Pick one; you head outside to choose the spot (green = valid).", sw / 2. - 250., 330., 18., DARKGRAY); txt("Built the morning after it is fully funded. Esc cancels.", sw / 2. - 250., 355., 18., DARKGRAY) }
         Ui::Keeper(sel) => { let items = g.keeper_items(); let pw = (sw - 40.).min(720.); let x0 = sw / 2. - pw / 2.; panel(x0, 80., pw, 120. + items.len() as f32 * 28.); txt("Mr. Tumble  -  seeds, watering can, tool upgrades", x0 + 20., 115., 22., Color::new(0.45, 0.3, 0.2, 1.));
             let labels: Vec<String> = items.iter().map(|x| x.0.clone()).collect(); list(&labels, Some(*sel), x0 + 30., 145.); txt(&format!("You have {} coins.  {}", g.w.p.money, if g.me.pad { "[A] Choose  [B] Leave" } else { "[Enter] Choose  [Esc] Leave" }), x0 + 20., 120. + items.len() as f32 * 28. + 60., 17., DARKGRAY) }
+        Ui::Paint(sel) => { panel(sw / 2. - 280., 110., 560., 320.); txt(&format!("Repaint your house  -  {PAINT_FEE} coins (walls & roof)"), sw / 2. - 260., 145., 21., Color::new(0.45, 0.3, 0.2, 1.));
+            let items: Vec<String> = PAINTS.iter().enumerate().map(|(k, p)| format!("{}{}", p.0, if g.w.p.paint == Some(k as u8) { "  (current)" } else { "" })).collect(); list(&items, Some(*sel), sw / 2. - 250., 180.);
+            for (k, p) in PAINTS.iter().enumerate() { let y = 168. + k as f32 * 26.; draw_rectangle(sw / 2. + 150., y, 30., 18., rgb(p.1)); draw_rectangle(sw / 2. + 184., y, 30., 18., rgb(p.2)) }
+            txt(if g.me.pad { "[A] Paint  [B] Back" } else { "[Enter] Paint  [Esc] Back" }, sw / 2. - 260., 405., 19., Color::new(0.45, 0.3, 0.2, 1.)) }
         Ui::Camp(sel) => { let v = &VISITORS[g.visitor()]; panel(sw / 2. - 300., 100., 600., 330.); txt(&format!("{} the {}  -  campground", v.name, v.species), sw / 2. - 280., 135., 24., Color::new(0.45, 0.3, 0.2, 1.));
             let (fd, fq) = g.favor_item(); let done = g.w.p.camp_favors.contains(&(g.visitor() as u8));
             let mut items: Vec<String> = v.goods.iter().map(|&d| format!("{}  -  {} coins{}", def(d).name, def(d).buy, if g.w.camp_sold.contains(&d) { "  (sold out today)" } else { "" })).collect();
@@ -698,7 +702,7 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
             for l in HELP_KEYS { txt(l, 70., y, 17., wcol); y += 20. } y += 8.; txt("Gamepad", 60., y + 4., 22., Color::new(0.95, 0.9, 0.7, 1.)); y += 26.; for l in HELP_PAD { txt(l, 70., y, 17., wcol); y += 20. } y += 10.; txt("Guide", 60., y, 26., Color::new(0.95, 0.9, 0.7, 1.)); y += 26.;
             for l in GUIDE.iter().take(5) { for w in wrap(l, ((sw - 140.) / 9.) as usize) { txt(&w, 70., y, 16., wcol); y += 19. } } txt(if g.me.pad { "[A]/[B] back" } else { "[Enter]/[Esc] back" }, 60., sh - 24., 18., GOLD) }
         Ui::Civic(sel) => { panel(sw / 2. - 280., 120., 560., 260.); txt(ADMIN, sw / 2. - 260., 155., 24., Color::new(0.45, 0.3, 0.2, 1.)); txt("Welcome to the Town Hall. How can I help?", sw / 2. - 260., 182., 18., DARKGRAY);
-            let items = vec!["Town policies".to_string(), if g.me.id == LEADER { "Start a funded public project".into() } else { "Start a funded public project (leader only)".into() }, "Project and town status".into()]; list(&items, Some(*sel), sw / 2. - 250., 210.);
+            let items = vec!["Town policies".to_string(), if g.me.id == LEADER { "Start a funded public project".into() } else { "Start a funded public project (leader only)".into() }, "Project and town status".into(), format!("Repaint your house ({PAINT_FEE} coins)")]; list(&items, Some(*sel), sw / 2. - 250., 210.);
             txt(if g.me.pad { "[A] Choose   [B] Leave" } else { "[Enter] Choose   [Esc] Leave" }, sw / 2. - 260., 355., 20., Color::new(0.45, 0.3, 0.2, 1.)) }
         Ui::Policy(sel) => { panel(sw / 2. - 330., 80., 660., 400.); txt(ADMIN, sw / 2. - 310., 115., 24., Color::new(0.45, 0.3, 0.2, 1.));
             txt(&format!("Civic desk. Current policy: {}. Only one policy can be active.", g.pol().map_or("none", |p| p.name)), sw / 2. - 310., 145., 18., DARKGRAY);
@@ -759,7 +763,8 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
                     txt(&format!("{} the {} ({})", r.name, r.species, PERS_NAME[r.pers]), 80., y, 21., BLACK); y += 22.;
                     txt(&format!("{}  {}   Birthday {}/{}   Loves {}   Likes {:?} gifts", TIERS[t], "*".repeat(t + 1), BDAYS[ch].1, BDAYS[ch].0, HOBBY[ch], LIKES[r.pers]), 95., y, 16., Color::new(0.35, 0.3, 0.25, 1.)); y += 18.;
                     let bw = (sw - 260.).min(360.); draw_rectangle(95., y, bw, 8., Color::new(0.85, 0.82, 0.75, 1.)); draw_rectangle(95., y, bw * (f.clamp(0, 60) as f32 / 60.), 8., Color::new(0.9, 0.45, 0.5, 1.)); y += 24.;
-                    if g.w.p.keepsakes.contains(&(ch as u8)) { txt("Keepsake portrait received", 95., y - 6., 15., Color::new(0.4, 0.55, 0.4, 1.)); y += 12. } } }
+                    if g.w.p.keepsakes.contains(&(ch as u8)) { txt("Keepsake portrait received", 95., y - 6., 15., Color::new(0.4, 0.55, 0.4, 1.)); y += 12. } }
+                let (sc, tips) = Game::home_score(&g.w.p); txt(&format!("Your home: {sc} points ({})  -  best rating rewarded: {}", HOME_TIERS[Game::home_tier(sc)].1, HOME_TIERS[g.w.p.home_best as usize].1), 80., y + 6., 19., Color::new(0.3, 0.3, 0.55, 1.)); if let Some(t) = tips.first() { txt(&format!("Tip: {t}"), 95., y + 30., 16., DARKGRAY) } }
             if g.me.jpage == 3 { let mut y = 168.; txt("Keyboard", 80., y, 22., BLACK); y += 26.; for l in HELP_KEYS { txt(l, 90., y, 17., BLACK); y += 21. } y += 8.; txt("Gamepad", 80., y, 22., BLACK); y += 26.; for l in HELP_PAD { txt(l, 90., y, 17., BLACK); y += 21. } }
             if g.me.jpage == 4 { let mut y = 168.; let wch = ((sw - 200.) / 9.5) as usize; for l in GUIDE { for w in wrap(l, wch.max(40)) { txt(&w, 80., y, 17., BLACK); y += 20. } y += 6. } } }
     }

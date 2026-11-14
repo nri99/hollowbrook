@@ -30,7 +30,7 @@ const fn fu(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32), fp: (i3
 const fn cl(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32)) -> D { D { buy, ..b(id, name, K::Cloth, buy / 4, col) } }
 const fn tl(id: u16, name: &'static str, buy: u32) -> D { D { buy, ..b(id, name, K::Tool, 0, (0.6, 0.45, 0.3)) } }
 
-pub static DEFS: [D; 129] = [
+pub static DEFS: [D; 130] = [
     cr(0, "Cabbage White", K::Bug, 90, (1., 1., 0.95), 0.2, 0, 3, 10, 6, 17), cr(1, "Honeybee", K::Bug, 160, (1., 0.85, 0.2), 0.2, 0, 3, 7, 8, 17),
     cr(2, "Ladybug", K::Bug, 120, (0.9, 0.15, 0.1), 0.2, 0, 3, 6, 8, 17), cr(3, "Dragonfly", K::Bug, 230, (0.3, 0.8, 0.9), 0.2, 0, 5, 10, 8, 19),
     cr(4, "Cicada", K::Bug, 300, (0.4, 0.6, 0.3), 0.2, 0, 7, 8, 8, 17), cr(5, "Firefly", K::Bug, 450, (0.8, 1., 0.3), 0.2, 0, 6, 7, 19, 4),
@@ -69,7 +69,7 @@ pub static DEFS: [D; 129] = [
     fu(146, "Blossom Lantern", 1500, (1., 0.7, 0.8), (1, 1), false, false, Act::Lamp), fu(147, "Paper Boat Model", 1500, (0.95, 0.95, 0.9), (1, 1), false, false, Act::None),
     fu(148, "Frost Lantern", 1500, (0.7, 0.85, 1.), (1, 1), false, false, Act::Lamp), fu(149, "Sunrise Banner", 1500, (1., 0.6, 0.3), (1, 1), false, true, Act::None),
     fu(151, "Velvet Armchair", 4000, (0.6, 0.15, 0.25), (1, 1), true, false, Act::Sit), fu(152, "Crystal Lamp", 3500, (0.85, 0.95, 1.), (1, 1), false, false, Act::Lamp), fu(153, "Grand Wardrobe", 5000, (0.35, 0.22, 0.15), (1, 1), true, false, Act::Storage),
-    tl(154, "Watering Can", 500),
+    tl(154, "Watering Can", 500), fu(169, "Golden Home Plaque", 3000, (0.95, 0.8, 0.3), (1, 1), false, true, Act::None),
     // gardening (original): seeds from Mr. Tumble, flowers picked from blooms
     b(160, "Sunbell Seeds", K::Material, 30, (0.95, 0.85, 0.3)), b(161, "Moonpetal Seeds", K::Material, 30, (0.92, 0.92, 0.98)), b(162, "Emberbloom Seeds", K::Material, 30, (0.9, 0.3, 0.25)), b(163, "Skycup Seeds", K::Material, 30, (0.4, 0.6, 0.95)),
     b(164, "Sunbell", K::Material, 80, (0.98, 0.85, 0.25)), b(165, "Moonpetal", K::Material, 80, (0.96, 0.96, 1.)), b(166, "Emberbloom", K::Material, 80, (0.92, 0.28, 0.22)), b(167, "Skycup", K::Material, 80, (0.4, 0.6, 1.)),
@@ -101,7 +101,7 @@ pub const FURN_IDS: [u16; 20] = [50, 51, 52, 53, 54, 55, 56, 57, 90, 91, 92, 93,
 /// Furniture collections: (name, members). Completing one in your home shows a note.
 pub const SETS: [(&str, [u16; 6]); 2] = [("Meadow collection", [90, 91, 92, 110, 111, 112]), ("Harbor collection", [93, 94, 95, 113, 114, 115])];
 /// Base model drawn for a furniture id (collections reuse a model with their own colors and accents).
-pub fn model(d: u16) -> u16 { match d { 90 => 50, 91 => 52, 92 | 95 => 54, 93 => 51, 94 => 55, 110 | 115 => 53, 111 | 124 => 56, 112 | 120 | 123 | 130 => 57, 113 | 121 => 58, 114 => 59, 122 | 125 | 131 => 54, 126 | 133 => 55, 127 => 52, 132 => 51, 140..=145 | 149 => 57, 146 | 148 | 152 => 54, 147 => 52, 151 => 50, 153 => 55, _ => d } }
+pub fn model(d: u16) -> u16 { match d { 90 => 50, 91 => 52, 92 | 95 => 54, 93 => 51, 94 => 55, 110 | 115 => 53, 111 | 124 => 56, 112 | 120 | 123 | 130 => 57, 113 | 121 => 58, 114 => 59, 122 | 125 | 131 => 54, 126 | 133 => 55, 127 => 52, 132 => 51, 140..=145 | 149 | 169 => 57, 146 | 148 | 152 => 54, 147 => 52, 151 => 50, 153 => 55, _ => d } }
 pub const ARTS: [u16; 8] = [100, 101, 102, 103, 104, 105, 106, 107];
 /// Weekly art stall: open on Saturdays (when the fair isn't on) at STALL; price per painting (provisional).
 pub const ART_PRICE: u32 = 2500;
@@ -342,13 +342,14 @@ pub const HELP_KEYS: [&str; 10] = ["Move: WASD or arrows   Run: hold Shift", "In
 pub const HELP_PAD: [&str; 10] = ["Move: left stick or d-pad   Run: hold LT or RT", "Interact / confirm / next: A   Cancel / close: B", "Use tool / dive: X   Cycle tools: RB",
     "Pockets: Y   Journal: Menu (Start)", "Gift during a chat: LB", "Furniture: View move, LB pick up, RB rotate", "Menu or A on a new pad: join as P2", "Hold View + press Menu: switch pad P1 <-> P2",
     "Journal pages: RB next page", "Xbox names; PlayStation: Cross = A, Circle = B"];
-pub const GUIDE: [&str; 11] = [
+pub const GUIDE: [&str; 12] = [
     "Home: expand at the General Store counter. Each expansion adds an interest-free balance to pay off whenever you like; pay it off before the next one.",
     "Projects: residents propose material projects at the notice board; the town leader (Player 1) starts coin-funded projects at Hazel's desk. Fully funded = built next morning.",
     "Policies: Player 1 can enact one policy at Hazel's desk (fee shown first): earlier store hours, later hours, or fewer weeds.",
     "Gullrock: sail from the dock (200 coins, or a Ferry Pass). Captain Pell has a daily task; the board runs timed activities for Sea Glass.",
     "Campground (east meadow): a different traveller visits each day, 8:00-22:00. Buy their goods (one of each per day) and do their favor once for a keepsake.",
     "Initiatives: 3 personal tasks a day plus a weekly town task. Claim coupons at the kiosk in the Town Hall and trade them for rewards.",
+    "Home Society: every Monday a letter scores your home (furniture, variety, collections, lamps, wall items, decor, size) with tips; reaching a new rating pays a reward. Hazel can repaint your house outside.",
     "Gardening: buy seeds and a watering can from Mr. Tumble, plant on grass, water daily (rain counts). Blooms can be picked; different colours side by side may cross. He also upgrades tools.",
     "Museum: donate fish, bugs, fossils and paintings. The art stall opens on Saturdays (not during festivals).",
     "Calendar: First Light Jan 1-2, Blossom Picnic Apr 10-12, Starlit Regatta Jul 24-26, Harvest Fair Nov 13-16, Frost Lantern Festival Dec 20-24. Visit the plaza host.",
@@ -438,3 +439,9 @@ pub const CROSS_CHANCE: u32 = 4; // 1 in 4
 pub const UPGRADE: [(u32, u16, u16); 2] = [(1500, 3, 0), (4000, 5, 3)];
 pub const UPGRADABLE: [u16; 4] = [60, 61, 62, 154];
 pub const LV_NAME: [&str; 3] = ["", "Sturdy ", "Masterwork "];
+
+// ---- Home evaluation and exterior paint (original, provisional) ----
+pub const HOME_TIERS: [(u32, &str, u32); 5] = [(0, "Bare", 0), (100, "Cozy", 500), (250, "Charming", 1000), (450, "Splendid", 2000), (700, "Masterpiece", 3000)];
+pub const PAINTS: [(&str, (f32, f32, f32), (f32, f32, f32)); 6] = [("Cream & Brick", (0.95, 0.9, 0.78), (0.72, 0.3, 0.25)), ("Sky & Slate", (0.78, 0.88, 0.97), (0.35, 0.4, 0.5)), ("Mint & Pine", (0.82, 0.95, 0.85), (0.2, 0.45, 0.3)),
+    ("Rose & Plum", (0.97, 0.84, 0.88), (0.5, 0.25, 0.4)), ("Sand & Terracotta", (0.93, 0.85, 0.68), (0.78, 0.45, 0.28)), ("Snow & Charcoal", (0.96, 0.96, 0.96), (0.25, 0.25, 0.28))];
+pub const PAINT_FEE: u32 = 800;

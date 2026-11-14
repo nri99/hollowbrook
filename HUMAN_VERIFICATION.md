@@ -52,3 +52,4 @@ Record results (pass/fail + notes) below.
 - Festival days (set the PC date or wait): plaza host, decorations, task and keepsake; festive music arrangement.
 - Daily surprise: find it (residents hint east/west), return a lost scarf to its owner.
 - General Store renovation letters and the weekly special after enough spending.
+- M2: buy seeds/can from the counter menu entry, plant and water over several real days, cross two colours; upgrade a tool and feel the difference; repaint your house; read a Monday Home Society letter.

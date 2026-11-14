@@ -497,7 +497,7 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     let g = g0(at(11, 12, 0, 0)); let mut src: Vec<u16> = vec![];
     for m in 1..=12 { for h in 0..24 { for rain in [false, true] { src.extend(Game::bug_pool(rain, m, h)) } src.extend(Game::islet_bug_pool(m, h)); for hab in [1, 2] { for mouth in [false, true] { src.extend(Game::fish_pool(hab, mouth, m, h)) } } } }
     src.extend(FRUITS); src.extend([40, 41, 42, 84, 82, 75, 85, 86, 80, 81, 45, 46, 47, 70, 71, 72, 73, 74]); src.extend(FOSSILS); src.extend(FURN_IDS); src.extend(ISTALL_ITEMS.iter().map(|x| x.0)); src.extend(CLOTHES); src.extend(ARTS);
-    for v in &VISITORS { src.extend(v.goods); src.push(v.reward) } src.extend(KEEPSAKES); src.push(150); src.extend(SPECIALS); src.extend(SEEDS); src.extend(FLOWERS); src.push(CAN); src.extend(FESTS.iter().map(|f| f.reward)); src.extend(KIOSK_ITEMS.iter().map(|x| x.0)); src.extend([60, 61, 62]);
+    for v in &VISITORS { src.extend(v.goods); src.push(v.reward) } src.extend(KEEPSAKES); src.push(150); src.extend(SPECIALS); src.extend(SEEDS); src.extend(FLOWERS); src.push(CAN); src.push(169); src.extend(FESTS.iter().map(|f| f.reward)); src.extend(KIOSK_ITEMS.iter().map(|x| x.0)); src.extend([60, 61, 62]);
     let missing: Vec<&str> = DEFS.iter().filter(|d| !src.contains(&d.id)).map(|d| d.name).collect(); assert!(missing.is_empty(), "no acquisition path: {missing:?}");
     // the islet offers every non-native fruit over consecutive days
     let mut g = g; let mut seen = vec![]; for k in 0..3 { g.w.day += 1; g.refresh_islet(); let _ = k; seen.extend(g.w.iground.iter().map(|i| i.def).filter(|d| FRUITS.contains(d))) } for f in FRUITS { if f != g.w.native { assert!(seen.contains(&f), "fruit {f} never on Gullrock") } }
@@ -592,4 +592,18 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     // watering can level 2 waters a 3x3 patch
     g.activate(0); g.w.p.tools.push(CAN); while g.w.p.tool_lv.len() < 4 { g.w.p.tool_lv.push(0) } g.w.p.tool_lv[3] = 2; g.w.garden = (0..9).map(|k| Plant { x: 20 + k % 3, z: 10 + k / 3, kind: 0, stage: 0, watered: 0 }).collect();
     g.me.pos = vec2(20.3, 11.5); g.me.face = vec2(1., 0.); assert_eq!(g.water(), 9);
+}
+
+#[test] fn home_evaluation_letters_and_paint() {
+    let mut g = two(at(11, 12, 0, 0)); let (s0, tips) = Game::home_score(&g.w.p); assert_eq!(Game::home_tier(s0), 0); assert_eq!(tips.len(), 2);
+    for (k, &d) in SETS[0].1.iter().enumerate() { g.w.p.room.push(Furn { uid: 700 + k as u32, def: d, x: k as i32 % 4, z: if def(d).wall { -1 } else { k as i32 / 4 }, rot: 0, on: false }) }
+    g.w.p.wall = 1; let (s1, _) = Game::home_score(&g.w.p); assert!(Game::home_tier(s1) >= 1, "score {s1}");
+    // Monday letter pays the new tiers once
+    let mut d = 12; while weekday(chrono::NaiveDate::from_ymd_opt(2026, 11, d).unwrap().num_days_from_ce() as i64) != 0 { d += 1 } let m0 = g.w.p.mail.len(); assert!(g.catch_up(at(d, 6, 0, 1)));
+    let l = g.w.p.mail.iter().skip(m0).find(|l| l.from == "Hollowbrook Home Society").expect("letter"); assert!(l.coins >= HOME_TIERS[1].2); assert!(g.w.p.home_best >= 1);
+    g.activate(1); assert!(g.w.p.mail.iter().any(|l| l.from == "Hollowbrook Home Society" && l.coins == 0)); g.activate(0); // P2 scored separately (bare home, no reward)
+    let best = g.w.p.home_best; assert!(g.catch_up(at(d + 7, 6, 0, 1))); assert_eq!(g.w.p.mail.iter().filter(|l| l.from == "Hollowbrook Home Society").last().unwrap().coins, 0); assert_eq!(g.w.p.home_best, best); // no repeat reward
+    // repaint
+    g.w.p.money = 100; assert!(g.repaint(2).is_err()); g.w.p.money = 5000; g.repaint(2).unwrap(); assert_eq!((g.w.p.paint, g.w.p.money), (Some(2), 5000 - PAINT_FEE)); assert!(g.repaint(2).is_err());
+    let g2 = reload(&g, "paint"); assert_eq!(g2.w.p.paint, Some(2)); assert_eq!(g2.w.p.home_best, best);
 }

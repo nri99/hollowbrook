@@ -234,3 +234,5 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - M2-2 DONE: tool levels per player with real effects and tinted tools; test tool_upgrades_costs_and_effects.
 - Found + fixed: Mr. Tumble's tile is shadowed by the counter target, so the shop menu got an entry for his services.
 - Next action: M2-3 home evaluation + exterior paint.
+- M2-3 DONE: weekly Home Society letter (score, tips, one-time tier rewards incl. Golden Home Plaque), home score on the Friends page, exterior repaint via Hazel (6 palettes) shown on the town model. Test home_evaluation_letters_and_paint; phase 36 screenshots (paint menu, repainted house, home score).
+- Milestone M2 complete. Suite 82 pass (+2 ignored helpers). Next milestone candidates (M3, not started): resident invitations (meet-ups, hide-and-seek), monthly fishing/bug contests.

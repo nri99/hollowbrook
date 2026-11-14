@@ -316,6 +316,13 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         log!("stones={}", have(g, 81));
         if let Some(p) = g.w.project.clone() { approach(g, c, tc((p.x, p.z))).await; shot!("x01_site_before"); press(g, c, KeyCode::E).await; log!("after contribute: project={:?} built={:?} ui={:?}", g.w.project, g.w.built, g.me.ui); for _ in 0..4 { if g.me.ui == Ui::Play { break } press(g, c, KeyCode::E).await } }
         if let Some(b) = g.w.built.first().copied() { approach(g, c, tc((b.x, b.z))).await; press(g, c, KeyCode::E).await; log!("pose={:?}", g.me.pose); wait(g, c, 30).await; shot!("x01_bench_built") }
+    } else if phase == "36" {
+        // M2-3: repaint through Hazel's menu, see the house outside; home score on the Friends page. Fixture: coins.
+        g.w.p.money = 3000; let th = BLDS.iter().position(|b| b.kind == BK::Civic).unwrap(); go(g, c, door_stand(th), 0.12).await; face(g, c, door_face(th)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
+        approach(g, c, vec2(3.5, 1.5)).await; press(g, c, KeyCode::E).await; for _ in 0..3 { press(g, c, KeyCode::Down).await } press(g, c, KeyCode::Enter).await; log!("ui={:?}", g.me.ui); press(g, c, KeyCode::Down).await; press(g, c, KeyCode::Down).await; shot!("m2_paint_menu"); press(g, c, KeyCode::Enter).await;
+        log!("paint={:?} money={}", g.w.p.paint, g.w.p.money); go(g, c, vec2(3.5, 4.4), 0.15).await; for _ in 0..40 { step(g, c, &[KeyCode::S], &[]).await } wait(g, c, 40).await;
+        go(g, c, door_stand(HOME) + vec2(0., 2.5), 0.3).await; face(g, c, door_face(HOME)).await; shot!("m2_house_painted");
+        press(g, c, KeyCode::J).await; for _ in 0..5 { press(g, c, KeyCode::Tab).await } shot!("m2_home_score"); press(g, c, KeyCode::Escape).await;
     } else if phase == "35" {
         // M2-1/M2-2: keeper menu, buy seeds + can through the menu, plant and water through normal input; fixture adds grown plants for the stage frame.
         g.w.p.money = 6000; go(g, c, door_stand(SHOP), 0.12).await; face(g, c, door_face(SHOP)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;

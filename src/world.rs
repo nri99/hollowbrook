@@ -86,7 +86,7 @@ pub struct Profile {
     /// week index of the last art-stall purchase
     #[serde(default)] pub art_week: i64,
     /// initiatives: coupon balance, today's tasks (assigned for task_day), campground favors done (visitor index)
-    #[serde(default)] pub keepsakes: Vec<u8>, #[serde(default)] pub fest_years: Vec<(u8, i32)>, #[serde(default)] pub lost_owner: Option<usize>, #[serde(default)] pub tool_lv: Vec<u8>, #[serde(default)] pub coupons: u32, #[serde(default)] pub tasks: Vec<PTask>, #[serde(default)] pub task_day: i64, #[serde(default)] pub camp_favors: Vec<u8>, #[serde(default)] pub ferry: u32,
+    #[serde(default)] pub keepsakes: Vec<u8>, #[serde(default)] pub fest_years: Vec<(u8, i32)>, #[serde(default)] pub lost_owner: Option<usize>, #[serde(default)] pub tool_lv: Vec<u8>, #[serde(default)] pub home_best: u8, #[serde(default)] pub paint: Option<u8>, #[serde(default)] pub coupons: u32, #[serde(default)] pub tasks: Vec<PTask>, #[serde(default)] pub task_day: i64, #[serde(default)] pub camp_favors: Vec<u8>, #[serde(default)] pub ferry: u32,
     /// interest-free home expansion balance (no deadline)
     #[serde(default)] pub debt: u32,
     /// furniture tint per item uid; home wallpaper/flooring palette index
@@ -99,7 +99,7 @@ pub struct Profile {
     #[serde(default)] pub tints: Vec<(u32, u8)>, #[serde(default)] pub wall: u8, #[serde(default)] pub floor: u8,
 }
 impl Profile {
-    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false, visited: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, hat: None, hair: 0, mail: vec![], catalog: vec![], fair_year: 0, art_week: 0, keepsakes: vec![], fest_years: vec![], lost_owner: None, tool_lv: vec![], coupons: 0, tasks: vec![], task_day: 0, camp_favors: vec![], ferry: 0, debt: 0, islet_done: 0, act_day: [0; 3], parcel: None, tints: vec![], wall: 0, floor: 0 } }
+    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false, visited: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, hat: None, hair: 0, mail: vec![], catalog: vec![], fair_year: 0, art_week: 0, keepsakes: vec![], fest_years: vec![], lost_owner: None, tool_lv: vec![], home_best: 0, paint: None, coupons: 0, tasks: vec![], task_day: 0, camp_favors: vec![], ferry: 0, debt: 0, islet_done: 0, act_day: [0; 3], parcel: None, tints: vec![], wall: 0, floor: 0 } }
 }
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct World {
@@ -140,7 +140,7 @@ impl World {
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Snd { Step, Blip, Splash, Coin, Dig, Rustle, Door, StepPath, StepSand, StepWood, StepFloor, Swim }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize), Stall, Site, Board, Built(usize), Dock, Pell, IItem(usize), IStall, MSite, ActBoard, Hazel, ArtStall, Camper, CampSign, Kiosk, Fest, Surprise, Plant(usize), PlantSpot }
 #[derive(Clone, PartialEq, Debug)]
-pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize), Tint(usize), Travel(bool), IStall(usize), ConfirmExpand, MPick(usize), Fund, Policy(usize), PolicyOk(usize), Act(usize), Civic(usize), Keeper(usize), Camp(usize), Kiosk(usize), Title(usize), Help }
+pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize), Tint(usize), Travel(bool), IStall(usize), ConfirmExpand, MPick(usize), Fund, Policy(usize), PolicyOk(usize), Act(usize), Civic(usize), Paint(usize), Keeper(usize), Camp(usize), Kiosk(usize), Title(usize), Help }
 pub struct Placing { pub f: Furn, pub orig: Option<Furn>, pub slot_uid: Option<u32> }
 pub struct Fishing { pub bob: Vec2, pub fish: Option<usize>, pub t: f32, pub nib: u8, pub need: u8, pub bite: bool, pub dip: f32 }
 pub struct Shadow { pub pos: Vec2, pub def: u16, pub vel: Vec2 }
@@ -274,7 +274,7 @@ impl Game {
         self.refresh_world(); self.refresh_moves(); self.birthday_letters();
     }
     fn refresh_profile(&mut self, letters: bool) {
-        self.assign_tasks();
+        self.assign_tasks(); if weekday(self.w.day) == 0 { self.home_letter() }
         let mine = self.w.p.id == self.me.id;
         let reqs = [self.w.native, 40, 42, 10, 12, 30];
         for i in 0..4 { let s = &mut self.w.p.npcs[i]; s.talked = false; s.gifted = false; s.visited = false; s.req = if gen_range(0, 5) == 0 { Some(86) } else if gen_range(0, 2) == 0 { Some(reqs[gen_range(0, reqs.len())]) } else { None };
@@ -730,6 +730,27 @@ impl Game {
         }
         self.snd.push(Snd::Coin); self.w.surprise = None;
     }
+    // ---- Home evaluation ----
+    /// Score of a profile's home with up to two improvement tips.
+    pub fn home_score(p: &Profile) -> (u32, Vec<&'static str>) {
+        let room = &p.room; let n = room.len().min(30) as u32; let mut ids: Vec<u16> = room.iter().map(|f| f.def).collect(); ids.sort(); ids.dedup();
+        let sets = SETS.iter().filter(|s| s.1.iter().all(|d| ids.contains(d))).count() as u32; let lamp = room.iter().any(|f| def(f.def).act == Act::Lamp);
+        let walls = room.iter().filter(|f| def(f.def).wall).count().min(3) as u32; let decor = p.wall != 0 || p.floor != 0; let keeps = room.iter().filter(|f| KEEPSAKES.contains(&f.def)).count() as u32;
+        let score = n * 10 + ids.len() as u32 * 5 + sets * 60 + if lamp { 15 } else { 0 } + walls * 10 + if decor { 20 } else { 0 } + p.home as u32 * 40 + keeps * 15;
+        let mut tips = vec![]; if !lamp { tips.push("A lamp would make the room glow in the evening.") } if walls == 0 { tips.push("The walls look bare. Try hanging a painting or a portrait.") }
+        if !decor { tips.push("New wallpaper or flooring would give the room character.") } if sets == 0 { tips.push("Completing a furniture collection impresses every judge.") }
+        if ids.len() < 6 { tips.push("A little more variety in your furniture would help.") } if p.home == 0 { tips.push("A bigger home leaves room for more ideas.") }
+        tips.truncate(2); (score, tips)
+    }
+    pub fn home_tier(score: u32) -> usize { HOME_TIERS.iter().rposition(|t| score >= t.0).unwrap_or(0) }
+    /// Monday letter from the Home Society with the score, tips and a one-time reward for each newly reached rating.
+    fn home_letter(&mut self) {
+        let (sc, tips) = Self::home_score(&self.w.p); let t = Self::home_tier(sc); let mut text = format!("This week your home scored {sc} points: {}! ", HOME_TIERS[t].1);
+        for tip in &tips { text.push_str(tip); text.push(' ') } let (mut coins, mut item) = (0, None);
+        if t as u8 > self.w.p.home_best { for k in (self.w.p.home_best as usize + 1)..=t { coins += HOME_TIERS[k].2 } if t == HOME_TIERS.len() - 1 { item = Some(169) } self.w.p.home_best = t as u8; text.push_str(&format!("A new rating! Please accept {coins} coins from the Society.")) }
+        self.w.p.mail.push(Letter { from: "Hollowbrook Home Society".into(), text, coins, item, read: false, claimed: false });
+    }
+    pub fn repaint(&mut self, k: usize) -> Result<(), &'static str> { if self.w.p.money < PAINT_FEE { return Err("Not enough coins for the paint.") } if self.w.p.paint == Some(k as u8) { return Err("Your house is already that colour.") } self.w.p.money -= PAINT_FEE; self.w.p.paint = Some(k as u8); Ok(()) }
     // ---- Gardening ----
     pub fn plant_ok(&self, t: (i32, i32)) -> bool { self.me.scene == Scene::Town && tile_at(&self.map, t.0, t.1) == GRASS && self.walk_tile(t.0, t.1) && !self.occupied(t.0, t.1) && t != tile_of(self.me.pos) && ![mailbox_tile(0), mailbox_tile(1)].contains(&t) }
     pub fn plant(&mut self, t: (i32, i32)) -> Result<(), &'static str> {
@@ -1362,9 +1383,11 @@ impl Game {
                 } if (mv0, sv0, mu0) != (self.music_vol, self.sfx_vol, self.muted) { self.settings_dirty = true } }
             Ui::Gift(j, s) => { let s = mv(s, n); self.me.ui = Ui::Gift(j, s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.give_gift(j, s) } }
             Ui::MPick(s) => { let s = mv(s, MPROJECTS.len()); self.me.ui = Ui::MPick(s); if esc { self.me.ui = Ui::Play } else if ok { self.me.ui = Ui::Play; self.me.mplace = Some(s); if self.me.scene != Scene::Town { self.go(Scene::Town) } self.note("Face a spot outside (green = OK), Enter places.") } }
-            Ui::Civic(s) => { let s = mv(s, 3); self.me.ui = Ui::Civic(s); if esc { self.me.ui = Ui::Play } else if ok { match s {
+            Ui::Paint(s) => { let s = mv(s, PAINTS.len()); self.me.ui = Ui::Paint(s); if esc { self.me.ui = Ui::Civic(0) } else if ok { match self.repaint(s) { Ok(()) => { self.snd.push(Snd::Coin); self.me.ui = Ui::Play; self.note(format!("Your house will be {} by the time you step outside!", PAINTS[s].0)) } Err(e) => self.note(e) } } }
+            Ui::Civic(s) => { let s = mv(s, 4); self.me.ui = Ui::Civic(s); if esc { self.me.ui = Ui::Play } else if ok { match s {
                 0 => self.me.ui = Ui::Policy(0),
                 1 => if self.me.id != LEADER { self.me.ui = Ui::Play; self.note("Only the town leader can start public projects.") } else if self.w.mproject.is_some() { self.me.ui = Ui::Play; self.note("A funded project is already underway.") } else { self.me.ui = Ui::MPick(0) },
+                3 => self.me.ui = Ui::Paint(0),
                 _ => { let lines = self.board_lines(); self.me.ui = Ui::Talk { npc: None, who: ADMIN.into(), lines, i: 0 } } } } }
             Ui::Policy(s) => { let s = mv(s, POLICIES.len() + 1); self.me.ui = Ui::Policy(s); if esc { self.me.ui = Ui::Play } else if ok { self.me.ui = Ui::PolicyOk(s) } }
             Ui::PolicyOk(s) => { if esc { self.me.ui = Ui::Policy(s) } else if ok { let r = self.enact((s < POLICIES.len()).then_some(s)); self.me.ui = Ui::Play;
