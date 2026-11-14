@@ -199,6 +199,14 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         log!("after buy: money={} inv={:?}", g.w.p.money, g.w.p.inv);
         let idx = g.w.p.inv.iter().position(|s| def(s.def).k == K::Cloth).unwrap_or(0); press(g, c, KeyCode::I).await; for _ in 0..idx { press(g, c, KeyCode::S).await } press(g, c, KeyCode::Enter).await;
         log!("wearing={:?} inv={:?}", g.w.p.shirt, g.w.p.inv); go(g, c, vec2(3.5, 2.6), 0.12).await; face(g, c, vec2(3.5, 4.)).await; shot!("p5_new_outfit");
+    } else if phase == "7" {
+        // P5-01: expand home at the shop counter (coins granted as a logged FIXTURE; the purchase path is the normal menu)
+        g.w.p.money = 3000; log!("FIXTURE: money set to 3000");
+        go(g, c, door_stand(SHOP), 0.12).await; face(g, c, door_face(SHOP)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
+        go(g, c, vec2(3.5, 2.5), 0.12).await; face(g, c, vec2(3.5, 1.5)).await; press(g, c, KeyCode::E).await; for _ in 0..g.w.p.inv.len() { press(g, c, KeyCode::S).await }
+        shot!("p51_counter_expand"); press(g, c, KeyCode::Enter).await; log!("after expand: level={} money={} dims={:?}", g.w.p.home, g.w.p.money, g.rdims(HOME)); press(g, c, KeyCode::Escape).await;
+        go(g, c, vec2(3.5, 4.5), 0.12).await; for _ in 0..30 { if g.me.scene == Scene::Town { break } step(g, c, &[KeyCode::S], &[]).await } wait(g, c, 40).await;
+        go(g, c, door_stand(HOME), 0.12).await; face(g, c, door_face(HOME)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await; log!("home scene={:?} ipos={:?}", g.me.scene, g.me.ipos); shot!("p51_bigger_home");
     } else if phase == "0" {
         log!("load-only check");
     } else if phase == "3" && c.now().hour() < 18 {

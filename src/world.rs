@@ -14,6 +14,9 @@ pub const PR: f32 = 0.28;
 pub const SHOP: usize = 0;
 pub const HOME: usize = 1;
 pub const SAVE_VERSION: u32 = 4;
+/// Home sizes per house level and the price of each expansion (provisional numbers).
+pub const HOME_DIMS: [(i32, i32); 3] = [(4, 4), (5, 5), (6, 5)];
+pub const EXPAND_COST: [u32; 2] = [3000, 15000];
 
 // ---- persistent state (definition id `def` is separate from instance id `uid` and from location) ----
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
@@ -207,7 +210,7 @@ impl Game {
         match BLDS[b].kind { BK::Home(o) => if self.w.p.id == o { self.w.p.room.clone() } else { self.w.others.iter().find(|p| p.id == o).map(|p| p.room.clone()).unwrap_or_default() }, BK::Res(r) => TEMPL[r].iter().map(|&(def, x, z, rot)| Furn { uid: 0, def, x, z, rot, on: true }).collect(), _ => vec![] }
     }
     pub fn room_block(&self, b: usize, x: i32, z: i32, skip: u32) -> bool {
-        let (w, d) = room_dims(b); if x < 0 || z < 0 || x >= w || z >= d { return true }
+        let (w, d) = self.rdims(b); if x < 0 || z < 0 || x >= w || z >= d { return true }
         if BLDS[b].kind == BK::Shop { return COUNTER.contains(&(x, z)) || DISPLAYS.contains(&(x, z)) || (x, z) == RACK }
         if BLDS[b].kind == BK::Museum { return MUSEUM_DESK.contains(&(x, z)) || MUSEUM_TANK.contains(&(x, z)) || MUSEUM_CASE.contains(&(x, z)) || MUSEUM_PED.iter().any(|p| p.0 == (x, z)) }
         self.room_furn(b).iter().filter(|f| !def(f.def).wall && !(skip != 0 && f.uid == skip)).any(|f| foot(f.def, f.x, f.z, f.rot).contains(&(x, z)))
@@ -224,7 +227,7 @@ impl Game {
         let p0 = self.ppos(); let mut p = p0;
         let nx = p + vec2(d.x * s, 0.); if self.free(nx) { p = nx }
         let nz = p + vec2(0., d.y * s);
-        if self.free(nz) { p = nz } else if let Scene::Room(b) = self.me.scene { let (w, dd) = room_dims(b); if d.y > 0. && p.x.floor() as i32 == w / 2 && p.y > dd as f32 - 0.5 { self.set_ppos(p); self.go(Scene::Town); return } }
+        if self.free(nz) { p = nz } else if let Scene::Room(b) = self.me.scene { let (w, dd) = self.rdims(b); if d.y > 0. && p.x.floor() as i32 == w / 2 && p.y > dd as f32 - 0.5 { self.set_ppos(p); self.go(Scene::Town); return } }
         self.set_ppos(p); let moved = (p - p0).length(); self.me.spd = moved / dt.max(1e-4); self.me.step_acc += moved;
         if self.me.step_acc > if run { 0.9 } else { 0.6 } { self.me.step_acc = 0.; self.snd.push(Snd::Step) }
         if run && self.me.scene == Scene::Town { self.bugs.retain(|b| b.1.distance(p) > 2.5);
@@ -234,7 +237,7 @@ impl Game {
     pub fn swap(&mut self, to: Scene) {
         self.place_cancel();
         match to { Scene::Town => { if let Scene::Room(b) = self.me.scene { self.me.pos = door_stand(b) } self.me.face = vec2(0., 1.); self.me.cam = self.me.pos }
-            Scene::Room(b) => { let (w, d) = room_dims(b); self.me.ipos = vec2((w / 2) as f32 + 0.5, d as f32 - 0.5); self.me.face = vec2(0., -1.); self.me.cam = self.me.ipos } }
+            Scene::Room(b) => { let (w, d) = self.rdims(b); self.me.ipos = vec2((w / 2) as f32 + 0.5, d as f32 - 0.5); self.me.face = vec2(0., -1.); self.me.cam = self.me.ipos } }
         eprintln!("[scene] {:?} -> {:?}", self.me.scene, to); self.me.scene = to; self.me.pose = Pose::Stand; self.me.fish = None;
     }
 
@@ -367,6 +370,23 @@ impl Game {
         self.w.p.inv[i].qty -= 1; if self.w.p.inv[i].qty == 0 { self.w.p.inv.remove(i); } true
     }
 
+    /// Interior size of a building; homes grow with their owner's house level.
+    pub fn rdims(&self, b: usize) -> (i32, i32) {
+        if let BK::Home(o) = BLDS[b].kind { let lv = if self.w.p.id == o { self.w.p.home } else { self.w.others.iter().find(|p| p.id == o).map_or(0, |p| p.home) }; HOME_DIMS[(lv as usize).min(HOME_DIMS.len() - 1)] } else { room_dims(b) }
+    }
+    /// Pay up front to enlarge the active player's home. Furniture keeps its tiles; anything on the new doorway goes to home storage.
+    pub fn expand_home(&mut self) -> Result<(), &'static str> {
+        let lv = self.w.p.home as usize; if lv >= EXPAND_COST.len() { return Err("Your home is already as big as it gets!") }
+        let cost = EXPAND_COST[lv]; if self.w.p.money < cost { return Err("Not enough coins.") }
+        let (w, d) = HOME_DIMS[lv + 1]; let door = (w / 2, d - 1);
+        if self.w.p.storage.len() + self.w.p.room.iter().filter(|f| foot(f.def, f.x, f.z, f.rot).contains(&door)).count() > STORE_CAP { return Err("Clear some home storage first.") }
+        self.w.p.money -= cost; self.w.p.home += 1;
+        let (moved, keep): (Vec<Furn>, Vec<Furn>) = self.w.p.room.iter().copied().partition(|f| !def(f.def).wall && foot(f.def, f.x, f.z, f.rot).contains(&door));
+        self.w.p.room = keep; for f in &moved { self.w.p.storage.push(Slot { def: f.def, qty: 1, uid: f.uid }) }
+        if !moved.is_empty() { self.note("Furniture in front of the new doorway was moved to your storage.") }
+        Ok(())
+    }
+
     // ---- clothing ----
     pub fn buy_cloth(&mut self, d: u16) -> Result<(), &'static str> {
         let p = def(d).buy; if self.w.p.money < p { return Err("Not enough coins.") } if self.w.p.inv.len() >= INV_CAP { return Err("Your pockets are full.") }
@@ -438,7 +458,7 @@ impl Game {
     pub fn start_move(&mut self, uid: u32) { if let Some(i) = self.w.p.room.iter().position(|f| f.uid == uid) { let f = self.w.p.room.remove(i); self.me.placing = Some(Placing { f, orig: Some(f), slot_uid: None }) } }
     pub fn place_cancel(&mut self) { if let Some(p) = self.me.placing.take() { if let Some(o) = p.orig { self.w.p.room.push(o) } } }
     pub fn place_ok(&self, f: &Furn) -> Result<(), &'static str> {
-        let (w, d) = room_dims(self.home()); let df = def(f.def);
+        let (w, d) = self.rdims(self.home()); let df = def(f.def);
         if df.wall {
             if f.z != -1 || f.x < 0 || f.x >= w { return Err("Wall items go on the back wall.") }
             if self.w.p.room.iter().any(|o| def(o.def).wall && o.x == f.x && o.uid != f.uid) { return Err("Something already hangs there.") }
@@ -647,7 +667,7 @@ impl Game {
                     if def(sl.def).k == crate::data::K::Cloth { self.me.ui = Ui::Play; self.wear(sl.uid) }
                     else if def(sl.def).k != crate::data::K::Furn { self.note(format!("{} sells for {} coins at the shop.", def(sl.def).name, def(sl.def).sell)) }
                     else if self.me.scene == Scene::Room(self.home()) { self.me.ui = Ui::Play; self.start_place(sl.uid) } else { self.note("Furniture can be placed inside your home.") } } }
-            Ui::Sell(s) => { let s = mv(s, n); self.me.ui = Ui::Sell(s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.sell_slot(s) } else if inp.p(A) || inp.p(X) { self.sell_all() } }
+            Ui::Sell(s) => { let s = mv(s, n + 1); self.me.ui = Ui::Sell(s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.sell_slot(s) } else if ok && s == n { match self.expand_home() { Ok(()) => { self.snd.push(Snd::Coin); self.note("Your home has been expanded! Go take a look.") } Err(e) => self.note(e) } } else if inp.p(A) || inp.p(X) { self.sell_all() } }
             Ui::Confirm(d) => { if ok || inp.p(Y) { self.me.ui = Ui::Play; match self.buy(d) { Ok(()) => { self.snd.push(Snd::Coin); self.note("Thank you for your purchase!") } Err(e) => self.note(e) } } else if esc || inp.p(N) { self.me.ui = Ui::Play } }
             Ui::Storage(c, s) => { let c = if left { 0 } else if right { 1 } else { c }; let len = if c == 0 { n } else { self.w.p.storage.len() }; let s = mv(s, len); self.me.ui = Ui::Storage(c, s);
                 if esc { self.me.ui = Ui::Play } else if ok && s < len { self.transfer(c, s) } }
@@ -659,11 +679,11 @@ impl Game {
     }
     fn place_input(&mut self, inp: &Inp) {
         use KeyCode::*;
-        let hb = self.home(); let Some(p) = self.me.placing.as_mut() else { return };
+        let dims = self.rdims(self.home()); let Some(p) = self.me.placing.as_mut() else { return };
         let df = def(p.f.def);
         if inp.p(A) || inp.p(Left) { p.f.x -= 1 } if inp.p(D) || inp.p(Right) { p.f.x += 1 }
         if !df.wall { if inp.p(W) || inp.p(Up) { p.f.z -= 1 } if inp.p(S) || inp.p(Down) { p.f.z += 1 } if inp.p(R) && df.rot { p.f.rot = (p.f.rot + 1) % 4 } }
-        let (w, d) = room_dims(hb); p.f.x = p.f.x.clamp(-1, w); p.f.z = if df.wall { -1 } else { p.f.z.clamp(-1, d) };
+        let (w, d) = dims; p.f.x = p.f.x.clamp(-1, w); p.f.z = if df.wall { -1 } else { p.f.z.clamp(-1, d) };
         if inp.p(Enter) || inp.p(KpEnter) { match self.place_confirm() { Ok(()) => { self.snd.push(Snd::Blip); self.note("Placed!") } Err(e) => self.note(e) } }
         else if inp.p(Escape) { self.place_cancel(); self.note("Cancelled.") }
     }

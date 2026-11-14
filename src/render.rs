@@ -213,7 +213,7 @@ fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(f32, f32)>)
     let hf = now.hour() as f32 + now.minute() as f32 / 60.; let rain = rainy(g.w.day); let lt = light(hf, rain);
     let (cam, curve, c0) = match g.me.scene {
         Scene::Town => (Camera3D { position: vec3(g.me.cam.x, 7.4, g.me.cam.y + 7.6), target: vec3(g.me.cam.x, 0.5, g.me.cam.y - 0.8), up: Vec3::Y, fovy: 40f32.to_radians(), ..Default::default() }, g.curve, g.me.cam),
-        Scene::Room(b) => { let (w, d) = room_dims(b); let s = w.max(d) as f32 / 4.; (Camera3D { position: vec3(w as f32 / 2., 5.4 * s, d as f32 + 3.4 * s), target: vec3(w as f32 / 2., 0.3, d as f32 / 2. + 0.1), up: Vec3::Y, fovy: 45f32.to_radians(), ..Default::default() }, 0., Vec2::ZERO) }
+        Scene::Room(b) => { let (w, d) = g.rdims(b); let s = w.max(d) as f32 / 4.; (Camera3D { position: vec3(w as f32 / 2., 5.4 * s, d as f32 + 3.4 * s), target: vec3(w as f32 / 2., 0.3, d as f32 / 2. + 0.1), up: Vec3::Y, fovy: 45f32.to_radians(), ..Default::default() }, 0., Vec2::ZERO) }
     };
     let bg = if g.me.scene == Scene::Town { lt.sky } else { Color::new(0.08, 0.06, 0.06, 1.) };
     let cam = Camera3D { viewport: vp.map(|(x, w)| (x as i32, 0, w as i32, vh() as i32)), aspect: Some(vw() / vh()), ..cam };
@@ -308,7 +308,7 @@ fn others(r: &mut R, g: &Game, t: f32) {
     }
 }
 fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, String, Color)>) {
-    let (w, d) = room_dims(b); let (wf, df) = (w as f32, d as f32); let t = g.t;
+    let (w, d) = g.rdims(b); let (wf, df) = (w as f32, d as f32); let t = g.t;
     let (fl, wl) = match BLDS[b].kind { BK::Shop => ((0.72, 0.76, 0.66), (0.93, 0.95, 0.86)), BK::Res(i) => THEME[i], _ => ((0.78, 0.6, 0.42), (0.97, 0.93, 0.84)) };
     let (floor, wall) = (rgb(fl), rgb(wl)); let furn = g.room_furn(b); let lamp = furn.iter().any(|f| f.def == 54 && f.on);
     let dim = lt.night > 0.6 && !lamp;
@@ -389,7 +389,8 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         Ui::Talk { who, lines, i, .. } => { panel(sw / 2. - 430., sh - 200., 860., 140.); txt(who, sw / 2. - 410., sh - 168., 26., Color::new(0.55, 0.3, 0.15, 1.)); txt(lines.get(*i).map_or("", |s| s.as_str()), sw / 2. - 410., sh - 128., 24., BLACK); txt(if g.me.pad { "[A] next" } else { "[E] next" }, sw / 2. + 330., sh - 75., 20., GRAY) }
         Ui::Inv(s) | Ui::Sell(s) => { let sell = matches!(g.me.ui, Ui::Sell(_)); panel(sw / 2. - 260., 90., 520., 520.);
             txt(if sell { "Sell to Mr. Tumble" } else { "Pockets" }, sw / 2. - 240., 125., 30., Color::new(0.45, 0.3, 0.2, 1.));
-            let items: Vec<String> = g.w.p.inv.iter().map(|it| if sell { format!("{}  -  {}c", slot_name(it), def(it.def).sell * it.qty as u32) } else { slot_name(it) }).collect();
+            let mut items: Vec<String> = g.w.p.inv.iter().map(|it| if sell { format!("{}  -  {}c", slot_name(it), def(it.def).sell * it.qty as u32) } else { slot_name(it) }).collect();
+            if sell { let lv = g.w.p.home as usize; items.push(if lv < EXPAND_COST.len() { format!("Expand your home  -  {}c", EXPAND_COST[lv]) } else { "Home fully expanded".into() }) }
             if items.is_empty() { txt("(empty)", sw / 2. - 230., 170., 22., GRAY) } list(&items, Some(*s), sw / 2. - 230., 170.);
             txt(match (sell, g.me.pad) { (true, false) => "W/S select  Enter sell  A sell all finds  Esc close", (true, true) => "Up/Down select  A sell  Y sell all finds  B close", (false, false) => "W/S select  Enter place furniture (at home)  Esc close", _ => "Up/Down select  A place furniture (at home)  B close" }, sw / 2. - 240., 590., 19., DARKGRAY);
             if !sell { txt(&format!("Tools: {}", g.w.p.tools.iter().map(|t| def(*t).name).collect::<Vec<_>>().join(", ")), sw / 2. - 240., 565., 19., DARKGRAY) } }

@@ -1,10 +1,10 @@
 # Progress log
 
 ## Current
-- Current task: P5-01 Home expansion (paid up front, per profile, no debt)
-- Last completed: P5-02 clothing (rack, buy, wear, per-profile, persisted)
+- Current task: P6-01 Mailbox and stored letters (per profile)
+- Last completed: P5-01 home expansion (counter menu, per profile, paid up front)
 - Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
-- Next action: counter menu option "Expand home" (cost table [PROV] 3000/15000); Profile.home level -> room_dims for Home(o) buildings (4x4, 5x5, 6x5) with furniture kept; place_ok uses owner room dims; tests; rendered check of larger room.
+- Next action: Profile.mail: Vec<Letter{from, text, gift: Option<u16 money or item>, read}> (serde default); refresh letters go to mail for every profile (not only the active player); mailbox object outside each home (target Tg::Mailbox(owner)) opening Ui::Mail list; claiming a gift once; tests (claim once, persists, P2 gets own letters); screenshot.
 
 ## Baseline verification (before this run)
 - 19 headless tests pass. Executable bot run (2 launches) completed the full loop; screenshots inspected:
@@ -64,3 +64,8 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - 4 original shirts (K::Cloth, prices [PROV]) on a shop rack (tile (1,1)); Ui::Rack menu (keyboard + pad prompts). Wearing from pockets swaps with the previously worn shirt in the same slot. `Profile.shirt` (serde default) drives the character shirt colour for each player.
 - H: 35/35 (new: clothing_buy_wear_swap_persist). X: phase 6 bought Sunflower Tee at the rack (1000->600), wore it via pockets.
 - S (inspected): p5_new_outfit (yellow shirt, rack with 4 shirts; also confirms shop painting display now renders on its stand).
+
+### 01:20 — P5-01 done (home expansion)
+- `Game::rdims(b)` sizes homes by owner house level: 4x4 -> 5x5 -> 6x5; costs 3000 / 15000 [PROV]; bought from the last line of the shop counter menu; furniture on the new doorway tile moves to home storage; per profile (P2 home unaffected). No debt/loan (loans remain blocked, see BACKLOG).
+- H: 36/36 (new: home_expansion_paid_upfront_keeps_furniture). X: phase 7 (coins set as logged FIXTURE, purchase via counter menu) -> level 1, room 5x5.
+- S (inspected): p51_bigger_home (5x5 room, camera reframed).
