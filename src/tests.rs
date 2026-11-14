@@ -441,3 +441,55 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     let mut g2 = reload(&g, "artwk"); g2.mo = 11; g2.dom = 21; assert!(g2.art_buy().is_err()); g2.activate(1); assert_eq!(g2.art_buy(), Err("You've already bought this week's painting.")); assert_eq!(g2.w.p.money, 9000 - ART_PRICE);
     let mut g3 = reload(&g2, "artwk2"); g3.w.day += 7; g3.mo = 11; g3.dom = 28; assert!(g3.art_buy().is_ok());
 }
+#[test] #[ignore] fn find_camp_site() {
+    let g = g0(at(11, 12, 0, 0));
+    for z in 1..H as i32 - 4 { for x in 1..W as i32 - 4 {
+        let area: Vec<(i32, i32)> = (0..4).flat_map(|dx| (0..4).map(move |dz| (x + dx, z + dz))).collect();
+        if area.iter().all(|&(a, b)| g.tile(a, b) == GRASS && g.walk_tile(a, b) && !g.w.trees.iter().any(|t| (t.x, t.z) == (a, b))) && BLDS.iter().all(|bl| (bl.x - x).abs() > 3 || (bl.z - z).abs() > 3) { println!("cand {x},{z}") } } }
+}
+
+#[test] fn campground_visitors_stock_favor_two_players() {
+    let mut g = two(at(11, 12, 0, 0)); let v = g.visitor(); assert_eq!(v, visitor_of(g.w.day));
+    for t in CAMP_TENT.iter().chain([CAMP_FIRE, CAMP_CRATE, CAMP_SIGN].iter()) { assert!(!g.walk_tile(t.0, t.1)) }
+    for b in 0..BLDS.len() { assert!(g.bfs(door_tile(SHOP), door_tile(b), true).is_some()) } assert!(g.bfs(door_tile(SHOP), (32, 21), true).is_some());
+    assert_ne!(visitor_of(g.w.day), visitor_of(g.w.day + 1)); g.hr = 23; assert!(g.camp_buy(0).is_err()); g.hr = 12;
+    let d = VISITORS[v].goods[0]; g.w.p.money = 100; assert_eq!(g.camp_buy(0), Err("Not enough coins."));
+    g.w.p.money = 9000; assert_eq!(g.camp_buy(0), Ok(def(d).name)); assert_eq!(g.w.p.money, 9000 - def(d).buy);
+    g.activate(1); g.w.p.money = 9000; assert_eq!(g.camp_buy(0), Err("Sold out for today.")); assert_eq!(g.w.p.money, 9000); // shared stock, no double sale
+    g.w.p.inv = (0..INV_CAP).map(|k| Slot { def: 20, qty: 1, uid: 0 + k as u32 * 0 }).collect(); assert_eq!(g.camp_buy(1), Err("Your pockets are full.")); assert_eq!(g.w.p.money, 9000); g.w.p.inv.clear();
+    // favor: needs items, gives reward once, saved per player
+    let (fd, fq) = g.favor_item(); assert!(g.camp_favor().is_err()); for _ in 0..fq { g.add(fd); }
+    assert_eq!(g.camp_favor(), Ok(def(VISITORS[v].reward).name)); assert!(g.w.p.inv.iter().any(|s| s.def == VISITORS[v].reward)); assert!(g.camp_favor().is_err());
+    g.activate(0); assert!(!g.w.p.camp_favors.contains(&(v as u8)));
+    let g2 = reload(&g, "camp"); assert_eq!(g2.w.camp_sold, vec![d]); assert_eq!(g2.visitor(), v); assert!(g2.w.others[0].camp_favors.contains(&(v as u8)));
+    assert!(g.catch_up(at(12, 6, 0, 1))); assert!(g.w.camp_sold.is_empty()); assert_ne!(g.visitor(), v);
+}
+#[test] fn initiatives_tasks_claims_kiosk_two_players() {
+    let mut g = two(at(11, 12, 0, 0)); assert!(g.catch_up(at(12, 6, 0, 1)));
+    assert_eq!(g.w.p.tasks.len(), 3); g.activate(1); assert_eq!(g.w.p.tasks.len(), 3); g.activate(0); assert!(g.w.wtask.is_some());
+    for t in &g.w.p.tasks { assert!(g.task_ok(t.t)) } assert!(TASKS.len() >= 12 && KIOSK_ITEMS.len() >= 8);
+    // force a known task and progress it through normal events
+    g.w.p.tasks[0] = PTask { t: 5, prog: 0, claimed: false }; assert_eq!(g.claim(0), Err("Not finished yet."));
+    g.ev(Ev::Talk, 1); g.ev(Ev::Talk, 5); assert_eq!(g.w.p.tasks[0].prog, 3); assert_eq!(g.claim(0), Ok(2)); assert_eq!(g.claim(0), Err("Already claimed.")); assert_eq!(g.w.p.coupons, 2);
+    g.activate(1); assert_eq!(g.w.p.coupons, 0); g.activate(0);
+    // weekly: shared progress, each player claims once
+    let wt = g.w.wtask.as_ref().unwrap().t; let (e, n, _) = WTASKS[wt]; g.ev(e, n / 2); g.activate(1); g.ev(e, n); assert_eq!(g.claim(3), Ok(WEEKLY_COUPONS)); assert!(g.claim(3).is_err()); g.activate(0); assert_eq!(g.claim(3), Ok(WEEKLY_COUPONS));
+    let g2 = reload(&g, "init"); assert_eq!(g2.w.p.coupons, 2 + WEEKLY_COUPONS); assert!(g2.w.p.tasks[0].claimed); assert_eq!(g2.w.wtask.as_ref().unwrap().claimed.len(), 2);
+    let mut g3 = g2; assert!(g3.claim(0).is_err() && g3.claim(3).is_err()); // no duplicate claims after reload
+    // kiosk: deduct only on success; ferry pass works for travel
+    g3.w.p.coupons = 4; assert!(g3.kiosk_buy(1).is_err()); assert_eq!(g3.w.p.coupons, 4); assert_eq!(g3.kiosk_buy(6), Ok("Ferry Pass")); assert_eq!((g3.w.p.coupons, g3.w.p.ferry), (0, 1));
+    g3.w.p.coupons = 50; g3.w.p.inv = (0..INV_CAP).map(|_| Slot { def: 20, qty: STACK, uid: 0 }).collect(); assert_eq!(g3.kiosk_buy(0), Err("Your pockets are full.")); assert_eq!(g3.kiosk_buy(7), Err("Your pockets are full.")); assert_eq!(g3.w.p.coupons, 50);
+    g3.w.p.inv.clear(); assert!(g3.kiosk_buy(7).is_ok()); assert_eq!(g3.w.p.inv.iter().filter(|s| s.def == 85).map(|s| s.qty).sum::<u16>(), 3);
+    // simultaneous claim input from both players in one frame
+    let mut g = two(at(11, 12, 0, 0)); assert!(g.catch_up(at(12, 6, 0, 1))); let wt = g.w.wtask.as_ref().unwrap().t; g.ev(WTASKS[wt].0, WTASKS[wt].1);
+    let th = BLDS.iter().position(|b| b.kind == BK::Civic).unwrap(); let e = || Inp::keys(&[KeyCode::Enter], &[KeyCode::Enter]);
+    for id in [0, 1] { g.activate(id); g.swap(Scene::Room(th)); g.me.ui = Ui::Kiosk(3) } for _ in 0..3 { for id in [0, 1] { g.activate(id); g.me.ui = Ui::Kiosk(3); g.update_player(&e(), 0.016) } }
+    g.activate(0); assert_eq!(g.w.p.coupons, WEEKLY_COUPONS); g.activate(1); assert_eq!(g.w.p.coupons, WEEKLY_COUPONS);
+}
+#[test] fn task_events_from_normal_actions() {
+    let mut g = g0(at(11, 12, 0, 0)); assert!(g.catch_up(at(12, 6, 0, 1))); g.w.p.tasks = vec![PTask { t: 7, prog: 0, claimed: false }, PTask { t: 4, prog: 0, claimed: false }, PTask { t: 11, prog: 0, claimed: false }];
+    for it in g.w.ground.clone().iter().filter(|i| def(i.def).k == K::Shell).take(2) { g.me.pos = vec2(it.x, it.z) - vec2(0., 0.6); g.me.face = vec2(0., 1.); if g.target().is_some() { g.interact() } }
+    g.w.p.inv = vec![Slot { def: 41, qty: 2, uid: 0 }]; g.sell_all(); assert_eq!(g.w.p.tasks[1].prog, 500);
+    g.bubbles = vec![(vec2(5.5, 5.5), 70)]; g.me.pos = vec2(5.5, 5.5); g.dive(); assert_eq!(g.w.p.tasks[2].prog, 1);
+}
+#[test] fn version_and_help_present() { assert!(VERSION.starts_with("v1.0.0")); assert!(HELP_KEYS.len() >= 8 && HELP_PAD.len() >= 8 && GUIDE.len() >= 8); }

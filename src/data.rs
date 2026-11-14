@@ -30,7 +30,7 @@ const fn fu(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32), fp: (i3
 const fn cl(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32)) -> D { D { buy, ..b(id, name, K::Cloth, buy / 4, col) } }
 const fn tl(id: u16, name: &'static str, buy: u32) -> D { D { buy, ..b(id, name, K::Tool, 0, (0.6, 0.45, 0.3)) } }
 
-pub static DEFS: [D; 89] = [
+pub static DEFS: [D; 105] = [
     cr(0, "Cabbage White", K::Bug, 90, (1., 1., 0.95), 0.2, 0, 3, 10, 6, 17), cr(1, "Honeybee", K::Bug, 160, (1., 0.85, 0.2), 0.2, 0, 3, 7, 8, 17),
     cr(2, "Ladybug", K::Bug, 120, (0.9, 0.15, 0.1), 0.2, 0, 3, 6, 8, 17), cr(3, "Dragonfly", K::Bug, 230, (0.3, 0.8, 0.9), 0.2, 0, 5, 10, 8, 19),
     cr(4, "Cicada", K::Bug, 300, (0.4, 0.6, 0.3), 0.2, 0, 7, 8, 8, 17), cr(5, "Firefly", K::Bug, 450, (0.8, 1., 0.3), 0.2, 0, 6, 7, 19, 4),
@@ -51,6 +51,16 @@ pub static DEFS: [D; 89] = [
     b(100, "Morning Over Hollowbrook", K::Art, 600, (0.95, 0.8, 0.55)), b(101, "Gullrock at Low Tide", K::Art, 600, (0.4, 0.75, 0.85)), b(102, "The Cherry Lane", K::Art, 600, (0.95, 0.6, 0.7)),
     fu(110, "Meadow Bed", 2200, (0.75, 0.88, 0.6), (1, 2), true, false, Act::Bed), fu(111, "Meadow Planter", 700, (0.55, 0.78, 0.4), (1, 1), false, false, Act::None), fu(112, "Meadow Wall Art", 1000, (0.98, 0.75, 0.8), (1, 1), false, true, Act::None),
     fu(113, "Harbor Stool", 800, (0.35, 0.45, 0.6), (1, 1), false, false, Act::Sit), fu(114, "Harbor Buoy Light", 1400, (0.9, 0.35, 0.3), (1, 1), false, false, Act::Lamp), fu(115, "Harbor Bunk", 2400, (0.3, 0.38, 0.55), (1, 2), true, false, Act::Bed),
+    // campground goods and favor rewards (original)
+    fu(120, "Woven Wall Hanging", 1400, (0.75, 0.35, 0.3), (1, 1), false, true, Act::None), fu(121, "Loom Stool", 1000, (0.85, 0.7, 0.5), (1, 1), false, false, Act::Sit),
+    fu(122, "Ship's Lantern", 1600, (0.85, 0.65, 0.25), (1, 1), false, false, Act::Lamp), fu(123, "Ship's Wheel", 2000, (0.55, 0.38, 0.22), (1, 1), false, true, Act::None),
+    fu(124, "Herb Planter", 900, (0.4, 0.65, 0.35), (1, 1), false, false, Act::None), fu(125, "Garden Arch Lamp", 1800, (0.6, 0.8, 0.5), (1, 1), false, false, Act::Lamp),
+    fu(126, "Tinker's Cabinet", 2200, (0.45, 0.4, 0.35), (1, 1), true, false, Act::Storage), fu(127, "Brass Clock", 2400, (0.85, 0.7, 0.3), (1, 1), false, false, Act::None),
+    // initiative kiosk rewards (original)
+    fu(130, "Town Pennant", 800, (0.3, 0.55, 0.45), (1, 1), false, true, Act::None), fu(131, "Lantern Post", 1200, (0.35, 0.35, 0.4), (1, 1), false, false, Act::Lamp),
+    fu(132, "Reading Nook Sofa", 2000, (0.7, 0.45, 0.35), (2, 1), true, false, Act::Sit), fu(133, "Keepsake Chest", 1500, (0.6, 0.35, 0.25), (1, 1), true, false, Act::Storage),
+    cl(134, "Initiative Tee", 500, (0.95, 0.75, 0.3)), cl(135, "Harbor Stripe Tee", 500, (0.3, 0.45, 0.75)),
+    b(136, "Ferry Pass", K::Material, 0, (0.95, 0.85, 0.55)), b(137, "Sea Glass Pouch", K::Material, 0, (0.45, 0.85, 0.75)),
     b(106, "Bramble's Garden", K::Art, 600, (0.55, 0.45, 0.6)), b(107, "Harbor Fog", K::Art, 600, (0.7, 0.75, 0.78)),
     b(103, "Lantern Night", K::Art, 600, (0.2, 0.22, 0.45)), b(104, "Pond in Summer", K::Art, 600, (0.4, 0.7, 0.4)), b(105, "First Snow", K::Art, 600, (0.85, 0.9, 0.98)),
     b(20, "Apple", K::Fruit, 100, (0.85, 0.15, 0.15)), b(21, "Pear", K::Fruit, 100, (0.8, 0.85, 0.25)), b(22, "Cherry", K::Fruit, 100, (0.7, 0.05, 0.2)), b(23, "Peach", K::Fruit, 100, (1., 0.65, 0.5)),
@@ -77,7 +87,7 @@ pub const FURN_IDS: [u16; 20] = [50, 51, 52, 53, 54, 55, 56, 57, 90, 91, 92, 93,
 /// Furniture collections: (name, members). Completing one in your home shows a note.
 pub const SETS: [(&str, [u16; 6]); 2] = [("Meadow collection", [90, 91, 92, 110, 111, 112]), ("Harbor collection", [93, 94, 95, 113, 114, 115])];
 /// Base model drawn for a furniture id (collections reuse a model with their own colors and accents).
-pub fn model(d: u16) -> u16 { match d { 90 => 50, 91 => 52, 92 | 95 => 54, 93 => 51, 94 => 55, 110 | 115 => 53, 111 => 56, 112 => 57, 113 => 58, 114 => 59, _ => d } }
+pub fn model(d: u16) -> u16 { match d { 90 => 50, 91 => 52, 92 | 95 => 54, 93 => 51, 94 => 55, 110 | 115 => 53, 111 | 124 => 56, 112 | 120 | 123 | 130 => 57, 113 | 121 => 58, 114 => 59, 122 | 125 | 131 => 54, 126 | 133 => 55, 127 => 52, 132 => 51, _ => d } }
 pub const ARTS: [u16; 8] = [100, 101, 102, 103, 104, 105, 106, 107];
 /// Weekly art stall: open on Saturdays (when the fair isn't on) at STALL; price per painting (provisional).
 pub const ART_PRICE: u32 = 2500;
@@ -284,3 +294,47 @@ pub const ASK: [&str; 4] = ["Could you find me a {i}? I've been craving one!", "
 pub const THANKS: [&str; 4] = ["A {i}! You're the best! Here, take this!", "...A {i}. Hm. Thanks. Take this before I change my mind.", "Oh, a {i}... just like my dream. Thank you.", "A {i}! Record time! Here's your prize!"];
 pub const VISIT: [&str; 4] = ["Hi {p}! I was passing by and thought I'd say hello. Cute place!", "Hmph. I was in the area. Your house is... acceptable.", "Your home smells like {fs} and good dreams, {p}.", "Pit stop! Nice digs, {p}. Very aerodynamic."];
 pub const HOMEL: [&str; 4] = ["Welcome to my place, {p}! Make yourself at home!", "You're in my house, {p}. Wipe your feet.", "Oh, a visitor... sit anywhere, {p}. Even the ceiling.", "Welcome to HQ, {p}! Mind the dumbbells!"];
+
+// ---- Campground (original) ----
+pub const CAMP_TENT: [(i32, i32); 4] = [(32, 19), (33, 19), (32, 20), (33, 20)];
+pub const CAMP_FIRE: (i32, i32) = (31, 21);
+pub const CAMP_CRATE: (i32, i32) = (34, 20);
+pub const CAMP_SIGN: (i32, i32) = (31, 19);
+pub const CAMP_SPOT: (f32, f32) = (32.5, 21.55);
+/// Visitors are at the campfire from 8:00 until 22:00 (provisional).
+pub const CAMP_HOURS: (u32, u32) = (8, 22);
+pub fn camp_block(t: (i32, i32)) -> bool { CAMP_TENT.contains(&t) || [CAMP_FIRE, CAMP_CRATE, CAMP_SIGN].contains(&t) }
+/// A travelling visitor: favor = (item wanted, quantity; 0 = the town's native fruit).
+pub struct Visitor { pub name: &'static str, pub species: &'static str, pub fur: (f32, f32, f32), pub cloth: (f32, f32, f32), pub tent: (f32, f32, f32), pub lines: [&'static str; 3], pub goods: [u16; 3], pub favor: (u16, u16), pub ask: &'static str, pub reward: u16 }
+pub const VISITORS: [Visitor; 4] = [
+    Visitor { name: "Tamsin", species: "hare", fur: (0.82, 0.72, 0.6), cloth: (0.75, 0.35, 0.3), tent: (0.85, 0.45, 0.35), lines: ["I weave as I wander. Every town gets a thread in my blanket.", "Hollowbrook's thread will be soft green, I think. Like your meadow.", "I only stay one night. The road is my loom!"], goods: [120, 66, 69], favor: (80, 2), ask: "Could you find me 2 Branches? My loom frame cracked.", reward: 121 },
+    Visitor { name: "Barnaby", species: "tortoise", fur: (0.5, 0.6, 0.4), cloth: (0.25, 0.32, 0.5), tent: (0.3, 0.4, 0.6), lines: ["Forty years at sea, and now I sail by tent. Slower, but drier.", "Gullrock? I mapped that rock when it was half the size, I swear it.", "A lantern and a good story. That's all a camp needs."], goods: [122, 59, 58], favor: (30, 1), ask: "I'd love one Sardine for supper. My old hands can't cast anymore.", reward: 123 },
+    Visitor { name: "Marigold", species: "goat", fur: (0.92, 0.9, 0.85), cloth: (0.55, 0.7, 0.35), tent: (0.6, 0.75, 0.4), lines: ["Smell that? Wild thyme. I could follow it across three valleys.", "I trade in seeds and sun hats. Mostly sun hats, honestly.", "Every garden is a little conversation with the weather."], goods: [124, 67, 56], favor: (0, 3), ask: "Three of your town's fruit, please! I'm brewing a jam for the road.", reward: 125 },
+    Visitor { name: "Cobb", species: "mole", fur: (0.35, 0.3, 0.32), cloth: (0.7, 0.55, 0.3), tent: (0.55, 0.5, 0.35), lines: ["Tick, tick, tick. That's the sound of a happy clock. Or a nervous one.", "I fix things. Clocks, cabinets, the occasional bad mood.", "Underground it's always the same hour. Up here, every hour is new!"], goods: [126, 54, 55], favor: (81, 2), ask: "Bring me 2 Stones? I need weights for a pendulum.", reward: 127 },
+];
+pub fn visitor_of(day: i64) -> usize { day.rem_euclid(4) as usize }
+
+// ---- Initiatives (original): coupon kiosk inside the Town Hall ----
+pub const KIOSK: (i32, i32) = (0, 2);
+/// Kiosk rewards: (item, coupon price). 136 Ferry Pass = one free trip; 137 = 3 Sea Glass.
+pub const KIOSK_ITEMS: [(u16, u32); 8] = [(130, 6), (131, 10), (132, 16), (133, 12), (134, 5), (135, 5), (136, 4), (137, 8)];
+pub const WEEKLY_COUPONS: u32 = 12;
+
+// ---- Release / help text ----
+pub const VERSION: &str = concat!("v", env!("CARGO_PKG_VERSION"), " (build ", env!("HB_GIT"), ")");
+pub const HELP_KEYS: [&str; 10] = ["Move: WASD or arrows   Run: hold Shift", "Interact / confirm / next: E or Enter   Cancel / close: Esc",
+    "Use tool / dive: Space   Cycle tools: Tab", "Pockets: I   Journal (help, settings, tasks): J", "Gift during a chat: G", "Furniture: F move, G pick up, R rotate",
+    "Player 2 join / leave: F2", "Menus: W/S or Up/Down to choose, Enter to confirm", "Journal pages: Tab next page", "Quit: close the window (saves first)"];
+pub const HELP_PAD: [&str; 9] = ["Move: left stick or d-pad   Run: hold LT or RT", "Interact / confirm / next: A   Cancel / close: B", "Use tool / dive: X   Cycle tools: RB",
+    "Pockets: Y   Journal: Menu (Start)", "Gift during a chat: LB", "Furniture: View move, LB pick up, RB rotate", "2nd controller: press Menu or A to join as P2",
+    "Journal pages: RB next page", "Xbox names; PlayStation: Cross = A, Circle = B"];
+pub const GUIDE: [&str; 9] = [
+    "Home: expand at the General Store counter. Each expansion adds an interest-free balance to pay off whenever you like; pay it off before the next one.",
+    "Projects: residents propose material projects at the notice board; the town leader (Player 1) starts coin-funded projects at Hazel's desk. Fully funded = built next morning.",
+    "Policies: Player 1 can enact one policy at Hazel's desk (fee shown first): earlier store hours, later hours, or fewer weeds.",
+    "Gullrock: sail from the dock (200 coins, or a Ferry Pass). Captain Pell has a daily task; the board runs timed activities for Sea Glass.",
+    "Campground (east meadow): a different traveller visits each day, 8:00-22:00. Buy their goods (one of each per day) and do their favor once for a keepsake.",
+    "Initiatives: 3 personal tasks a day plus a weekly town task. Claim coupons at the kiosk in the Town Hall and trade them for rewards.",
+    "Museum: donate fish, bugs, fossils and paintings. The art stall opens on Saturdays (not during the Harvest Fair).",
+    "Days change at 6:00 real time. The game saves every 15 seconds, at each new day, and when you close it.",
+    "Two players: F2 or a second controller adds Player 2 with their own home, pockets, coins and tasks."];

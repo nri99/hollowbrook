@@ -128,7 +128,7 @@ pub fn human(r: &mut R, id: usize, look: (Option<u16>, Option<u16>, u8), pos: Ve
 pub fn resident(r: &mut R, i: usize, pos: Vec3, yaw: f32, anim: f32, moving: bool, t: f32, talk: bool, happy: f32) { resident_u(r, i, pos, yaw, anim, moving, t, talk, happy, false) }
 /// `umbrella`: held over the head (outdoors in rain).
 pub fn resident_u(r: &mut R, i: usize, pos: Vec3, yaw: f32, anim: f32, moving: bool, t: f32, talk: bool, happy: f32, umbrella: bool) {
-    let (fur, cloth) = if i < CHARS.len() { (rgb(CHARS[i].fur), rgb(CHARS[i].cloth)) } else if i == 13 { (Color::new(0.82, 0.66, 0.48, 1.), Color::new(0.3, 0.48, 0.44, 1.)) } else if i == 12 { (Color::new(0.96, 0.96, 0.94, 1.), Color::new(0.2, 0.25, 0.45, 1.)) } else if i == 11 { (Color::new(0.93, 0.93, 0.96, 1.), Color::new(0.32, 0.34, 0.6, 1.)) } else { (Color::new(0.55, 0.65, 0.38, 1.), Color::new(0.92, 0.86, 0.7, 1.)) };
+    let (fur, cloth) = if i < CHARS.len() { (rgb(CHARS[i].fur), rgb(CHARS[i].cloth)) } else if (14..18).contains(&i) { (rgb(VISITORS[i - 14].fur), rgb(VISITORS[i - 14].cloth)) } else if i == 13 { (Color::new(0.82, 0.66, 0.48, 1.), Color::new(0.3, 0.48, 0.44, 1.)) } else if i == 12 { (Color::new(0.96, 0.96, 0.94, 1.), Color::new(0.2, 0.25, 0.45, 1.)) } else if i == 11 { (Color::new(0.93, 0.93, 0.96, 1.), Color::new(0.32, 0.34, 0.6, 1.)) } else { (Color::new(0.55, 0.65, 0.38, 1.), Color::new(0.92, 0.86, 0.7, 1.)) };
     let light = Color::new(0.97, 0.94, 0.88, 1.); let sw = if moving { anim.sin() * 0.6 } else { 0. };
     let jump = if happy > 0. { (t * 10.).sin().abs() * 0.18 } else { 0. }; let bob = (t * 2. + i as f32).sin() * 0.012;
     r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(yaw), pos + vec3(0., jump, 0.)), |r| {
@@ -140,6 +140,7 @@ pub fn resident_u(r: &mut R, i: usize, pos: Vec3, yaw: f32, anim: f32, moving: b
             for s in [-1f32, 1.] { let wave = if talk && s > 0. { (t * 5.).sin() * 0.4 - 0.5 } else { 0. };
                 r.with(Mat4::from_translation(vec3(s * 0.21, 0.27, 0.)) * Mat4::from_rotation_x(-sw * s + wave), |r| r.cube(vec3(0., -0.1, 0.), vec3(0.05, 0.1, 0.05), fur)) }
             let wag = (t * 4.).sin();
+            if i == 15 { r.sphere(vec3(0., 0.2, -0.14), vec3(0.24, 0.2, 0.16), Color::new(0.4, 0.5, 0.3, 1.)); for k in 0..3 { r.sphere(vec3(-0.1 + k as f32 * 0.1, 0.28, -0.27), vec3(0.05, 0.05, 0.02), Color::new(0.55, 0.62, 0.38, 1.)) } }
             match i { 0 => { r.sphere(vec3(wag * 0.05, 0.05, -0.28), vec3(0.12, 0.12, 0.22), fur); r.sphere(vec3(wag * 0.07, 0.07, -0.47), Vec3::splat(0.08), light) }
                 1 => r.sphere(vec3(0., 0.02, -0.15), Vec3::splat(0.07), fur),
                 3 => { r.sphere(vec3(wag * 0.03, 0., -0.22), vec3(0.08, 0.07, 0.16), fur); r.sphere(vec3(wag * 0.06, -0.05, -0.38), vec3(0.06, 0.05, 0.12), fur) } _ => {} }
@@ -149,6 +150,12 @@ pub fn resident_u(r: &mut R, i: usize, pos: Vec3, yaw: f32, anim: f32, moving: b
 fn head(r: &mut R, i: usize, fur: Color, light: Color, t: f32, talk: bool, happy: f32) {
     let (hr, ey, ez) = match i { 2 => (vec3(0.3, 0.2, 0.26), 0.19, 0.13), 10 => (vec3(0.2, 0.19, 0.21), 0.02, 0.17), _ => (vec3(0.26, 0.24, 0.25), 0.03, 0.2) };
     r.sphere(Vec3::ZERO, hr, fur);
+    match i { // campground visitors
+        14 => { for sx in [-1f32, 1.] { r.with(Mat4::from_translation(vec3(sx * 0.1, 0.3, -0.03)) * Mat4::from_rotation_z(sx * -0.15), |r| { r.sphere(Vec3::ZERO, vec3(0.06, 0.2, 0.045), fur); r.sphere(vec3(0., 0., 0.03), vec3(0.035, 0.15, 0.02), Color::new(0.95, 0.75, 0.75, 1.)) }) } r.sphere(vec3(0., -0.06, 0.22), Vec3::splat(0.035), Color::new(0.9, 0.5, 0.55, 1.)) }
+        15 => { r.sphere(vec3(0., -0.07, 0.2), vec3(0.12, 0.07, 0.08), light); for k in 0..3 { r.sphere(vec3(-0.12 + k as f32 * 0.12, 0.17, -0.05), Vec3::splat(0.035), sh(fur, 0.7)) } }
+        16 => { for sx in [-1f32, 1.] { r.with(Mat4::from_translation(vec3(sx * 0.1, 0.22, -0.05)) * Mat4::from_rotation_x(-0.5) * Mat4::from_rotation_z(sx * -0.3), |r| r.cone(Vec3::ZERO, 0.04, 0.2, Color::new(0.75, 0.68, 0.55, 1.))); r.sphere(vec3(sx * 0.25, 0.02, 0.), vec3(0.09, 0.04, 0.05), fur) } r.sphere(vec3(0., -0.2, 0.15), vec3(0.04, 0.07, 0.03), light) }
+        17 => { r.sphere(vec3(0., -0.04, 0.24), vec3(0.07, 0.055, 0.06), Color::new(0.95, 0.6, 0.65, 1.)); for sx in [-1f32, 1.] { r.sphere(vec3(sx * 0.18, 0.12, -0.02), Vec3::splat(0.04), sh(fur, 0.8)) } r.cyl(vec3(0., 0.22, 0.), 0.2, 0.03, Color::new(0.75, 0.55, 0.25, 1.)); r.cyl(vec3(0., 0.24, 0.), 0.13, 0.12, Color::new(0.75, 0.55, 0.25, 1.)) }
+        _ => {} }
     match i {
         0 => { r.sphere(vec3(0., -0.07, 0.18), vec3(0.11, 0.08, 0.14), light); r.sphere(vec3(0., -0.04, 0.32), Vec3::splat(0.035), DARK); for s in [-1f32, 1.] { r.cone(vec3(s * 0.14, 0.16, -0.02), 0.08, 0.2, fur); r.sphere(vec3(s * 0.13, -0.08, 0.16), vec3(0.06, 0.04, 0.05), light) } }
         1 => { r.cube(vec3(0., 0.13, 0.1), vec3(0.05, 0.11, 0.15), light); for s in [-1f32, 1.] { r.sphere(vec3(s * 0.09, 0.02, 0.17), vec3(0.075, 0.09, 0.06), DARK); r.sphere(vec3(s * 0.17, 0.17, -0.02), Vec3::splat(0.06), fur) } r.sphere(vec3(0., -0.08, 0.2), vec3(0.08, 0.06, 0.07), light); r.sphere(vec3(0., -0.06, 0.27), Vec3::splat(0.03), DARK) }
@@ -388,6 +395,17 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
     for (i, tr) in g.w.trees.iter().enumerate() { let p = tc((tr.x, tr.z)); if near(p.x, p.y) && !fade_t.contains(&i) { let sk = g.shake.iter().find(|s| s.0 == i).map_or(0., |s| s.1); tree(r, p, tr.fruit.then(|| rgb(def(g.w.native).col)), sk, t, fol) } }
     for bi in 0..BLDS.len() { let b = &BLDS[bi]; if near(b.x as f32 + b.w as f32 / 2., b.z as f32 + b.d as f32 / 2.) && !fade_b.contains(&bi) { building(r, bi, lt.night) }
         if g.me.pos.distance(door_stand(bi)) < 3.5 { let p = door_face(bi); labels.push((vec3(p.x, 2.7, p.y), g.bname(bi), WHITE)) } }
+    { let v = &VISITORS[g.visitor()]; let tc0 = vec3(33., 0., 20.); let col = rgb(v.tent);
+        r.with(Mat4::from_translation(tc0), |r| { r.cube(vec3(0., 0.01, 0.), vec3(1.0, 0.01, 0.95), Color::new(0.55, 0.45, 0.3, 1.)); for s in [-1f32, 1.] { r.with(Mat4::from_translation(vec3(s * 0.45, 0.55, 0.)) * Mat4::from_rotation_z(s * 0.8), |r| r.cube(Vec3::ZERO, vec3(0.62, 0.03, 0.9), sh(col, if s > 0. { 0.85 } else { 1. }))) }
+            r.cube(vec3(0., 0.45, 0.92), vec3(0.22, 0.4, 0.01), Color::new(0.2, 0.15, 0.12, 1.)); r.seg(vec3(0., 0., 0.95), vec3(0., 1.15, 0.95), 0.02, WOOD); r.cube(vec3(0.2, 1.12, 0.95), vec3(0.15, 0.08, 0.01), YELLOW) });
+        let f = tc(CAMP_FIRE); for k in 0..6 { let a = k as f32 * 1.047; r.sphere(vec3(f.x + a.cos() * 0.3, 0.06, f.y + a.sin() * 0.3), vec3(0.1, 0.07, 0.09), Color::new(0.5, 0.48, 0.45, 1.)) }
+        for k in 0..2 { r.with(Mat4::from_translation(vec3(f.x, 0.06, f.y)) * Mat4::from_rotation_y(k as f32 * 1.57), |r| r.cube(Vec3::ZERO, vec3(0.25, 0.04, 0.04), WOOD)) }
+        let fl = (g.t * 9.).sin() * 0.04; let u = r.unlit; r.unlit = true; r.cone(vec3(f.x, 0.08, f.y), 0.15, 0.32 + fl, Color::new(1., 0.55, 0.15, 1.)); r.cone(vec3(f.x, 0.08, f.y), 0.08, 0.22 - fl, Color::new(1., 0.9, 0.4, 1.)); r.unlit = u;
+        let cr = tc(CAMP_CRATE); r.cube(vec3(cr.x, 0.3, cr.y), vec3(0.32, 0.3, 0.3), Color::new(0.62, 0.45, 0.28, 1.)); for (k, &d) in v.goods.iter().enumerate() { if !g.w.camp_sold.contains(&d) { r.cube(vec3(cr.x - 0.18 + k as f32 * 0.18, 0.68, cr.y), Vec3::splat(0.07), rgb(def(d).col)) } }
+        let sg = tc(CAMP_SIGN); r.cube(vec3(sg.x, 0.45, sg.y), vec3(0.04, 0.45, 0.04), WOOD); r.cube(vec3(sg.x, 0.85, sg.y + 0.05), vec3(0.32, 0.18, 0.03), Color::new(0.9, 0.82, 0.6, 1.));
+        if g.camp_open() { let sp = vec3(CAMP_SPOT.0, 0., CAMP_SPOT.1); let talking = g.me.scene == Scene::Town && matches!(g.me.ui, Ui::Camp(_) | Ui::Talk { npc: None, .. }) && g.me.pos.distance(vec2(sp.x, sp.z)) < 2.5;
+            r.disc(sp + vec3(0., 0.02, 0.), vec2(0.3, 0.24), Color::new(0., 0., 0., 0.22)); resident(r, 14 + g.visitor(), sp, yaw_of(g.me.pos - vec2(sp.x, sp.z)), 0., false, g.t, talking, 0.) }
+        if g.me.pos.distance(vec2(32.5, 20.5)) < 5. { labels.push((vec3(sg.x, 1.35, sg.y), format!("Campground: {} the {}", v.name, v.species), Color::new(1., 0.9, 0.7, 1.))) } }
     if g.art_open() { let c = tc(STALL); r.cube(vec3(c.x, 0.4, c.y), vec3(0.5, 0.4, 0.35), Color::new(0.35, 0.3, 0.45, 1.)); r.cube(vec3(c.x, 1.3, c.y), vec3(0.6, 0.04, 0.45), Color::new(0.85, 0.3, 0.4, 1.));
         for x in [-0.55f32, 0.55] { r.cube(vec3(c.x + x, 0.65, c.y + 0.4), vec3(0.03, 0.65, 0.03), WOOD) } painting(r, art_of_week(g.w.day), vec3(c.x, 1.0, c.y + 0.37), 0.5, 0.36);
         if g.me.pos.distance(c) < 4. { labels.push((vec3(c.x, 1.7, c.y), "Saturday art stall".into(), Color::new(1., 0.85, 0.9, 1.))) } }
@@ -480,6 +498,8 @@ fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, Strin
         for &(bx, bz) in &CIVIC_BENCH { let (x, z) = (bx as f32 + 0.5, bz as f32 + 0.5); r.cube(vec3(x, 0.22, z), vec3(0.4, 0.04, 0.3), WOOD); r.cube(vec3(x, 0.1, z), vec3(0.36, 0.1, 0.26), sh(WOOD, 0.8)) } // waiting bench
         let ppos = g.me.pos; let _ = ppos; labels.push((vec3(1.0, 1.95, 0.1), match &g.w.mproject { Some(m) => format!("{}: {}/{}c", MPROJECTS[m.idx].0, m.funded, MPROJECTS[m.idx].1), None => "No funded project".into() }, Color::new(1., 0.95, 0.7, 1.)));
         labels.push((vec3(3.5, 2.5, 0.1), format!("Policy: {}", g.pol().map_or("none", |p| p.name)), Color::new(0.8, 1., 0.85, 1.)));
+        { let k = tc(KIOSK); r.cube(vec3(k.x, 0.45, k.y), vec3(0.3, 0.45, 0.25), Color::new(0.3, 0.45, 0.6, 1.)); let u = r.unlit; r.unlit = true; r.cube(vec3(k.x + 0.26, 0.85, k.y), vec3(0.01, 0.2, 0.17), Color::new(0.6, 0.9, 1., 1.)); r.unlit = u; r.cube(vec3(k.x, 0.95, k.y), vec3(0.32, 0.04, 0.27), GOLD);
+          if g.me.ipos.distance(k) < 2.5 { labels.push((vec3(k.x, 1.4, k.y), "Initiatives kiosk".into(), Color::new(0.8, 0.95, 1., 1.))) } }
     }
     if BLDS[b].kind == BK::Museum {
         let me = g.me.ipos;
@@ -580,6 +600,23 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         Ui::MPick(sel) => { panel(sw / 2. - 270., 100., 540., 330.); txt("Start a funded public project", sw / 2. - 250., 135., 26., Color::new(0.45, 0.3, 0.2, 1.));
             let items: Vec<String> = MPROJECTS.iter().map(|p| format!("{}  -  {} coins", p.0, p.1)).collect(); list(&items, Some(*sel), sw / 2. - 240., 175.);
             txt("Pick one; you head outside to choose the spot (green = valid).", sw / 2. - 250., 330., 18., DARKGRAY); txt("Built the morning after it is fully funded. Esc cancels.", sw / 2. - 250., 355., 18., DARKGRAY) }
+        Ui::Camp(sel) => { let v = &VISITORS[g.visitor()]; panel(sw / 2. - 300., 100., 600., 330.); txt(&format!("{} the {}  -  campground", v.name, v.species), sw / 2. - 280., 135., 24., Color::new(0.45, 0.3, 0.2, 1.));
+            let (fd, fq) = g.favor_item(); let done = g.w.p.camp_favors.contains(&(g.visitor() as u8));
+            let mut items: Vec<String> = v.goods.iter().map(|&d| format!("{}  -  {} coins{}", def(d).name, def(d).buy, if g.w.camp_sold.contains(&d) { "  (sold out today)" } else { "" })).collect();
+            items.push(if done { "Favor: done - thank you!".into() } else { format!("Favor: bring {fq} {}", def(fd).name) }); items.push("Chat".into()); list(&items, Some(*sel), sw / 2. - 270., 170.);
+            txt(&format!("You have {} coins. One of each item per day for the whole town.", g.w.p.money), sw / 2. - 280., 360., 17., DARKGRAY); txt(if g.me.pad { "[A] Choose   [B] Leave" } else { "[Enter] Choose   [Esc] Leave" }, sw / 2. - 280., 400., 20., Color::new(0.45, 0.3, 0.2, 1.)) }
+        Ui::Kiosk(sel) => { let pw = (sw - 40.).min(700.); let x0 = sw / 2. - pw / 2.; panel(x0, 70., pw, 470.); txt(&format!("Initiatives kiosk  -  {} coupons", g.w.p.coupons), x0 + 20., 105., 24., Color::new(0.45, 0.3, 0.2, 1.));
+            let mut items: Vec<String> = (0..3).map(|k| g.w.p.tasks.get(k).map_or("(no task)".to_string(), |t| { let (_, n, text, c) = TASKS[t.t]; format!("Claim: {text} {}/{n} -> {c}{}", t.prog, if t.claimed { " (claimed)" } else { "" }) })).collect();
+            items.push(g.w.wtask.as_ref().map_or("(no weekly task)".into(), |w| { let (_, n, text) = WTASKS[w.t]; format!("Claim weekly: {text} {}/{n} -> {WEEKLY_COUPONS}{}", w.prog, if w.claimed.contains(&g.w.p.id) { " (claimed)" } else { "" }) }));
+            for &(d, c) in &KIOSK_ITEMS { items.push(format!("Reward: {}  -  {c} coupons", def(d).name)) } list(&items, Some(*sel), x0 + 30., 135.);
+            txt(if g.me.pad { "[A] Claim / trade   [B] Close" } else { "[Enter] Claim / trade   [Esc] Close" }, x0 + 20., 525., 19., Color::new(0.45, 0.3, 0.2, 1.)) }
+        Ui::Title(sel) => { draw_rectangle(0., 0., sw, sh, Color::new(0.12, 0.2, 0.16, 0.92)); txt("Hollowbrook", sw / 2. - 150., sh * 0.28, 64., Color::new(0.95, 0.9, 0.7, 1.)); txt(VERSION, sw / 2. - 150., sh * 0.28 + 34., 18., Color::new(0.8, 0.85, 0.8, 1.));
+            let items = vec![if g.fresh { "Start your town".to_string() } else { "Continue".into() }, "Controls and guide".into(), "Quit".into()]; list(&items, Some(*sel), sw / 2. - 140., sh * 0.42);
+            txt("Your town saves automatically (every 15 s, each new day, and on quit).", sw / 2. - 300., sh * 0.75, 18., Color::new(0.85, 0.9, 0.85, 1.));
+            txt(if g.me.pad { "Stick: choose   A: confirm" } else { "W/S: choose   Enter: confirm" }, sw / 2. - 300., sh * 0.75 + 26., 18., Color::new(0.85, 0.9, 0.85, 1.)) }
+        Ui::Help => { draw_rectangle(0., 0., sw, sh, Color::new(0.12, 0.2, 0.16, 0.95)); let mut y = 70.; txt("Controls", 60., y, 30., Color::new(0.95, 0.9, 0.7, 1.)); y += 34.; let wcol = Color::new(0.92, 0.95, 0.92, 1.);
+            for l in HELP_KEYS { txt(l, 70., y, 17., wcol); y += 20. } y += 8.; txt("Gamepad", 60., y + 4., 22., Color::new(0.95, 0.9, 0.7, 1.)); y += 26.; for l in HELP_PAD { txt(l, 70., y, 17., wcol); y += 20. } y += 10.; txt("Guide", 60., y, 26., Color::new(0.95, 0.9, 0.7, 1.)); y += 26.;
+            for l in GUIDE.iter().take(5) { for w in wrap(l, ((sw - 140.) / 9.) as usize) { txt(&w, 70., y, 16., wcol); y += 19. } } txt(if g.me.pad { "[A]/[B] back" } else { "[Enter]/[Esc] back" }, 60., sh - 24., 18., GOLD) }
         Ui::Civic(sel) => { panel(sw / 2. - 280., 120., 560., 260.); txt(ADMIN, sw / 2. - 260., 155., 24., Color::new(0.45, 0.3, 0.2, 1.)); txt("Welcome to the Town Hall. How can I help?", sw / 2. - 260., 182., 18., DARKGRAY);
             let items = vec!["Town policies".to_string(), if g.me.id == LEADER { "Start a funded public project".into() } else { "Start a funded public project (leader only)".into() }, "Project and town status".into()]; list(&items, Some(*sel), sw / 2. - 250., 210.);
             txt(if g.me.pad { "[A] Choose   [B] Leave" } else { "[Enter] Choose   [Esc] Leave" }, sw / 2. - 260., 355., 20., Color::new(0.45, 0.3, 0.2, 1.)) }
@@ -622,12 +659,24 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         Ui::Rack(sel) => { panel(sw / 2. - 260., 120., 520., 380.); txt("Clothing rack", sw / 2. - 240., 155., 28., Color::new(0.45, 0.3, 0.2, 1.));
             let mut items: Vec<String> = CLOTHES.iter().map(|&d| format!("{}  -  {} coins", def(d).name, def(d).buy)).collect(); items.push(format!("Change hairstyle  -  {} coins", HAIR_FEE)); list(&items, Some(*sel), sw / 2. - 230., 195.);
             txt(&format!("You have {} coins.", g.w.p.money), sw / 2. - 240., 440., 20., DARKGRAY); txt(if g.me.pad { "Up/Down select  A buy  B close" } else { "W/S select  Enter buy  Esc close" }, sw / 2. - 240., 470., 19., DARKGRAY) }
-        Ui::Journal => { panel(60., 80., sw - 120., sh - 160.); txt("Field Journal", 80., 115., 30., Color::new(0.45, 0.3, 0.2, 1.));
-            for (col, (k, title)) in [(K::Fish, "Fish & sea"), (K::Bug, "Bugs"), (K::Shell, "Shells & finds")].iter().enumerate() { let x = 80. + col as f32 * 380.; txt(title, x, 155., 26., BLACK);
+        Ui::Journal => { panel(60., 80., sw - 120., sh - 160.); txt(["Field Journal", "Initiatives", "Settings", "Controls", "Guide"][g.me.jpage as usize % 5], 80., 115., 30., Color::new(0.45, 0.3, 0.2, 1.));
+            txt(&format!("Page {}/5   {}   {}", g.me.jpage + 1, if g.me.pad { "[RB] next page" } else { "[Tab] next page" }, VERSION), 80., 140., 16., DARKGRAY);
+            if g.me.jpage == 0 {
+            for (col, (k, title)) in [(K::Fish, "Fish & sea"), (K::Bug, "Bugs"), (K::Shell, "Shells & finds")].iter().enumerate().filter(|(c, _)| sw >= 1100. || *c == g.me.jcol as usize) { let x = if sw >= 1100. { 80. + col as f32 * 380. } else { 80. }; txt(title, x, 170., 24., BLACK);
                 for (j, dd) in DEFS.iter().filter(|dd| dd.k == *k || (*k == K::Shell && matches!(dd.k, K::Treasure | K::Fruit | K::Fossil)) || (*k == K::Fish && dd.k == K::Sea)).enumerate() { let seen = g.w.p.seen.contains(&dd.id);
-                    txt(&format!("{}{}", if avail(dd, g.mo, g.hr) && matches!(dd.k, K::Fish | K::Bug) { "* " } else { "  " }, if seen { format!("{}  {}c{}", dd.name, dd.sell, if g.w.donated.iter().any(|x| x.0 == dd.id) { "  [museum]" } else { "" }) } else { "???".into() }), x, 185. + j as f32 * 24., 20., if seen { BLACK } else { GRAY }) } }
+                    txt(&format!("{}{}", if avail(dd, g.mo, g.hr) && matches!(dd.k, K::Fish | K::Bug) { "* " } else { "  " }, if seen { format!("{}  {}c{}", dd.name, dd.sell, if g.w.donated.iter().any(|x| x.0 == dd.id) { "  [museum]" } else { "" }) } else { "???".into() }), x, 194. + j as f32 * ((sh - 340.) / 19.).min(24.), 18., if seen { BLACK } else { GRAY }) } }
             txt("* = active right now", 80., sh - 100., 18., DARKGRAY); txt(&format!("Town liveliness: {} ({})", g.liveliness(), Game::live_word(g.liveliness())), 80., sh - 125., 20., Color::new(0.3, 0.5, 0.3, 1.));
-            txt(&format!("Music {:.0}%{}  ({})    Sound effects {:.0}%  ({})    {} mute music", g.music_vol * 100., if g.muted { " (muted)" } else { "" }, if g.me.pad { "stick left/right" } else { "Left/Right" }, g.sfx_vol * 100., if g.me.pad { "stick up/down" } else { "Up/Down" }, if g.me.pad { "[Y]" } else { "[X]" }), 80., sh - 150., 20., Color::new(0.3, 0.3, 0.55, 1.)) }
+                if sw < 1100. { txt(if g.me.pad { "stick left/right: other columns" } else { "Left/Right: other columns" }, 80., sh - 150., 18., DARKGRAY) } }
+            if g.me.jpage == 2 {
+            txt(&format!("Music {:.0}%{}  ({})    Sound effects {:.0}%  ({})    {} mute music", g.music_vol * 100., if g.muted { " (muted)" } else { "" }, if g.me.pad { "stick left/right" } else { "Left/Right" }, g.sfx_vol * 100., if g.me.pad { "stick up/down" } else { "Up/Down" }, if g.me.pad { "[Y]" } else { "[X]" }), 80., 170., 20., Color::new(0.3, 0.3, 0.55, 1.)); txt("Music and sound settings are saved for this computer.", 80., 205., 18., DARKGRAY) }
+            if g.me.jpage == 1 { let mut y = 160.; txt(&format!("Coupons: {}  (kiosk in the Town Hall)", g.w.p.coupons), 80., y + 8., 20., Color::new(0.3, 0.3, 0.55, 1.)); y += 34.;
+                txt("Today's tasks (end at 6:00):", 80., y, 22., BLACK); y += 28.;
+                for t in &g.w.p.tasks { let (_, n, text, c) = TASKS[t.t]; txt(&format!("{}  {}  {}/{}  -  {} coupons", if t.claimed { "[claimed]" } else if t.prog >= n { "[done!]" } else { "[ ]" }, text, t.prog, n, c), 90., y, 19., if t.claimed { GRAY } else { BLACK }); y += 26. }
+                if g.w.p.tasks.is_empty() { txt("No tasks yet; they arrive at the next new day.", 90., y, 19., GRAY); y += 26. }
+                if let Some(w) = &g.w.wtask { let (_, n, text) = WTASKS[w.t]; y += 10.; txt("Weekly town task (shared, ends Mon 6:00):", 80., y, 22., BLACK); y += 28.;
+                    txt(&format!("{}  {}/{}  -  {} coupons each{}", text, w.prog, n, WEEKLY_COUPONS, if w.claimed.contains(&g.w.p.id) { "  [claimed]" } else if w.prog >= n { "  [done!]" } else { "" }), 90., y, 19., BLACK) } }
+            if g.me.jpage == 3 { let mut y = 168.; txt("Keyboard", 80., y, 22., BLACK); y += 26.; for l in HELP_KEYS { txt(l, 90., y, 17., BLACK); y += 21. } y += 8.; txt("Gamepad", 80., y, 22., BLACK); y += 26.; for l in HELP_PAD { txt(l, 90., y, 17., BLACK); y += 21. } }
+            if g.me.jpage == 4 { let mut y = 168.; let wch = ((sw - 200.) / 9.5) as usize; for l in GUIDE { for w in wrap(l, wch.max(40)) { txt(&w, 80., y, 17., BLACK); y += 20. } y += 6. } } }
     }
     if let Some(src) = dbg {
         let lines = [format!("[{src} clock] {}", now.format("%a %Y-%m-%d %H:%M:%S")), format!("gameplay day {} last processed {}", crate::clock::day_id(now), g.w.day),

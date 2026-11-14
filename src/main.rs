@@ -65,19 +65,21 @@ async fn main() {
             loop {
                 while let Some(c) = get_char_pressed() { if (c.is_alphanumeric() || c == ' ') && name.len() < 12 { name.push(c) } }
                 if is_key_pressed(KeyCode::Backspace) { name.pop(); }
-                if is_key_pressed(KeyCode::Enter) && !name.trim().is_empty() { break }
+                if is_key_pressed(KeyCode::Enter) { if name.trim().is_empty() { name = "Neighbor".into() } break }
                 clear_background(Color::new(0.3, 0.55, 0.35, 1.));
                 draw_text("Hollowbrook", 80., 160., 80., WHITE); draw_text("A little town by the river is waiting for a new neighbor.", 80., 230., 30., WHITE);
-                draw_text(&format!("What's your name?  {}_", name), 80., 320., 40., GOLD); draw_text("Type, then press Enter", 80., 370., 24., LIGHTGRAY);
+                draw_text(&format!("What's your name?  {}_", name), 80., 320., 40., GOLD); draw_text("Type, then press Enter (or just Enter for \"Neighbor\")", 80., 370., 24., LIGHTGRAY); draw_text(VERSION, 80., 680., 20., LIGHTGRAY);
                 next_frame().await
             }
-            Game::new(name.trim().to_string(), clock.now())
+            let mut g = Game::new(name.trim().to_string(), clock.now()); g.fresh = true; g
         }
     };
     { let st = audio::load_settings(audio::SETTINGS); g.music_vol = st.music; g.sfx_vol = st.sfx; g.muted = st.muted; }
     g.curve = std::env::var("HOLLOWBROOK_CURVE").ok().and_then(|s| s.parse().ok()).unwrap_or(0.012); // dev setting
     if g.catch_up(clock.now()) { save::save(&g.persist(), SAVE) }
     prevent_quit();
+    if auto.is_none() { g.me.ui = Ui::Title(0) }
+    eprintln!("[hollowbrook] {VERSION}");
     if let Some(dir) = auto { autotest(&mut g, &clock, &dir).await; save::save(&g.persist(), SAVE); return }
     let mut music = audio::Music::new();
     let (mut st, mut shots) = (0., 0); let mut pads = pad::Pads::new(); eprintln!("[pad] {} gamepad(s) detected", pads.count());
@@ -97,7 +99,7 @@ async fn main() {
         if g.settings_dirty { g.settings_dirty = false; audio::save_settings(audio::SETTINGS, &audio::Settings { music: g.music_vol, sfx: g.sfx_vol, muted: g.muted }) }
         if dbg && is_key_pressed(KeyCode::F12) { shots += 1; screenshot(&format!("shot_{shots}.png")); eprintln!("[shot] shot_{shots}.png") }
         st += dt; if st > 15. { save::save(&g.persist(), SAVE); st = 0. }
-        if is_quit_requested() { save::save(&g.persist(), SAVE); break }
+        if is_quit_requested() || g.quit { save::save(&g.persist(), SAVE); break }
         next_frame().await
     }
 }
@@ -311,6 +313,18 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         log!("stones={}", have(g, 81));
         if let Some(p) = g.w.project.clone() { approach(g, c, tc((p.x, p.z))).await; shot!("x01_site_before"); press(g, c, KeyCode::E).await; log!("after contribute: project={:?} built={:?} ui={:?}", g.w.project, g.w.built, g.me.ui); for _ in 0..4 { if g.me.ui == Ui::Play { break } press(g, c, KeyCode::E).await } }
         if let Some(b) = g.w.built.first().copied() { approach(g, c, tc((b.x, b.z))).await; press(g, c, KeyCode::E).await; log!("pose={:?}", g.me.pose); wait(g, c, 30).await; shot!("x01_bench_built") }
+    } else if phase == "30" {
+        // Release 1: title, campground (both players), kiosk, journal pages. Fixture: coins and coupons set directly; dev clock 12:00.
+        let c2 = Clock { dev: Some((chrono::NaiveDate::from_ymd_opt(2026, 11, 20).unwrap().and_hms_opt(12, 0, 0).unwrap(), std::time::Instant::now())) }; let c = &c2;
+        macro_rules! shotc { ($n:expr) => {{ wait(g, c, 2).await; render::draw(g, c.now(), None); screenshot(&format!("{dir}/{}.png", $n)); next_frame().await; log!("shot {}", $n); }} }
+        wait(g, c, 5).await; g.me.ui = Ui::Title(0); shotc!("r1_title"); press(g, c, KeyCode::Down).await; press(g, c, KeyCode::Enter).await; log!("ui={:?}", g.me.ui); shotc!("r1_help"); press(g, c, KeyCode::Escape).await; press(g, c, KeyCode::Up).await; press(g, c, KeyCode::Enter).await; log!("ui={:?}", g.me.ui);
+        g.join("Player 2"); g.w.p.money = 5000; log!("visitor={} tasks={:?}", VISITORS[g.visitor()].name, g.w.p.tasks.iter().map(|t| TASKS[t.t].2).collect::<Vec<_>>());
+        approach(g, c, vec2(CAMP_SPOT.0, CAMP_SPOT.1)).await; log!("target={:?}", g.target()); press(g, c, KeyCode::E).await; shotc!("r1_camp_menu"); press(g, c, KeyCode::Enter).await; log!("camp_sold={:?} money={}", g.w.camp_sold, g.w.p.money); press(g, c, KeyCode::Escape).await;
+        g.activate(1); g.w.p.money = 5000; go(g, c, vec2(30.5, 22.5), 0.2).await; face(g, c, vec2(CAMP_SPOT.0, CAMP_SPOT.1)).await; approach(g, c, vec2(CAMP_SPOT.0, CAMP_SPOT.1)).await; press(g, c, KeyCode::E).await; press(g, c, KeyCode::Enter).await; log!("P2 try sold item: msgs={:?}", g.me.msgs.last().map(|m| m.0.clone())); press(g, c, KeyCode::Escape).await; g.activate(0);
+        go(g, c, vec2(31.5, 23.0), 0.2).await; shotc!("r1_camp_both");
+        let th = BLDS.iter().position(|b| b.kind == BK::Civic).unwrap(); go(g, c, door_stand(th), 0.12).await; face(g, c, door_face(th)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
+        g.w.p.coupons = 20; approach(g, c, tc(KIOSK)).await; log!("target={:?}", g.target()); press(g, c, KeyCode::E).await; shotc!("r1_kiosk"); for _ in 0..4 { press(g, c, KeyCode::Down).await } press(g, c, KeyCode::Enter).await; log!("coupons={} inv={:?}", g.w.p.coupons, g.w.p.inv.iter().map(|s| def(s.def).name).collect::<Vec<_>>()); press(g, c, KeyCode::Escape).await;
+        press(g, c, KeyCode::J).await; press(g, c, KeyCode::Tab).await; shotc!("r1_journal_initiatives"); press(g, c, KeyCode::Tab).await; press(g, c, KeyCode::Tab).await; shotc!("r1_journal_controls"); press(g, c, KeyCode::Tab).await; shotc!("r1_journal_guide"); press(g, c, KeyCode::Tab).await; shotc!("r1_journal_collection_split");
     } else if phase == "29" {
         // X-06: running dust, building siding/trim, Town Hall exterior without the boarding plank
         let th = BLDS.iter().position(|b| b.kind == BK::Civic).unwrap(); go(g, c, vec2(15.5, 17.5), 0.2).await;

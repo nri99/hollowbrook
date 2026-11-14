@@ -205,3 +205,7 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - Backlog reconciled: home loans and P4-01 marked done (were stale [B]). Only open item: campground visitors + coupon initiatives, blocked on a user decision (not in approved items 2/3/4/7).
 - Pending human: physical controllers, activity difficulty, HDMI audio listening.
 - Next action: wait for user feedback or approval of a new original design.
+
+## Release 1 (RELEASE_1.md) — 2026-11-14
+- Done: R1-R5 (see RELEASE_1.md progress log). Suite 71 pass + 1 ignored helper.
+- Next action: R6 content audit (acquisition paths, menu options, quests), R7 balance pass, then R8 docs (RELEASE_NOTES.md, HUMAN_VERIFICATION.md trim), final commit.
