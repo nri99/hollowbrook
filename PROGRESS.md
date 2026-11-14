@@ -211,3 +211,4 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - Next action: R6 content audit (acquisition paths, menu options, quests), R7 balance pass, then R8 docs (RELEASE_NOTES.md, HUMAN_VERIFICATION.md trim), final commit.
 - R6-R8 done. Full suite 73 pass (+2 ignored helpers: camp-site finder, real-save migration). Release 1 implementation complete; human checks pending.
 - Next action: none until user playtest feedback. Launch: `cargo run --release`.
+- 2026-11-14: Controller player switch: hold View + press Menu moves a pad between Player 1 and Player 2 (two pads swap; P2 leaves if no pad remains on P2, progress saved). Corrects the earlier claim that a lone pad drives P1 (it claimed P2). Unit test view_menu_switches_pad_between_players; physical check added to HUMAN_VERIFICATION H2. Suite 74 pass.

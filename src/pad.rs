@@ -58,16 +58,21 @@ impl Slots {
         for k in [1, 0] { if self.ids[k].map_or(true, |p| !self.connected.contains(&p)) { self.ids[k] = Some(id); return Some(k) } }
         None
     }
+    /// Move pad `id` to the other player slot (View + Menu). If another connected pad holds that slot, the two swap.
+    pub fn toggle(&mut self, id: usize) -> Option<usize> {
+        let k = self.slot_of(id)?; let o = 1 - k; let prev = self.ids[o].filter(|p| self.connected.contains(p));
+        self.ids[o] = Some(id); self.ids[k] = prev; Some(o)
+    }
     pub fn slot_of(&self, id: usize) -> Option<usize> { self.ids.iter().position(|s| *s == Some(id)) }
     /// true when a pad was assigned to the slot but is currently disconnected
     pub fn lost(&self, slot: usize) -> bool { self.ids[slot].is_some_and(|p| !self.connected.contains(&p)) }
     pub fn active(&self, slot: usize) -> bool { self.ids[slot].is_some_and(|p| self.connected.contains(&p)) }
 }
 
-pub struct Pads { gil: Option<gilrs::Gilrs>, map: HashMap<usize, gilrs::GamepadId>, pub slots: Slots, mappers: [Mapper; 2], pub claimed: Vec<usize> }
+pub struct Pads { gil: Option<gilrs::Gilrs>, map: HashMap<usize, gilrs::GamepadId>, pub slots: Slots, mappers: [Mapper; 2], pub claimed: Vec<usize>, pub switched: bool }
 impl Pads {
     pub fn new() -> Pads {
-        let gil = gilrs::Gilrs::new().ok(); let mut p = Pads { gil, map: HashMap::new(), slots: Slots::default(), mappers: Default::default(), claimed: vec![] };
+        let gil = gilrs::Gilrs::new().ok(); let mut p = Pads { gil, map: HashMap::new(), slots: Slots::default(), mappers: Default::default(), claimed: vec![], switched: false };
         if let Some(g) = &p.gil { for (id, _) in g.gamepads() { let u: usize = id.into(); p.map.insert(u, id); p.slots.connect(u) } }
         p
     }
@@ -79,7 +84,10 @@ impl Pads {
             match event {
                 gilrs::EventType::Connected => self.slots.connect(u),
                 gilrs::EventType::Disconnected => { self.slots.disconnect(u); if let Some(s) = self.slots.slot_of(u) { self.mappers[s].reset() } }
-                gilrs::EventType::ButtonPressed(gilrs::Button::Start | gilrs::Button::South, _) => { self.slots.connect(u); if let Some(s) = self.slots.claim(u) { self.mappers[s].reset(); self.claimed.push(s) } }
+                gilrs::EventType::ButtonPressed(b @ (gilrs::Button::Start | gilrs::Button::South), _) => { self.slots.connect(u);
+                    let combo = b == gilrs::Button::Start && g.gamepad(id).is_pressed(gilrs::Button::Select); // View + Menu: switch player
+                    if combo { if self.slots.slot_of(u).is_none() { self.slots.claim(u); } if self.slots.toggle(u).is_some() { self.mappers = Default::default(); self.switched = true } }
+                    else if let Some(s) = self.slots.claim(u) { self.mappers[s].reset(); self.claimed.push(s) } }
                 _ => {}
             }
         }
@@ -95,11 +103,21 @@ impl Pads {
         s.lx = gp.value(gilrs::Axis::LeftStickX); s.ly = gp.value(gilrs::Axis::LeftStickY); s
     }
     /// Keyboard-equivalent input for a player slot this frame (empty if no pad is assigned/connected).
-    pub fn inp(&mut self, slot: usize, dt: f32) -> Inp { let s = self.state(slot); self.mappers[slot].map(&s, dt) }
+    pub fn inp(&mut self, slot: usize, dt: f32) -> Inp { let s = self.state(slot); let mut i = self.mappers[slot].map(&s, dt); if s.b.contains(&B::Select) && s.b.contains(&B::Start) { i.pressed.remove(&KeyCode::J); } i }
     pub fn count(&self) -> usize { self.slots.connected.len() }
 }
 pub fn merge(a: Inp, b: Inp) -> Inp { Inp { down: a.down.union(&b.down).copied().collect(), pressed: a.pressed.union(&b.pressed).copied().collect() } }
 
+#[cfg(test)]
+mod switch_tests {
+    use super::*;
+    #[test] fn view_menu_switches_pad_between_players() {
+        let mut s = Slots::default(); s.connect(7); assert_eq!(s.claim(7), Some(1)); assert_eq!(s.toggle(7), Some(0)); assert_eq!(s.ids, [Some(7), None]);
+        assert_eq!(s.toggle(7), Some(1)); assert_eq!(s.ids, [None, Some(7)]);
+        s.connect(8); assert_eq!(s.claim(8), Some(0)); assert_eq!(s.toggle(8), Some(1)); assert_eq!(s.ids, [Some(7), Some(8)]); // two pads swap
+        assert_eq!(s.toggle(99), None);
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

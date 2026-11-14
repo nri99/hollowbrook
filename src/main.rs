@@ -87,6 +87,9 @@ async fn main() {
         let dt = get_frame_time().min(0.05); let now = clock.now(); let kb = Inp { down: get_keys_down(), pressed: get_keys_pressed() };
         if g.tick(dt, now) { save::save(&g.persist(), SAVE) } // persist a refresh immediately
         pads.poll();
+        if std::mem::take(&mut pads.switched) { let p2 = pads.slots.active(1); let joined = g.ids().contains(&1);
+            if p2 && !joined { g.join("Player 2"); g.note("Controller switched: Player 2 joined.") } else if !p2 && joined { g.leave(1); g.note("Controller switched to Player 1. Player 2 left; their progress is saved.") } else { g.note("Controllers switched players.") }
+            eprintln!("[pad] switched: slots {:?}", pads.slots.ids); save::save(&g.persist(), SAVE) }
         for slot in std::mem::take(&mut pads.claimed) { eprintln!("[pad] controller assigned to player {}", slot + 1); if slot == 1 && !g.ids().contains(&1) { g.join("Player 2"); g.note("Player 2 joined with a controller."); save::save(&g.persist(), SAVE) } }
         for id in g.ids() { g.activate(id); let p = pads.inp(id.min(1), dt); let used = !p.down.is_empty();
             let inp = if id == 0 { if !kb.down.is_empty() { g.me.pad = false } pad::merge(Inp { down: kb.down.clone(), pressed: kb.pressed.clone() }, p) } else { p };

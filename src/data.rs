@@ -325,8 +325,8 @@ pub const VERSION: &str = concat!("v", env!("CARGO_PKG_VERSION"), " (build ", en
 pub const HELP_KEYS: [&str; 10] = ["Move: WASD or arrows   Run: hold Shift", "Interact / confirm / next: E or Enter   Cancel / close: Esc",
     "Use tool / dive: Space   Cycle tools: Tab", "Pockets: I   Journal (help, settings, tasks): J", "Gift during a chat: G", "Furniture: F move, G pick up, R rotate",
     "Player 2 join / leave: F2", "Menus: W/S or Up/Down to choose, Enter to confirm", "Journal pages: Tab next page", "Quit: close the window (saves first)"];
-pub const HELP_PAD: [&str; 9] = ["Move: left stick or d-pad   Run: hold LT or RT", "Interact / confirm / next: A   Cancel / close: B", "Use tool / dive: X   Cycle tools: RB",
-    "Pockets: Y   Journal: Menu (Start)", "Gift during a chat: LB", "Furniture: View move, LB pick up, RB rotate", "2nd controller: press Menu or A to join as P2",
+pub const HELP_PAD: [&str; 10] = ["Move: left stick or d-pad   Run: hold LT or RT", "Interact / confirm / next: A   Cancel / close: B", "Use tool / dive: X   Cycle tools: RB",
+    "Pockets: Y   Journal: Menu (Start)", "Gift during a chat: LB", "Furniture: View move, LB pick up, RB rotate", "Menu or A on a new pad: join as P2", "Hold View + press Menu: switch pad P1 <-> P2",
     "Journal pages: RB next page", "Xbox names; PlayStation: Cross = A, Circle = B"];
 pub const GUIDE: [&str; 9] = [
     "Home: expand at the General Store counter. Each expansion adds an interest-free balance to pay off whenever you like; pay it off before the next one.",

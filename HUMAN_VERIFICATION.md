@@ -16,6 +16,7 @@ backed up to `save_backups/` on every launch.
 | LT / RT (Trigger2) | run (Shift) |
 | View/Back (Select) | move furniture (F) |
 | Menu (Start) | journal (J); also claims the pad |
+| hold View + press Menu | switch this pad between Player 1 and Player 2 (P2 leaves if no pad remains on P2) |
 | D-pad / left stick | move, menu navigation (arrows) |
 On PlayStation-style pads the same positions apply (Cross = A, Circle = B, Square = X, Triangle = Y). Not physically verified.
 
@@ -26,7 +27,8 @@ Walk (WASD/arrows), run (Shift), press E at your door, open pockets (I), close (
 1. Connect two pads; press Menu (Start) or A on one: the screen splits and that pad is Player 2.
 2. Check every action in the mapping table above on both pads, including menu navigation and hold-to-repeat.
 3. Player 1 (keyboard or pad) and Player 2 open different menus at the same time; neither input affects the other's menu.
-4. Unplug Player 2's pad: "Controller disconnected"; plug it back in and press Menu: control returns with nothing lost.
+4. With one pad: hold View and press Menu. The pad now controls Player 1 and the screen returns to one view; repeat to go back to Player 2.
+5. Unplug Player 2's pad: "Controller disconnected"; plug it back in and press Menu: control returns with nothing lost.
 
 ## H3 Release features with real input (keyboard and each pad)
 - Title screen: Continue, Controls and guide, Quit (Quit saves and closes).
