@@ -23,8 +23,8 @@ Status: `[ ]` open · `[x]` done · `[B]` blocked (reason given)
 
 ## Blocked pending an original design approved by the user (recreation-sensitive feature sets)
 - [x] Donation-funded public construction (leader placement, preview, both players donate) and town policies (civic desk) — 2026-11-14. Leader permit flow: leader is fixed to player 1 (provisional).
-- [B] Tropical travel with medal activities and reward shop; campground visitors and coupon initiatives.
-- [B] Debt-based home loans (house expansion without debt stays in P5-01).
+- [~] Tropical travel: DONE as Gullrock (timed activities, Sea Glass reward stall; user-approved item 7). [B] Campground visitors and coupon initiatives: not among the approved items; needs a user decision and an original design.
+- [x] Debt-based home loans: interest-free per-player expansion balance (user-approved item 2, 7da590e).
 
 ## P2 — presentation and readability
 - [x] **P2-01 Occlusion fade.** Buildings/trees between camera and player are drawn translucent/cut so the player stays visible. *AC:* behind-house screenshot shows player.
@@ -37,7 +37,7 @@ Status: `[ ]` open · `[x]` done · `[B]` blocked (reason given)
 - [x] **P3-03 Completion records.** Journal shows donated/total per category. *AC:* test + screenshot.
 
 ## P4 — civic systems
-- [B] **P4-01** Requires an original civic design approved by the user (see DESIGN_SPEC §14).
+- [x] **P4-01** Civic systems delivered per user-approved items 3/4 (funded projects, policies, Town Hall interior).
 
 ## P5 — housing, clothing, catalog, shop growth
 - [x] **P5-01 Home expansion.** Pay at the shop counter to enlarge the home room (4×4 → 5×5 → 6×5); furniture keeps positions. *AC:* tests for cost, persistence, room dims; rendered check.

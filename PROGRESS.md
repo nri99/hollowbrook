@@ -198,3 +198,10 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - Blink/nod: three fixed-time frames rendered (phase 28); curator blink + head tilt confirmed in crops (test_output/a28/x06_frames_compare.png). Player blink not visible in those frames (player faces away): rendering unverified for players.
 - Art stall: Saturday && !fair (event restriction); per-player weekly limit survives reload (test art_week_limit_per_player_survives_reload).
 - Full suite 67/67.
+
+## 2026-11-14 resume (from 9737f16)
+- No new playtest feedback found.
+- Player blink rendered-verified (phase 28 frames at t=9.5 open / t=8.45 closed; crop test_output/a28/x06_player_blink_compare.png). Brows moved down/forward and darkened; now visible from the game camera.
+- Backlog reconciled: home loans and P4-01 marked done (were stale [B]). Only open item: campground visitors + coupon initiatives, blocked on a user decision (not in approved items 2/3/4/7).
+- Pending human: physical controllers, activity difficulty, HDMI audio listening.
+- Next action: wait for user feedback or approval of a new original design.

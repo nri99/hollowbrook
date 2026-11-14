@@ -121,7 +121,7 @@ pub fn human(r: &mut R, id: usize, look: (Option<u16>, Option<u16>, u8), pos: Ve
                     Some(69) => { for k in 0..9 { let a = k as f32 / 9. * 2. * PI; r.sphere(vec3(a.cos() * 0.26, 0.2, a.sin() * 0.25), Vec3::splat(0.05), [PINK, YELLOW, WHITE][k % 3]) } }
                     _ => {} }
                 let bl = if (t + id as f32 * 1.7) % 4.2 < 0.13 { 0.12 } else { 1. };
-                for s in [-1f32, 1.] { r.cube(vec3(s * 0.1, 0.075, 0.25), vec3(0.04, 0.009, 0.01), sh(hair, 0.8)); r.sphere(vec3(s * 0.095, -0.01, 0.245), vec3(0.038, 0.055 * bl, 0.02), DARK); if bl > 0.5 { r.sphere(vec3(s * 0.09, 0.015, 0.262), Vec3::splat(0.012), WHITE) } r.sphere(vec3(s * 0.165, -0.085, 0.215), vec3(0.045, 0.03, 0.02), Color::new(1., 0.62, 0.62, 1.)) }
+                for s in [-1f32, 1.] { r.cube(vec3(s * 0.1, 0.058, 0.268), vec3(0.042, 0.011, 0.008), sh(hair, 0.55)); r.sphere(vec3(s * 0.095, -0.01, 0.245), vec3(0.038, 0.055 * bl, 0.02), DARK); if bl > 0.5 { r.sphere(vec3(s * 0.09, 0.015, 0.262), Vec3::splat(0.012), WHITE) } r.sphere(vec3(s * 0.165, -0.085, 0.215), vec3(0.045, 0.03, 0.02), Color::new(1., 0.62, 0.62, 1.)) }
                 r.cube(vec3(0., -0.12, 0.255), vec3(0.035, 0.01, 0.01), Color::new(0.6, 0.25, 0.25, 1.)); }) }) });
 }
 /// Residents 0-3 and the shopkeeper (4): distinct heads, ears, muzzles, tails, clothes; talk mouth + happy eyes.

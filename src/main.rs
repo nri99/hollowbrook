@@ -328,7 +328,8 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         approach(g, c, vec2(3.5, 1.5)).await; press(g, c, KeyCode::E).await;
         for (n, t) in [("x06_frame_a", 4.15f32), ("x06_frame_b", 5.0), ("x06_frame_c", 8.45)] { g.t = t; render::draw(g, c.now(), None); screenshot(&format!("{dir}/{n}.png")); next_frame().await; log!("frame {n} t={t}") }
         for _ in 0..8 { press(g, c, KeyCode::E).await } press(g, c, KeyCode::Escape).await; log!("donated critters={:?}", [8u16, 9, 18, 19].map(|d| g.w.donated.iter().any(|x| x.0 == d)));
-        go(g, c, vec2(3.5, 3.3), 0.12).await; shotc!("x04_museum_exhibits"); log!("donated art={} ui={:?}", g.donated_of(K::Art), g.me.ui);
+        go(g, c, vec2(3.5, 3.3), 0.12).await; shotc!("x04_museum_exhibits");
+        face(g, c, vec2(3.5, 4.5)).await; for (n, t) in [("x06_player_open", 9.5f32), ("x06_player_blink", 8.45)] { g.t = t; render::draw(g, c.now(), None); screenshot(&format!("{dir}/{n}.png")); next_frame().await; log!("frame {n} t={t} face={:?}", g.me.face) } log!("donated art={} ui={:?}", g.donated_of(K::Art), g.me.ui);
         go(g, c, vec2(2.6, 2.4), 0.12).await; face(g, c, vec2(2.6, 0.5)).await; shotc!("x04_art_wing");
         go(g, c, vec2(3.5, 4.4), 0.15).await; for _ in 0..40 { step(g, c, &[KeyCode::S], &[]).await } wait(g, c, 40).await; log!("scene={:?}", g.me.scene);
         g.w.p.home = 2; g.w.p.debt = 0; g.w.p.room.clear(); // fixture: largest home, cleared, then every piece placed through place_ok
