@@ -94,3 +94,31 @@ built-in third-party-style minigames and save-import from another game: [OUT].
 
 ## Unspecified, needs review
 Exact prices and probabilities; friendship thresholds; relocation rules; multi-profile UI; music direction; event calendar.
+
+## Content coverage (R16) — counts in the build vs. specification
+Status: COMPLETE = system done with the content listed · PARTIAL = system works, content is a small sample ·
+NOT IMPLEMENTED · BLOCKED (needs user decision). The spec provides no authoritative catalogs, so every count below is an
+original sample, not a claim of full coverage.
+
+| Area | In build | Status | Missing data / gaps |
+|---|---|---|---|
+| Bugs | 8 species, month/hour windows | PARTIAL | full roster, weather/location rules |
+| Fish | 11 (8 river, 3 sea), habitat + hours | PARTIAL | ponds, river mouth, shadow sizes per species |
+| Sea creatures / swimming / diving | — | NOT IMPLEMENTED | swim/dive movement, sea creature roster |
+| Fossils | 4 + unknown (assessment at museum) | PARTIAL | full roster, multi-part fossils |
+| Art | — | NOT IMPLEMENTED | art exhibits, authenticity |
+| Museum exhibits | fish tank, bug case, 4 fossil pedestals, shared donations | PARTIAL | per-species exhibit layouts, art wing |
+| Fruit / shells / treasures | 4 / 3 / 2 | PARTIAL | non-native fruit, special shells |
+| Furniture | 8 (chair, sofa, table, bed, lamp, cabinet, plant, painting) | PARTIAL | sets, themes, customization/re-colouring, rugs, wallpaper/flooring |
+| Clothing / appearance | 4 shirts; no hair/face changes | PARTIAL | trousers, shoes, hats, accessories, hairstyles, designs |
+| Shops | general store (5 daily stock, 2 tools, rack, counter, catalog) | PARTIAL | additional shops, upgrades, seasonal stock |
+| Housing | 3 sizes (paid up front), storage 40 | PARTIAL | extra rooms, exterior customization; loans BLOCKED |
+| Residents | 4 + shopkeeper + curator; schedules, requests, gifts, letters | PARTIAL | moving in/out, visits to player homes, more personalities, birthdays |
+| Weather | clear / rain / snow (deterministic, provisional) | PARTIAL | storms, fog, seasonal particles beyond snow |
+| Events | Harvest Fair (provisional window 13–16 Nov) | PARTIAL | full annual calendar (not specified -> fidelity gap) |
+| Visiting characters / entertainment | — | NOT IMPLEMENTED | spec gives no roster or rules |
+| Local players | 2 profiles, split-screen, 2 pads | COMPLETE (physical input unverified) | up to 4 profiles (spec) not implemented |
+| Civic permit / projects / policies | — | BLOCKED | original design needed (user decision) |
+| Tropical travel / medals / reward shop | — | BLOCKED | original design needed (user decision) |
+| Campground / initiatives | — | BLOCKED | original design needed (user decision) |
+| Music | — | NOT IMPLEMENTED | direction unspecified |

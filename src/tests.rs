@@ -219,3 +219,8 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     assert!(g.catch_up(at(12, 6, 0, 1))); assert!(!g.w.p.npcs[0].gifted);
     g.me.ui = Ui::Talk { npc: Some(2), who: "x".into(), lines: vec!["a".into()], i: 0 }; g.update(&Inp::keys(&[KeyCode::G], &[KeyCode::G]), 0.016, at(12, 7, 0, 0)); assert_eq!(g.me.ui, Ui::Gift(2, 0));
 }
+#[test] fn harvest_fair_window_and_prize_once() {
+    let mut g = g0(at(14, 12, 0, 0)); g.update(&Inp::none(), 0.016, at(14, 12, 0, 0)); assert!(g.fair()); assert_eq!(tile_at(&g.map, STALL.0, STALL.1), GRASS); assert!(!g.walk_tile(STALL.0, STALL.1));
+    g.fair_prize(); assert_eq!(g.w.p.inv.len(), 1); assert_eq!(g.w.p.fair_year, 2026); g.fair_prize(); assert_eq!(g.w.p.inv.len(), 1);
+    assert!(!fair_active(11, 17) && !fair_active(10, 14) && fair_active(11, 13)); let mut h = g0(at(20, 12, 0, 0)); h.update(&Inp::none(), 0.016, at(20, 12, 0, 0)); assert!(!h.fair()); h.fair_prize(); assert!(h.w.p.inv.is_empty()); assert!(h.walk_tile(STALL.0, STALL.1));
+}

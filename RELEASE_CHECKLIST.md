@@ -21,6 +21,6 @@ when every listed evidence type exists and is recorded in PROGRESS.md.
 | R13 | Museum donations shared + persistent visible exhibits | H X S | done |
 | R14 | Keyboard single-player still works | X P | X done, P open |
 | R15 | Tool feedback, occlusion fade, night lighting rendered | S | occlusion, night, lamp done; tool FX PARTIAL (dig puff not distinguishable from hole mound in screenshot; splash ring not captured) |
-| R16 | Content coverage table kept current (DESIGN_SPEC §Content) | doc | open |
+| R16 | Content coverage table kept current (DESIGN_SPEC §Content) | doc | done (table in DESIGN_SPEC, keep updated) |
 
 Physical items (P) cannot be performed by the agent; they go to HUMAN_VERIFICATION.md.

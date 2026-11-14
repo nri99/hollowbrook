@@ -235,6 +235,10 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         for _ in 0..1500 { let np = g.npcs[0].pos; if !g.npcs[0].inside && g.me.pos.distance(np) < 1.1 { break } let path = g.bfs(tile_of(g.me.pos), tile_of(np), false).unwrap_or_default(); let wp = if path.len() > 1 { tc(path[0]) } else { np }; step(g, c, &keys_toward(wp - g.me.pos), &[]).await }
         face(g, c, g.npcs[0].pos).await; let f0 = g.w.p.npcs[0].friend; press(g, c, KeyCode::E).await; press(g, c, KeyCode::G).await; log!("ui={:?}", g.me.ui); press(g, c, KeyCode::Enter).await;
         log!("friendship {f0} -> {} gifted={} ui={:?}", g.w.p.npcs[0].friend, g.w.p.npcs[0].gifted, g.me.ui); shot!("p63_gift_reaction");
+    } else if phase == "12" {
+        // P7-02: Harvest Fair stall (dev clock inside the provisional window)
+        approach(g, c, tc(STALL)).await; log!("fair={} target={:?}", g.fair(), g.target()); press(g, c, KeyCode::E).await; log!("prize: inv={:?} fair_year={}", g.w.p.inv, g.w.p.fair_year);
+        press(g, c, KeyCode::E).await; log!("second try inv len={}", g.w.p.inv.len()); step(g, c, &[KeyCode::S], &[]).await; for _ in 0..12 { step(g, c, &[KeyCode::S], &[]).await } face(g, c, tc(STALL)).await; shot!("p72_fair");
     } else if phase == "0" {
         log!("load-only check");
     } else if phase == "3" && c.now().hour() < 18 {

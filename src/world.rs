@@ -44,9 +44,11 @@ pub struct Profile {
     #[serde(default)] pub mail: Vec<Letter>,
     /// furniture/clothing ever owned, re-orderable at the shop counter
     #[serde(default)] pub catalog: Vec<u16>,
+    /// year in which this player last claimed the Harvest Fair prize
+    #[serde(default)] pub fair_year: i32,
 }
 impl Profile {
-    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, mail: vec![], catalog: vec![] } }
+    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, mail: vec![], catalog: vec![], fair_year: 0 } }
 }
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct World {
@@ -71,7 +73,7 @@ impl World {
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Pose { Stand, Sit(u32), Lie(u32) }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Loc { Out, Home, Asleep }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Snd { Step, Blip, Splash, Coin, Dig, Rustle, Door }
-#[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize) }
+#[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize), Stall }
 #[derive(Clone, PartialEq, Debug)]
 pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize) }
 pub struct Placing { pub f: Furn, pub orig: Option<Furn>, pub slot_uid: Option<u32> }
@@ -109,7 +111,7 @@ pub struct Game {
     pub w: World, pub map: Vec<u8>, pub me: Player, pub others: Vec<Player>, pub npcs: Vec<NpcRt>,
     pub t: f32, pub log: Vec<String>, pub rolled: bool, pub shadows: Vec<Shadow>,
     pub bugs: Vec<(u16, Vec2, f32)>, pub shake: Vec<(usize, f32)>, pub hearts: Vec<(Vec3, f32)>,
-    pub snd: Vec<Snd>, pub hr: u32, pub mo: u32, pub curve: f32,
+    pub snd: Vec<Snd>, pub hr: u32, pub mo: u32, pub curve: f32, pub dom: u32, pub yr: i32,
     /// transient tool effects: (position, age, kind 0 splash / 1 dirt / 2 swish)
     pub fx: Vec<(Vec3, f32, u8)>,
 }
@@ -123,7 +125,7 @@ impl Game {
     pub fn from_world(w: World, map: Vec<u8>) -> Game {
         let pos = vec2(w.p.pos[0], w.p.pos[1]);
         let npcs = (0..4).map(|i| NpcRt { pos: door_stand(RES[i].bld), path: vec![], wait: gen_range(0., 2.), yaw: 0., inside: true, happy: 0., moving: false, last_chat: 9, anim: 0. }).collect();
-        let mut g = Game { me: Player::new(w.p.id, pos), w, map, others: vec![], npcs, t: 0., log: vec![], rolled: false, shadows: vec![], bugs: vec![], shake: vec![], hearts: vec![], snd: vec![], hr: 12, mo: 6, curve: 0.01, fx: vec![] };
+        let mut g = Game { me: Player::new(w.p.id, pos), w, map, others: vec![], npcs, t: 0., log: vec![], rolled: false, shadows: vec![], bugs: vec![], shake: vec![], hearts: vec![], snd: vec![], hr: 12, mo: 6, curve: 0.01, dom: 1, yr: 2026, fx: vec![] };
         if !g.free(g.me.pos) { g.me.pos = door_stand(HOME); g.me.cam = g.me.pos }
         let map = &g.map; let open = |t: &(i32, i32)| tile_at(map, t.0, t.1) != BLD && *t != mailbox_tile(0) && *t != mailbox_tile(1); // objects saved before a building existed there
         g.w.weeds.retain(open); g.w.digs.retain(open); g.w.holes.retain(open); g.w.ground.retain(|i| open(&tile_of(vec2(i.x, i.z))));
@@ -215,7 +217,9 @@ impl Game {
 
     // ---- collision ----
     pub fn tile(&self, x: i32, z: i32) -> u8 { tile_at(&self.map, x, z) }
-    pub fn walk_tile(&self, x: i32, z: i32) -> bool { matches!(self.tile(x, z), GRASS | PATH | SAND | BRIDGE | FLOWER) && !self.w.holes.contains(&(x, z)) && (x, z) != mailbox_tile(0) && (x, z) != mailbox_tile(1) }
+    pub fn fair(&self) -> bool { fair_active(self.mo, self.dom) }
+    pub fn walk_tile(&self, x: i32, z: i32) -> bool {
+        if self.fair() && (x, z) == STALL { return false } matches!(self.tile(x, z), GRASS | PATH | SAND | BRIDGE | FLOWER) && !self.w.holes.contains(&(x, z)) && (x, z) != mailbox_tile(0) && (x, z) != mailbox_tile(1) }
     pub fn room_furn(&self, b: usize) -> Vec<Furn> {
         match BLDS[b].kind { BK::Home(o) => if self.w.p.id == o { self.w.p.room.clone() } else { self.w.others.iter().find(|p| p.id == o).map(|p| p.room.clone()).unwrap_or_default() }, BK::Res(r) => TEMPL[r].iter().map(|&(def, x, z, rot)| Furn { uid: 0, def, x, z, rot, on: true }).collect(), _ => vec![] }
     }
@@ -268,6 +272,7 @@ impl Game {
                 for (i, g) in self.w.ground.iter().enumerate() { cand(vec2(g.x, g.z), 1.2, 0.8, Tg::Item(i), None) }
                 for (i, &w) in self.w.weeds.iter().enumerate() { cand(tc(w), 1.2, 1., Tg::Weed(i), None) }
                 for o in 0..2 { cand(tc(mailbox_tile(o)), 1.4, 0.9, Tg::Mailbox(o), Some(mailbox_tile(o))) }
+                if self.fair() { cand(tc(STALL), 1.5, 0.8, Tg::Stall, Some(STALL)) }
             }
             Scene::Room(b) => {
                 for fu in self.room_furn(b) { cand(fcenter(&fu), 1.5, 1., Tg::Furn(fu.uid, fu.def), None) }
@@ -285,7 +290,7 @@ impl Game {
         match tg {
             Tg::Npc(i) => v(if self.me.scene == Scene::Town { self.npcs[i].pos } else { res_spot() }, 1.5), Tg::Door(b) => v(door_face(b), 1.3),
             Tg::Tree(i) => v(tc((self.w.trees[i].x, self.w.trees[i].z)), 2.15), Tg::Item(i) => vec3(self.w.ground[i].x, 0.45, self.w.ground[i].z),
-            Tg::Weed(i) => v(tc(self.w.weeds[i]), 0.55), Tg::Rack => vec3(1.5, 1.8, 1.5), Tg::Mailbox(o) => v(tc(mailbox_tile(o)), 1.4), Tg::Curator => vec3(3.5, 1.3, 1.5), Tg::Exhibit(k) => match k { 0 => vec3(0.5, 1.5, 2.5), 1 => vec3(6.5, 1.5, 2.5), _ => { let p = tc(MUSEUM_PED[k - 2].0); vec3(p.x, 1.2, p.y) } }, Tg::Counter => vec3(3.5, 1.3, 1.5), Tg::Keeper => vec3(3.5, 1.7, 0.5), Tg::Display(i) => v(tc(DISPLAYS[i]), 1.3),
+            Tg::Weed(i) => v(tc(self.w.weeds[i]), 0.55), Tg::Rack => vec3(1.5, 1.8, 1.5), Tg::Mailbox(o) => v(tc(mailbox_tile(o)), 1.4), Tg::Stall => v(tc(STALL), 1.9), Tg::Curator => vec3(3.5, 1.3, 1.5), Tg::Exhibit(k) => match k { 0 => vec3(0.5, 1.5, 2.5), 1 => vec3(6.5, 1.5, 2.5), _ => { let p = tc(MUSEUM_PED[k - 2].0); vec3(p.x, 1.2, p.y) } }, Tg::Counter => vec3(3.5, 1.3, 1.5), Tg::Keeper => vec3(3.5, 1.7, 0.5), Tg::Display(i) => v(tc(DISPLAYS[i]), 1.3),
             Tg::Furn(uid, d) => { let c = self.room_furn(match self.me.scene { Scene::Room(b) => b, _ => HOME }).into_iter().find(|f| f.uid == uid && f.def == d).map(|f| fcenter(&f)).unwrap_or_default(); v(c, if def(d).wall { 1.9 } else { 1.2 }) }
         }
     }
@@ -296,7 +301,7 @@ impl Game {
             Tg::Item(i) => format!("Pick up {}", def(self.w.ground[i].def).name), Tg::Weed(_) => "Pull weed".into(),
             Tg::Furn(uid, d) => { let a = match def(d).act { Act::Sit => "Sit on", Act::Bed => "Lie on", Act::Lamp => "Toggle", Act::Storage => "Open", Act::None => "Look at" };
                 if uid != 0 && self.me.scene == Scene::Room(self.home()) { format!("{a} {}   [F] Move  [G] Pick up", def(d).name) } else { format!("{a} {}", def(d).name) } }
-            Tg::Counter => "Sell items".into(), Tg::Keeper => "Talk to Mr. Tumble".into(), Tg::Curator => "Donate / identify fossils".into(), Tg::Rack => "Browse clothes".into(), Tg::Mailbox(o) => if o == self.me.id { let n = self.w.p.mail.iter().filter(|l| !l.read).count(); if n > 0 { format!("Check mailbox ({n} new)") } else { "Check mailbox".into() } } else { format!("Player {}'s mailbox", o + 1) },
+            Tg::Counter => "Sell items".into(), Tg::Keeper => "Talk to Mr. Tumble".into(), Tg::Curator => "Donate / identify fossils".into(), Tg::Rack => "Browse clothes".into(), Tg::Stall => if self.w.p.fair_year == self.yr { "Harvest Fair stall (prize claimed)".into() } else { "Claim a Harvest Fair prize".into() }, Tg::Mailbox(o) => if o == self.me.id { let n = self.w.p.mail.iter().filter(|l| !l.read).count(); if n > 0 { format!("Check mailbox ({n} new)") } else { "Check mailbox".into() } } else { format!("Player {}'s mailbox", o + 1) },
             Tg::Exhibit(k) => match k { 0 => "Look at the fish tank".into(), 1 => "Look at the bug case".into(), _ => format!("Look at the {} pedestal", def(MUSEUM_PED[k - 2].1).name) },
             Tg::Display(i) => if i < 5 { let s = self.w.stock[i]; if s.sold { "Sold out".into() } else { format!("Buy {} ({} coins)", def(s.def).name, def(s.def).buy) } } else { let t = TOOL_DISPLAY[i - 5]; format!("Buy {} ({} coins)", def(t).name, def(t).buy) },
         }
@@ -316,6 +321,7 @@ impl Game {
             Tg::Counter => self.me.ui = Ui::Sell(0),
             Tg::Curator => self.donate(),
             Tg::Rack => self.me.ui = Ui::Rack(0),
+            Tg::Stall => self.fair_prize(),
             Tg::Mailbox(o) => if o == self.me.id { self.me.ui = Ui::Mail(0) } else { self.note(format!("That's Player {}'s mailbox. Better not peek.", o + 1)) },
             Tg::Exhibit(k) => { let (n, t) = match k { 0 => (self.donated_of(K::Fish), DEFS.iter().filter(|d| d.k == K::Fish).count()), 1 => (self.donated_of(K::Bug), DEFS.iter().filter(|d| d.k == K::Bug).count()), _ => (self.w.donated.iter().any(|x| x.0 == MUSEUM_PED[k - 2].1) as usize, 1) };
                 let who = if k >= 2 { self.w.donated.iter().find(|x| x.0 == MUSEUM_PED[k - 2].1).map(|x| format!(" (donated by Player {})", x.1 + 1)).unwrap_or_default() } else { String::new() };
@@ -343,6 +349,7 @@ impl Game {
         let fill = |s: &str, item: &str| s.replace("{p}", &name).replace("{fs}", &fruits).replace("{f}", &fruit).replace("{i}", item);
         let indoor = self.me.scene != Scene::Town;
         let mut lines = vec![fill(if indoor { HOMEL[pers] } else { GREET[pers][slot] }, "")];
+        if self.fair() { lines.push("The Harvest Fair is on! There's a prize stall by the plaza.".into()) }
         match weather(self.w.day, self.mo) { Wx::Rain if !indoor => lines.push(fill(RAIN[pers], "")), Wx::Snow if !indoor => lines.push(fill(SNOW[pers], "")), _ => {} }
         if let Some(q) = self.w.p.npcs[i].req {
             let item = def(q).name;
@@ -420,6 +427,15 @@ impl Game {
         let name = def(sl.def).name;
         let line = if liked { self.npcs[j].happy = 2.; let hp = if self.me.scene == Scene::Town { self.npcs[j].pos } else { res_spot() }; for k in 0..4 { self.hearts.push((vec3(hp.x + (k as f32 - 1.5) * 0.12, 1.3, hp.y), -(k as f32) * 0.12)) } format!("A {name}! Oh, I really love these. Thank you!") } else { format!("A {name}? How kind. Thank you!") };
         self.snd.push(Snd::Blip); self.me.ui = Ui::Talk { npc: Some(j), who, lines: vec![line], i: 0 };
+    }
+
+    /// Harvest Fair: one free furniture prize per player per year (needs a free pocket slot; nothing is lost if full).
+    pub fn fair_prize(&mut self) {
+        if !self.fair() { return }
+        if self.w.p.fair_year == self.yr { return self.note("You already got your prize this year. Enjoy the fair!") }
+        if self.w.p.inv.len() >= INV_CAP { return self.note("Make room in your pockets first!") }
+        let d = FURN_IDS[gen_range(0, FURN_IDS.len())]; self.add_furn(d); self.w.p.fair_year = self.yr; self.snd.push(Snd::Coin);
+        self.note(format!("Harvest Fair prize: a {}!", def(d).name));
     }
 
     // ---- clothing ----
@@ -653,7 +669,7 @@ impl Game {
     pub fn update(&mut self, inp: &Inp, dt: f32, now: NaiveDateTime) -> bool { let f = self.tick(dt, now); self.update_player(inp, dt); f }
     /// Shared per-frame simulation (clock, daily refresh, residents, wildlife, effects). Call once per frame.
     pub fn tick(&mut self, dt: f32, now: NaiveDateTime) -> bool {
-        self.t += dt; self.hr = now.hour(); self.mo = now.month();
+        self.t += dt; self.hr = now.hour(); self.mo = now.month(); self.dom = now.day(); self.yr = now.year();
         let fresh = self.catch_up(now);
         for e in &mut self.fx { e.1 += dt } self.fx.retain(|e| e.1 < 0.8);
         for s in &mut self.shake { s.1 -= dt } self.shake.retain(|s| s.1 > 0.);

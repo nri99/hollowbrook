@@ -1,10 +1,10 @@
 # Progress log
 
 ## Current
-- Current task: P7-02 one recurring seasonal event (provisional rules) + R16 content coverage table
-- Last completed: P6-03 gifts to residents
+- Current task: C-01 swimming + diving
+- Last completed: P7-02 Harvest Fair + R16 content coverage table
 - Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
-- Next action: add a provisional "Harvest Fair" (last Saturday of October? choose fixed date window, provisional) with plaza decorations + a resident line + a once-per-day prize; tests for the date window. Then write the DESIGN_SPEC content coverage table (counts per category vs spec, missing-data list) and update RELEASE_CHECKLIST R16.
+- Next action: allow entering SEA tiles while "swimming" (Space at shore without rod? or walking into sea from sand toggles swim state), swim speed, dive button (Space) to find sea creatures from a small original roster (3-4, provisional), sell/donate them; tests; screenshot.
 
 ## Baseline verification (before this run)
 - 19 headless tests pass. Executable bot run (2 launches) completed the full loop; screenshots inspected:
@@ -87,3 +87,8 @@ schedules, resume-outdoors policy, clock-rollback pause).
 ### 02:40 — P6-03 done (gifts)
 - During a resident conversation G (pad LB) opens Ui::Gift; one unit leaves pockets; liked kind (LIKES per personality [PROV]: fruit/fossil/fish/bug) +2 friendship with happy jump + hearts, other items +1; once per resident per day per profile (`NpcS.gifted`, serde default, reset 06:00).
 - H: 40/40 (new: gifts_once_per_day_with_preferences). X: phase 11 shook a tree, picked a Peach, talked to Juniper, G -> Enter: friendship 0 -> 3 (1 chat + 2 liked gift). S (inspected): p63_gift_reaction. Fixed "Peachs" plural in the tree message seen in that screenshot.
+
+### 03:00 — P7-02 done; R16 table written
+- Harvest Fair [PROV]: 13-16 Nov, stall at plaza tile (11,10) solid only during the fair, lantern posts, residents mention it, one random furniture prize per player per year (`Profile.fair_year`, serde default; pockets-full keeps it unclaimed).
+- H: 41/41 (new: harvest_fair_window_and_prize_once). X: phase 12 at 16:30 on 14 Nov: prize Lamp, second claim refused. S (inspected): p72_fair.
+- DESIGN_SPEC: content coverage table with COMPLETE/PARTIAL/NOT IMPLEMENTED/BLOCKED and missing data; BACKLOG C-01..C-05 added from it.

@@ -130,6 +130,9 @@ pub const KEEPER: [&str; 2] = ["Welcome to the General Store! New furniture arri
 fn put(m: &mut [u8], x: i32, z: i32, c: u8) { if x >= 0 && z >= 0 && (x as usize) < W && (z as usize) < H { m[z as usize * W + x as usize] = c } }
 fn path(m: &mut [u8], x: i32, z: i32) { let i = z as usize * W + x as usize; m[i] = match m[i] { RIVER => BRIDGE, BLD | BRIDGE => m[i], _ => PATH } }
 /// The authored demonstration town.
+/// Harvest Fair (provisional date window and rules): 13-16 November; stall by the plaza; one prize per player per year.
+pub fn fair_active(month: u32, day: u32) -> bool { month == 11 && (13..=16).contains(&day) }
+pub const STALL: (i32, i32) = (11, 10);
 pub fn town() -> Vec<u8> {
     let mut m = vec![GRASS; W * H];
     for z in 0..H as i32 { for x in 0..W as i32 { put(&mut m, x, z, if z >= 26 { SEA } else if z >= 24 { SAND } else if x == 0 || z == 0 || x == W as i32 - 1 { PINE } else { GRASS }) } }
