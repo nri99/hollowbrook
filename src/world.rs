@@ -86,9 +86,11 @@ pub struct Player {
     pub id: usize, pub scene: Scene, pub pos: Vec2, pub ipos: Vec2, pub face: Vec2, pub cam: Vec2, pub anim: f32, pub spd: f32, pub pose: Pose,
     pub stand_from: Vec2, pub step_acc: f32, pub ui: Ui, pub placing: Option<Placing>, pub fish: Option<Fishing>, pub trans: Option<(f32, Scene, bool)>,
     pub swing: f32, pub msgs: Vec<(String, f32)>,
+    /// last input came from a gamepad (button prompts) / its assigned pad is disconnected
+    pub pad: bool, pub pad_lost: bool,
 }
 impl Player {
-    pub fn new(id: usize, pos: Vec2) -> Player { Player { id, scene: Scene::Town, pos, ipos: Vec2::ZERO, face: vec2(0., 1.), cam: pos, anim: 0., spd: 0., pose: Pose::Stand, stand_from: Vec2::ZERO, step_acc: 0., ui: Ui::Play, placing: None, fish: None, trans: None, swing: 0., msgs: vec![] } }
+    pub fn new(id: usize, pos: Vec2) -> Player { Player { id, scene: Scene::Town, pos, ipos: Vec2::ZERO, face: vec2(0., 1.), cam: pos, anim: 0., spd: 0., pose: Pose::Stand, stand_from: Vec2::ZERO, step_acc: 0., ui: Ui::Play, placing: None, fish: None, trans: None, swing: 0., msgs: vec![], pad: false, pad_lost: false } }
 }
 pub struct Game {
     pub w: World, pub map: Vec<u8>, pub me: Player, pub others: Vec<Player>, pub npcs: Vec<NpcRt>,
@@ -599,7 +601,7 @@ impl Game {
                 else if ok && s < n { let sl = self.w.p.inv[s];
                     if def(sl.def).k != crate::data::K::Furn { self.note(format!("{} sells for {} coins at the shop.", def(sl.def).name, def(sl.def).sell)) }
                     else if self.me.scene == Scene::Room(self.home()) { self.me.ui = Ui::Play; self.start_place(sl.uid) } else { self.note("Furniture can be placed inside your home.") } } }
-            Ui::Sell(s) => { let s = mv(s, n); self.me.ui = Ui::Sell(s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.sell_slot(s) } else if inp.p(A) { self.sell_all() } }
+            Ui::Sell(s) => { let s = mv(s, n); self.me.ui = Ui::Sell(s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.sell_slot(s) } else if inp.p(A) || inp.p(X) { self.sell_all() } }
             Ui::Confirm(d) => { if ok || inp.p(Y) { self.me.ui = Ui::Play; match self.buy(d) { Ok(()) => { self.snd.push(Snd::Coin); self.note("Thank you for your purchase!") } Err(e) => self.note(e) } } else if esc || inp.p(N) { self.me.ui = Ui::Play } }
             Ui::Storage(c, s) => { let c = if left { 0 } else if right { 1 } else { c }; let len = if c == 0 { n } else { self.w.p.storage.len() }; let s = mv(s, len); self.me.ui = Ui::Storage(c, s);
                 if esc { self.me.ui = Ui::Play } else if ok && s < len { self.transfer(c, s) } }

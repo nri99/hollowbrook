@@ -1,10 +1,10 @@
 # Progress log
 
 ## Current
-- Current task: MP-04 gamepads (gilrs), assignment, prompts, reconnect
-- Last completed: MP-02, MP-03, MP-05 (two players live, split-screen, second home)
-- Known blockers: P0-03 physical input (needs user); P4 civic design (needs user decision)
-- Next action: add src/pad.rs (gilrs polling, pad->Inp mapping on arrow keys, dead zone 0.35, edges, menu repeat, slot assignment + reconnect), unit tests with virtual pad state; HUD button prompts per input type.
+- Current task: P3-01 Museum building + donations (shared, persistent)
+- Last completed: MP-04 gamepads (virtual-verified; physical NOT RUN)
+- Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
+- Next action: add museum building on free grass (append to BLDS, id 8), shared `donated: Vec<u16>` in World (serde default), curator interaction donating undonated fish/bug/treasure from pockets, tests (no double donation across two players), then P3-02 exhibits in the museum interior.
 
 ## Baseline verification (before this run)
 - 19 headless tests pass. Executable bot run (2 launches) completed the full loop; screenshots inspected:
@@ -46,3 +46,10 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - Second home building id 7 (Home(1)) on free grass; homes are owner-aware; only the owner can move/pick up furniture; objects saved on tiles that are now buildings are dropped on load.
 - H: 29/29 (new: separate_homes_owner_only_furniture). X: autotest phase 4 (two virtual inputs): P1 entered home while P2 walked outside; P2 inventory opened, P1 Esc did not close it, P2 Esc did.
 - S (inspected): mp_split_home_and_town, mp_p2_inventory, mp_same_scene, mp_together (both players visible in both halves).
+
+### 00:10 — MP-04 done (virtual)
+- `src/pad.rs`: gilrs polling; `Slots` (pad->player, P2 claimed first, disconnected slot reclaimable); `Mapper` (stick/d-pad -> arrow keys, dead zone 0.35, edges, menu repeat 0.4 s / 0.12 s; A=E+Enter, B=Esc, X=Space, Y=I+X, RB=Tab+R, LB=G, Select=F, Start=J, triggers=run). Main loop merges pad 0 with keyboard for P1; first claimed pad joins P2. Pad prompts + "controller disconnected" banner per player half.
+- H: 32/32 (new: dead_zone_and_diagonal, button_edges_and_repeat, slots_assign_disconnect_reassign).
+- X: phase 5 — virtual pad states through Mapper into P2: A entered own home (Room 7), Y opened pockets, B closed; slot disconnect -> banner, another pad reclaimed slot; P2 progress intact.
+- S (inspected): mp_pad_prompts, mp_pad_disconnected (banner was clipped in narrow view -> shortened, rechecked prompts).
+- Physical controller: NOT RUN (no hardware access by agent). Steps in HUMAN_VERIFICATION.md.

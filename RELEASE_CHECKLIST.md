@@ -15,8 +15,8 @@ when every listed evidence type exists and is recorded in PROGRESS.md.
 | R07 | Players in different scenes at once (one outdoors, one indoors), both updated + rendered | H X S | done |
 | R08 | Shared world transactions: one pickup, one last-stock purchase, no double spend | H | done (H) |
 | R09 | Independent dialogue/menus: one player's input never drives the other's UI | H X | done |
-| R10 | Gamepad support (2 pads): explicit assignment, dead zone, edges, menu navigation, prompts | H (virtual) P | open |
-| R11 | Controller disconnect/reconnect/reassign without progress loss; join/leave safely | H P | open |
+| R10 | Gamepad support (2 pads): explicit assignment, dead zone, edges, menu navigation, prompts | H (virtual) P | H + X(virtual pad) done; P NOT RUN |
+| R11 | Controller disconnect/reconnect/reassign without progress loss; join/leave safely | H P | H + X(virtual) done; P NOT RUN |
 | R12 | Daily rollover with players in different scenes | H | done (H) |
 | R13 | Museum donations shared + persistent visible exhibits | H X S | open |
 | R14 | Keyboard single-player still works | X P | X done, P open |

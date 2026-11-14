@@ -357,26 +357,26 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
     txt(&format!("{} {:02}:{:02}  {} {}  {}{}", now.weekday(), now.hour(), now.minute(), MON[now.month0() as usize], now.day(), season, if rainy(g.w.day) { "  Rain" } else { "" }), 20., 35., 26., WHITE);
     txt(&format!("{} coins    pockets {}/{}    tool: {}", g.w.p.money, g.w.p.inv.len(), INV_CAP, g.w.p.equip.map_or("none", |t| def(t).name)), 20., 62., 22., GOLD);
     for (k, (m, _)) in g.me.msgs.iter().rev().filter(|m| g.t - m.1 < 5.).take(4).enumerate() { txt(m, 14., 100. + k as f32 * 24., 22., WHITE) }
-    if g.me.ui == Ui::Play && g.me.placing.is_none() && g.me.trans.is_none() { if let Some(tg) = g.target() { let s = format!("[E] {}", g.tg_label(tg)); let tw = measure_text(&s, None, 24, 1.).width; draw_rectangle(sw / 2. - tw / 2. - 10., sh - 92., tw + 20., 32., Color::new(0., 0., 0., 0.55)); txt(&s, sw / 2. - tw / 2., sh - 69., 24., WHITE) } }
+    if g.me.ui == Ui::Play && g.me.placing.is_none() && g.me.trans.is_none() { if let Some(tg) = g.target() { let s = if g.me.pad { format!("[A] {}", g.tg_label(tg)).replace("[F]", "[Select]").replace("[G]", "[LB]") } else { format!("[E] {}", g.tg_label(tg)) }; let tw = measure_text(&s, None, 24, 1.).width; draw_rectangle(sw / 2. - tw / 2. - 10., sh - 92., tw + 20., 32., Color::new(0., 0., 0., 0.55)); txt(&s, sw / 2. - tw / 2., sh - 69., 24., WHITE) } }
     if g.me.fish.as_ref().is_some_and(|f| f.bite) { txt("!", sw / 2. - 10., sh / 2. - 80., 90., Color::new(1., 0.3, 0.2, 1.)) }
     let narrow = sw < 900.;
     if narrow { draw_rectangle(sw - 62., 14., 50., 30., if g.me.id == 0 { Color::new(0.2, 0.45, 0.9, 0.9) } else { Color::new(0.9, 0.35, 0.3, 0.9) }); txt(&format!("P{}", g.me.id + 1), sw - 52., 38., 26., WHITE) }
-    let hint = if narrow { if g.me.placing.is_some() { "Move  R rotate  Enter place  Esc cancel" } else { "Move  E act  Space tool  Tab tool  I bag  J journal" } } else if g.me.placing.is_some() { "Placing:  WASD/Arrows move   R rotate   Enter place   Esc cancel" } else { "WASD move  Shift run  E interact  Space use tool  Tab tool  I inventory  J journal  F/G move/pick up furniture  Esc cancel" };
+    let hint = if g.me.pad { if g.me.placing.is_some() { "Stick move  RB rotate  A place  B cancel" } else { if narrow { "Stick move  A act  X tool  RB tool  Y bag  B back" } else { "Stick move  RT run  A act  X tool  RB next tool  Y bag  Start journal  B cancel" } } } else if narrow { if g.me.placing.is_some() { "Move  R rotate  Enter place  Esc cancel" } else { "Move  E act  Space tool  Tab tool  I bag  J journal" } } else if g.me.placing.is_some() { "Placing:  WASD/Arrows move   R rotate   Enter place   Esc cancel" } else { "WASD move  Shift run  E interact  Space use tool  Tab tool  I inventory  J journal  F/G move/pick up furniture  Esc cancel" };
     txt(hint, 12., sh - 14., 19., WHITE);
     match &g.me.ui {
         Ui::Play => {}
-        Ui::Talk { who, lines, i, .. } => { panel(sw / 2. - 430., sh - 200., 860., 140.); txt(who, sw / 2. - 410., sh - 168., 26., Color::new(0.55, 0.3, 0.15, 1.)); txt(lines.get(*i).map_or("", |s| s.as_str()), sw / 2. - 410., sh - 128., 24., BLACK); txt("[E] next", sw / 2. + 330., sh - 75., 20., GRAY) }
+        Ui::Talk { who, lines, i, .. } => { panel(sw / 2. - 430., sh - 200., 860., 140.); txt(who, sw / 2. - 410., sh - 168., 26., Color::new(0.55, 0.3, 0.15, 1.)); txt(lines.get(*i).map_or("", |s| s.as_str()), sw / 2. - 410., sh - 128., 24., BLACK); txt(if g.me.pad { "[A] next" } else { "[E] next" }, sw / 2. + 330., sh - 75., 20., GRAY) }
         Ui::Inv(s) | Ui::Sell(s) => { let sell = matches!(g.me.ui, Ui::Sell(_)); panel(sw / 2. - 260., 90., 520., 520.);
             txt(if sell { "Sell to Mr. Tumble" } else { "Pockets" }, sw / 2. - 240., 125., 30., Color::new(0.45, 0.3, 0.2, 1.));
             let items: Vec<String> = g.w.p.inv.iter().map(|it| if sell { format!("{}  -  {}c", slot_name(it), def(it.def).sell * it.qty as u32) } else { slot_name(it) }).collect();
             if items.is_empty() { txt("(empty)", sw / 2. - 230., 170., 22., GRAY) } list(&items, Some(*s), sw / 2. - 230., 170.);
-            txt(if sell { "W/S select  Enter sell  A sell all finds  Esc close" } else { "W/S select  Enter place furniture (at home)  Esc close" }, sw / 2. - 240., 590., 19., DARKGRAY);
+            txt(match (sell, g.me.pad) { (true, false) => "W/S select  Enter sell  A sell all finds  Esc close", (true, true) => "Up/Down select  A sell  Y sell all finds  B close", (false, false) => "W/S select  Enter place furniture (at home)  Esc close", _ => "Up/Down select  A place furniture (at home)  B close" }, sw / 2. - 240., 590., 19., DARKGRAY);
             if !sell { txt(&format!("Tools: {}", g.w.p.tools.iter().map(|t| def(*t).name).collect::<Vec<_>>().join(", ")), sw / 2. - 240., 565., 19., DARKGRAY) } }
         Ui::Confirm(d) => { let (n, p) = if *d < 5 { let s = g.w.stock[*d]; (def(s.def).name, def(s.def).buy) } else { let t = TOOL_DISPLAY[*d - 5]; (def(t).name, def(t).buy) };
-            panel(sw / 2. - 260., sh / 2. - 80., 520., 150.); txt(&format!("Buy the {n} for {p} coins?"), sw / 2. - 235., sh / 2. - 35., 26., BLACK); txt(&format!("You have {} coins.", g.w.p.money), sw / 2. - 235., sh / 2. - 2., 22., DARKGRAY); txt("[Enter] Yes     [Esc] No", sw / 2. - 235., sh / 2. + 40., 22., Color::new(0.45, 0.3, 0.2, 1.)) }
+            panel(sw / 2. - 260., sh / 2. - 80., 520., 150.); txt(&format!("Buy the {n} for {p} coins?"), sw / 2. - 235., sh / 2. - 35., 26., BLACK); txt(&format!("You have {} coins.", g.w.p.money), sw / 2. - 235., sh / 2. - 2., 22., DARKGRAY); txt(if g.me.pad { "[A] Yes     [B] No" } else { "[Enter] Yes     [Esc] No" }, sw / 2. - 235., sh / 2. + 40., 22., Color::new(0.45, 0.3, 0.2, 1.)) }
         Ui::Storage(c, s) => { panel(sw / 2. - 380., 90., 760., 520.); txt("Pockets", sw / 2. - 360., 125., 28., BLACK); txt("Cabinet storage", sw / 2. + 20., 125., 28., BLACK);
             let a: Vec<String> = g.w.p.inv.iter().map(slot_name).collect(); let bb: Vec<String> = g.w.p.storage.iter().map(slot_name).collect();
-            list(&a, (*c == 0).then_some(*s), sw / 2. - 350., 165.); list(&bb, (*c == 1).then_some(*s), sw / 2. + 30., 165.); txt("A/D switch side  W/S select  Enter move item  Esc close", sw / 2. - 360., 590., 19., DARKGRAY) }
+            list(&a, (*c == 0).then_some(*s), sw / 2. - 350., 165.); list(&bb, (*c == 1).then_some(*s), sw / 2. + 30., 165.); txt(if g.me.pad { "Left/Right switch side  Up/Down select  A move item  B close" } else { "A/D switch side  W/S select  Enter move item  Esc close" }, sw / 2. - 360., 590., 19., DARKGRAY) }
         Ui::Journal => { panel(60., 80., sw - 120., sh - 160.); txt("Field Journal", 80., 115., 30., Color::new(0.45, 0.3, 0.2, 1.));
             for (col, (k, title)) in [(K::Fish, "Fish"), (K::Bug, "Bugs"), (K::Shell, "Shells & finds")].iter().enumerate() { let x = 80. + col as f32 * 380.; txt(title, x, 155., 26., BLACK);
                 for (j, dd) in DEFS.iter().filter(|dd| dd.k == *k || (*k == K::Shell && matches!(dd.k, K::Treasure | K::Fruit))).enumerate() { let seen = g.w.p.seen.contains(&dd.id);
@@ -391,5 +391,6 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         panel(px, py, pw, 30. + 22. * (lines.len() + g.log.len().min(3)) as f32);
         for (k, l) in lines.iter().chain(g.log.iter().rev().take(3)).enumerate() { txt(l, px + 12., py + 22. + k as f32 * 22., 17., BLACK) }
     }
+    if g.me.pad_lost { for (k, m) in ["Controller disconnected", "Press Start on a controller to reconnect"].iter().enumerate() { let tw = measure_text(m, None, 24, 1.).width; draw_rectangle(sw / 2. - tw / 2. - 12., sh / 2. - 34. + k as f32 * 40., tw + 24., 40., Color::new(0.6, 0.1, 0.1, 0.9)); txt(m, sw / 2. - tw / 2., sh / 2. - 6. + k as f32 * 40., 24., WHITE) } }
     if let Some((t, _, _)) = g.me.trans { draw_rectangle(0., 0., sw, sh, Color::new(0., 0., 0., 1. - ((t - 0.22).abs() / 0.22).min(1.))) }
 }

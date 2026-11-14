@@ -1,5 +1,6 @@
 mod clock;
 mod data;
+mod pad;
 mod render;
 mod save;
 #[cfg(test)]
@@ -73,11 +74,15 @@ async fn main() {
     if g.catch_up(clock.now()) { save::save(&g.persist(), SAVE) }
     prevent_quit();
     if let Some(dir) = auto { autotest(&mut g, &clock, &dir).await; save::save(&g.persist(), SAVE); return }
-    let (mut st, mut shots) = (0., 0);
+    let (mut st, mut shots) = (0., 0); let mut pads = pad::Pads::new(); eprintln!("[pad] {} gamepad(s) detected", pads.count());
     loop {
         let dt = get_frame_time().min(0.05); let now = clock.now(); let kb = Inp { down: get_keys_down(), pressed: get_keys_pressed() };
         if g.tick(dt, now) { save::save(&g.persist(), SAVE) } // persist a refresh immediately
-        for id in g.ids() { g.activate(id); let inp = if id == 0 { &kb } else { &Inp::none() }; g.update_player(inp, dt) } // pads: MP-04
+        pads.poll();
+        for slot in std::mem::take(&mut pads.claimed) { eprintln!("[pad] controller assigned to player {}", slot + 1); if slot == 1 && !g.ids().contains(&1) { g.join("Player 2"); g.note("Player 2 joined with a controller."); save::save(&g.persist(), SAVE) } }
+        for id in g.ids() { g.activate(id); let p = pads.inp(id.min(1), dt); let used = !p.down.is_empty();
+            let inp = if id == 0 { if !kb.down.is_empty() { g.me.pad = false } pad::merge(Inp { down: kb.down.clone(), pressed: kb.pressed.clone() }, p) } else { p };
+            if used { g.me.pad = true } g.me.pad_lost = pads.slots.lost(id.min(1)); g.update_player(&inp, dt) }
         g.activate(0);
         if kb.p(KeyCode::F2) { if g.ids().len() == 1 { g.join("Player 2"); g.note("Player 2 joined (split-screen).") } else { g.leave(1); g.note("Player 2 left; their progress is saved.") } save::save(&g.persist(), SAVE) }
         render::draw(&mut g, now, dbg.then(|| clock.source()));
@@ -174,6 +179,19 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         log!("after P2 pressed I: {} | {}", st(g, 0), st(g, 1)); shot!("mp_p2_inventory");
         step2(g, c, k(&[KeyCode::Escape], &[KeyCode::Escape]), k(&[], &[])).await; log!("P1 Esc does not close P2 menu: {}", st(g, 1));
         step2(g, c, k(&[], &[]), k(&[KeyCode::Escape], &[KeyCode::Escape])).await; log!("P2 Esc: {}", st(g, 1));
+    } else if phase == "5" {
+        // MP-04: virtual gamepad states -> pad::Mapper -> the same update path; slot disconnect/reconnect
+        g.join("Player 2"); let mut m = pad::Mapper::default(); let mut sl = pad::Slots::default(); sl.connect(5); log!("pad 5 claims slot {:?}", sl.claim(5));
+        let ps = |b: &[pad::B], lx: f32, ly: f32| pad::PadState { b: b.iter().copied().collect(), lx, ly };
+        for _ in 0..10 { let i = m.map(&ps(&[], 0., 0.), 1. / 60.); step2(g, c, Inp::none(), i).await }
+        for _ in 0..3 { let i = m.map(&ps(&[], 0., 0.8), 1. / 60.); step2(g, c, Inp::none(), i).await } // stick up: face the door
+        let i = m.map(&ps(&[pad::B::South], 0., 0.), 1. / 60.); step2(g, c, Inp::none(), i).await; for _ in 0..40 { let i = m.map(&ps(&[], 0., 0.), 1. / 60.); step2(g, c, Inp::none(), i).await }
+        g.activate(1); g.me.pad = true; log!("P2 after A at own door: scene={:?}", g.me.scene); g.activate(0);
+        let i = m.map(&ps(&[pad::B::North], 0., 0.), 1. / 60.); step2(g, c, Inp::none(), i).await; let i = m.map(&ps(&[], 0., 0.), 1. / 60.); step2(g, c, Inp::none(), i).await;
+        g.activate(1); log!("P2 after Y: ui={:?}", g.me.ui); g.activate(0); shot!("mp_pad_prompts");
+        let i = m.map(&ps(&[pad::B::East], 0., 0.), 1. / 60.); step2(g, c, Inp::none(), i).await; g.activate(1); log!("P2 after B: ui={:?}", g.me.ui); g.activate(0);
+        sl.disconnect(5); g.activate(1); g.me.pad_lost = sl.lost(1); g.activate(0); log!("disconnect: lost={}", sl.lost(1)); shot!("mp_pad_disconnected");
+        sl.connect(6); log!("pad 6 claims {:?}; lost={}", sl.claim(6), sl.lost(1)); g.activate(1); g.me.pad_lost = sl.lost(1); log!("P2 progress intact: scene={:?} money={}", g.me.scene, g.w.p.money); g.activate(0);
     } else if phase == "0" {
         log!("load-only check");
     } else if phase == "3" && c.now().hour() < 18 {
