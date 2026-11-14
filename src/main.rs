@@ -322,6 +322,7 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         macro_rules! shotc { ($n:expr) => {{ wait(g, c, 2).await; render::draw(g, c.now(), None); screenshot(&format!("{dir}/{}.png", $n)); next_frame().await; log!("shot {}", $n); }} }
         wait(g, c, 5).await; log!("tier={} stock={} weather={:?}", g.shop_tier(), g.w.stock.len(), weather(g.w.day, c.now().month()));
         go(g, c, vec2(16.5, 17.5), 0.3).await; shotc!("d06_town_morning");
+        for (k, j) in (0..4).enumerate() { let pp = g.me.pos; let n = &mut g.npcs[j]; n.inside = false; n.pos = pp + vec2(-1.2 + k as f32 * 0.8, -1.0); n.moving = false; n.path.clear(); n.yaw = 0.; } g.t = 1.3; render::draw(g, c.now(), None); screenshot(&format!("{dir}/d04_props.png")); next_frame().await; log!("FIXTURE: residents placed idle near the player for the prop frame");
         go(g, c, door_stand(SHOP), 0.12).await; face(g, c, door_face(SHOP)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await; go(g, c, vec2(3.5, 2.6), 0.15).await; shotc!("d05_shop_renovated");
     } else if phase == "32" {
         // D-03 surprises (fixture placement near the player) and D-04 emotes (fixed times).

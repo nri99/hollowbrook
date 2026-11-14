@@ -13,7 +13,7 @@ pub const FADE: f32 = 3.0; // seconds for every crossfade
 pub const SETTINGS: &str = "hollowbrook_settings.json";
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
-pub enum Var { Normal, Rain, Indoor }
+pub enum Var { Normal, Rain, Indoor, Festive }
 
 // ---------------- settings (separate from the world save) ----------------
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
@@ -30,7 +30,7 @@ pub fn effective(fade: f32, vol: f32, muted: bool) -> f32 { if muted { 0. } else
 /// One arrangement for everyone (no competing tracks): outdoor if any local player is outdoors, else indoor; rain/snow softens it.
 pub fn variant(g: &Game) -> Var {
     let outdoor = std::iter::once(&g.me).chain(g.others.iter()).any(|p| !matches!(p.scene, Scene::Room(_)));
-    if !outdoor { Var::Indoor } else if weather(g.w.day, g.mo) != Wx::Clear { Var::Rain } else { Var::Normal }
+    if !outdoor { Var::Indoor } else if g.fest().is_some() || g.fair() { Var::Festive } else if weather(g.w.day, g.mo) != Wx::Clear { Var::Rain } else { Var::Normal }
 }
 
 // ---------------- composition ----------------
@@ -134,19 +134,19 @@ pub fn compose(hour: u32, var: Var) -> Vec<f32> {
     let freq = |deg: i32, oct: f32| p.root * oct * 2f32.powf(semis(&p.scale, deg) as f32 / 12.);
     let sw = |b: f32| { let f = b.fract(); b.floor() + if (f - 0.5).abs() < 0.01 { p.swing } else { f } };
     let lead_vel = if var == Var::Rain { 0.55 } else { 0.8 };
-    for &(b, d, deg) in &p.melody { note(&mut buf, p.lead, freq(deg, 1.), sw(b) * beat, d * beat * 0.92, lead_vel) }
+    for &(b, d, deg) in &p.melody { note(&mut buf, p.lead, freq(deg, 1.), sw(b) * beat, d * beat * 0.92, lead_vel); if var == Var::Festive { note(&mut buf, Inst::Keys, freq(deg, 2.), sw(b) * beat, d * beat * 0.6, 0.1) } } // festive: bell doubling an octave up
     for bar in 0..16 { let c = p.prog[(bar / 2) % 4]; let t0 = (bar * 4) as f32 * beat;
-        if p.energy < 0.3 { if bar % 2 == 0 { for d in [c, c + 2, c + 4] { note(&mut buf, Inst::Pad, freq(d, 0.5), t0, 8. * beat * 0.95, 0.12) } } note(&mut buf, Inst::Bass, freq(c, 0.25), t0, 4. * beat * 0.9, 0.35) }
+        if p.energy < 0.3 && var != Var::Festive { if bar % 2 == 0 { for d in [c, c + 2, c + 4] { note(&mut buf, Inst::Pad, freq(d, 0.5), t0, 8. * beat * 0.95, 0.12) } } note(&mut buf, Inst::Bass, freq(c, 0.25), t0, 4. * beat * 0.9, 0.35) }
         else {
             let arp = [c, c + 2, c + 4, c + 2, c + 7, c + 4, c + 2, c + 4];
-            for (k, &d) in arp.iter().enumerate() { if p.energy < 0.6 && k % 2 == 1 { continue } note(&mut buf, Inst::Keys, freq(d, 0.5), t0 + sw(k as f32 / 2.) * beat, 0.45 * beat, 0.16) }
+            for (k, &d) in arp.iter().enumerate() { if p.energy < 0.6 && k % 2 == 1 && var != Var::Festive { continue } note(&mut buf, Inst::Keys, freq(d, 0.5), t0 + sw(k as f32 / 2.) * beat, 0.45 * beat, 0.16) }
             note(&mut buf, Inst::Bass, freq(c, 0.25), t0, 1.8 * beat, 0.4); note(&mut buf, Inst::Bass, freq(c + 4, 0.25), t0 + 2. * beat, 1.8 * beat, 0.32);
-            if var == Var::Normal && p.energy >= 0.6 { for k in 0..8 { if k % 2 == 1 { perc(&mut buf, true, t0 + sw(k as f32 / 2.) * beat, 0.05) } } for k in [1., 3.] { perc(&mut buf, false, t0 + k * beat, 0.05) } }
+            if (var == Var::Normal && p.energy >= 0.6) || var == Var::Festive { for k in 0..8 { if k % 2 == 1 { perc(&mut buf, true, t0 + sw(k as f32 / 2.) * beat, 0.05) } } for k in [1., 3.] { perc(&mut buf, false, t0 + k * beat, 0.05) } }
         }
     }
-    match var { Var::Indoor => lowpass_loop(&mut buf, 0.25), Var::Rain => lowpass_loop(&mut buf, 0.5), Var::Normal => lowpass_loop(&mut buf, 0.85) }
+    match var { Var::Indoor => lowpass_loop(&mut buf, 0.25), Var::Rain => lowpass_loop(&mut buf, 0.5), Var::Normal => lowpass_loop(&mut buf, 0.85), Var::Festive => lowpass_loop(&mut buf, 0.7) }
     let peak = buf.iter().fold(0f32, |m, v| m.max(v.abs())).max(1e-6);
-    let g = 0.8 / peak * p.gain * match var { Var::Normal => 1., Var::Rain => 0.85, Var::Indoor => 0.7 };
+    let g = 0.8 / peak * p.gain * match var { Var::Normal | Var::Festive => 1., Var::Rain => 0.85, Var::Indoor => 0.7 };
     for v in &mut buf { *v *= g } buf
 }
 
@@ -198,7 +198,7 @@ mod tests {
         let keys: std::collections::HashSet<(i32, i32)> = (0..24).map(|h| { let p = plan(h); ((p.bpm * 10.) as i32, (p.root * 10.) as i32) }).collect(); assert!(keys.len() >= 12);
     }
     #[test] fn loops_are_long_clean_and_unclipped() {
-        for h in [2u32, 7, 10, 14, 18, 23] { for v in [Var::Normal, Var::Rain, Var::Indoor] { let s = compose(h, v);
+        for h in [2u32, 7, 10, 14, 18, 23] { for v in [Var::Normal, Var::Rain, Var::Indoor, Var::Festive] { let s = compose(h, v);
             assert!(s.len() as f32 / SR >= 30., "hour {h} loop too short"); assert!(s.iter().all(|x| x.abs() <= 0.81));
             let max_step = s.windows(2).map(|w| (w[1] - w[0]).abs()).fold(0f32, f32::max); assert!(max_step < 0.35, "hour {h} {v:?} click-like step {max_step}");
             assert!((s[0] - s[s.len() - 1]).abs() < 0.2, "loop seam jump at hour {h} {v:?}") } }

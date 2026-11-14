@@ -133,6 +133,16 @@ pub fn emote(g: &Game, i: usize, t: f32) -> Option<u8> {
     if g.hr + 1 >= r.sleep || g.hr < r.wake + 1 { return Some(1) }
     Some([0, 2, 2, 3][r.pers])
 }
+/// Idle hobby prop held at the resident's side (CHARS order): basket, watering can, telescope, towel, yarn, wrench.
+pub fn hobby_prop(r: &mut R, ch: usize, pos: Vec3, yaw: f32, t: f32) {
+    r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(yaw), pos + vec3(0., 0., 0.)), |r| { let h = vec3(0.26, 0.32, 0.12);
+        match ch { 0 => { r.cyl(h - vec3(0., 0.08, 0.), 0.09, 0.1, Color::new(0.75, 0.55, 0.3, 1.)); r.sphere(h + vec3(0., 0.04, 0.), vec3(0.07, 0.03, 0.07), Color::new(0.95, 0.85, 0.6, 1.)) }
+            1 => { r.cyl(h - vec3(0., 0.08, 0.), 0.07, 0.12, Color::new(0.4, 0.6, 0.45, 1.)); r.seg(h + vec3(0., 0., 0.05), h + vec3(0., -0.02, 0.2), 0.015, Color::new(0.4, 0.6, 0.45, 1.)); let ph = (t * 3.) % 1.; r.sphere(h + vec3(0., -0.05 - ph * 0.25, 0.22), Vec3::splat(0.015), Color::new(0.5, 0.75, 1., 1.)) }
+            2 => r.seg(h, h + vec3(0., 0.25, 0.2), 0.025, Color::new(0.75, 0.65, 0.35, 1.)),
+            3 => r.cube(h + vec3(0., -0.05, 0.), vec3(0.03, 0.12, 0.08), Color::new(0.95, 0.95, 0.95, 1.)),
+            4 => { r.sphere(h, Vec3::splat(0.06), Color::new(0.85, 0.4, 0.55, 1.)); r.seg(h + vec3(-0.05, 0.05, 0.), h + vec3(0.05, 0.12, 0.05), 0.006, Color::new(0.8, 0.75, 0.6, 1.)) }
+            _ => r.seg(h, h + vec3(0., 0.18, 0.06), 0.02, Color::new(0.6, 0.6, 0.65, 1.)) } });
+}
 pub fn draw_emote(r: &mut R, e: u8, p: Vec3, t: f32, labels: &mut Vec<(Vec3, String, Color)>) {
     match e {
         0 => { let c = Color::new(0.35, 0.3, 0.8, 1.); r.sphere(p, vec3(0.06, 0.045, 0.04), c); r.seg(p + vec3(0.05, 0., 0.), p + vec3(0.05, 0.2, 0.), 0.012, c); r.seg(p + vec3(0.05, 0.2, 0.), p + vec3(0.12, 0.15, 0.), 0.012, c) }
@@ -490,6 +500,7 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
         let near_me = !n.moving && n.pos.distance(g.me.pos) < 3. && g.me.scene == Scene::Town; let yaw = if near_me || talking { yaw_of(g.me.pos - n.pos) } else { n.yaw }; // idle residents look at a nearby player
         resident_u(r, g.w.roster[i], vec3(n.pos.x, 0., n.pos.y), yaw, n.anim, n.moving, t, talking, n.happy, weather(g.w.day, now.month()) == Wx::Rain);
         if let Some(e) = emote(g, i, t) { let hp = vec3(n.pos.x + 0.25, 1.55 + (t * 2.).sin() * 0.03, n.pos.y); draw_emote(r, e, hp, t, labels) }
+        if !n.moving && !talking && weather(g.w.day, now.month()) != Wx::Rain { hobby_prop(r, g.w.roster[i], vec3(n.pos.x, 0., n.pos.y), yaw, t) }
         if let Some(&(a, b, left)) = g.chats.iter().find(|c| c.0 == i || c.1 == i) { let first = a == i; let speak = ((5. - left) as i32 % 2 == 0) == first; let pers = g.res(i).pers;
             if speak && n.pos.distance(g.me.pos) < 7. { labels.push((vec3(n.pos.x, 1.95, n.pos.y), format!("\"{}\"", CHATTER[pers][(i + b) % 3]), WHITE)) } }
         else if n.pos.distance(g.me.pos) < 4. { labels.push((vec3(n.pos.x, 1.75, n.pos.y), g.res(i).name.into(), Color::new(1., 0.95, 0.7, 1.))) } }

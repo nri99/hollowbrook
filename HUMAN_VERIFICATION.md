@@ -46,3 +46,9 @@ The agent confirmed through the Windows audio meter that the game produces sound
 Activity thresholds, initiative quantities, coupon prices, campground prices and the overall pace feel fair and fun.
 
 Record results (pass/fail + notes) below.
+
+## H6 Depth pass (2026-11-14)
+- Talk to residents across days: tier lines, seasonal/gossip/hobby lines, best-friend portrait at high friendship; Friends page in the journal.
+- Festival days (set the PC date or wait): plaza host, decorations, task and keepsake; festive music arrangement.
+- Daily surprise: find it (residents hint east/west), return a lost scarf to its owner.
+- General Store renovation letters and the weekly special after enough spending.

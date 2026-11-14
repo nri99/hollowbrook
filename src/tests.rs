@@ -560,3 +560,7 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     let th = BLDS.iter().position(|b| b.kind == BK::Shop).unwrap(); assert!(g.room_block(th, EXTRA_DISPLAY.0, EXTRA_DISPLAY.1, 0) && g.room_block(th, SPECIAL_DISPLAY.0, SPECIAL_DISPLAY.1, 0));
     g.w.day += 7; assert!(!g.display_item(8).2); // next week's special
 }
+#[test] fn festive_music_on_event_days() {
+    let mut g = g0(at(11, 12, 0, 0)); g.mo = 6; g.dom = 1; assert_ne!(crate::audio::variant(&g), crate::audio::Var::Festive); g.mo = 4; g.dom = 11; assert_eq!(crate::audio::variant(&g), crate::audio::Var::Festive);
+    let (n, f) = (crate::audio::compose(2, crate::audio::Var::Normal), crate::audio::compose(2, crate::audio::Var::Festive)); assert_eq!(n.len(), f.len()); assert!(n.iter().zip(&f).any(|(a, b)| (a - b).abs() > 1e-3));
+}

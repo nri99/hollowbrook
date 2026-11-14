@@ -224,3 +224,7 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - D-05 DONE: store renovation tiers (spending tracked on all store purchases), weekly special display, extra daily stock slot, renovation letters; test shop_renovation_tiers_special_extra_stock; phase 33 screenshot.
 - D-06 PARTIAL: chimney smoke (morning/evening/cold months) and a distant bird flock on clear days; phase 33 screenshot. Open: riverside fences, festival music arrangement.
 - Remaining depth backlog: D-04 idle prop actions, D-06 fences + festival music. Next action: D-06 festival music variant in audio.rs (Var::Festive), then idle actions.
+- Festival music: audio Var::Festive (bell doubling, full arpeggio, light percussion) on festival and Harvest Fair days outdoors; passes the click/seam test; test festive_music_on_event_days. Not listened to (human check).
+- D-04 idle hobby props (basket, watering can, telescope, towel, yarn, wrench) when residents stand still in dry weather; phase 33 frame d04_props (fixture places residents) shows basket/towel; others occluded from that angle.
+- Depth backlog status: D-01..D-05 done, D-06 done except riverside fences (low priority). Suite 79 pass.
+- Next action: optional riverside fences; otherwise await user playtest feedback.
