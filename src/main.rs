@@ -218,6 +218,14 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         wait(g, c, 60).await;
         if let Some(i) = (0..4).find(|&i| !g.npcs[i].inside) { for _ in 0..900 { let np = g.npcs[i].pos; if g.me.pos.distance(np) < 2.2 { break } let path = g.bfs(tile_of(g.me.pos), tile_of(np), false).unwrap_or_default(); let wp = if path.len() > 1 { tc(path[0]) } else { np }; step(g, c, &keys_toward(wp - g.me.pos), &[]).await } }
         log!("weather={:?} pos={:?}", weather(g.w.day, c.now().month()), g.me.pos); shot!("p7_weather");
+    } else if phase == "10" {
+        // P5-03: buy at a stand, then re-order the same item from the counter catalog
+        go(g, c, door_stand(SHOP), 0.12).await; face(g, c, door_face(SHOP)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
+        let d = (0..5).filter(|&i| !def(g.w.stock[i].def).wall).min_by_key(|&i| def(g.w.stock[i].def).buy).unwrap();
+        approach(g, c, tc(DISPLAYS[d])).await; press(g, c, KeyCode::E).await; press(g, c, KeyCode::Enter).await; log!("bought {} money={}", def(g.w.stock[d].def).name, g.w.p.money);
+        go(g, c, vec2(3.5, 2.5), 0.12).await; face(g, c, vec2(3.5, 1.5)).await; press(g, c, KeyCode::E).await; for _ in 0..g.w.p.inv.len() + 1 { press(g, c, KeyCode::S).await }
+        press(g, c, KeyCode::Enter).await; log!("ui={:?} catalog={:?}", g.me.ui, g.w.p.catalog); shot!("p53_catalog"); press(g, c, KeyCode::Enter).await;
+        log!("after order: money={} inv={:?}", g.w.p.money, g.w.p.inv.iter().map(|s| (def(s.def).name, s.uid)).collect::<Vec<_>>());
     } else if phase == "0" {
         log!("load-only check");
     } else if phase == "3" && c.now().hour() < 18 {

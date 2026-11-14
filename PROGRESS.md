@@ -1,10 +1,10 @@
 # Progress log
 
 ## Current
-- Current task: R15 tool-FX rendered check, then P5-03 catalog reorder
-- Last completed: P7-01 snow + P6-02 umbrellas (idle activities partial: pauses only)
+- Current task: P6-03 gifts to residents
+- Last completed: P5-03 catalog reorder
 - Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
-- Next action: phase capturing dig + cast FX mid-animation (shot right after Space) for R15; then P5-03: Profile.catalog (defs ever owned, serde default) + counter menu "Catalog" reorder at full price; tests.
+- Next action: give a pocket item to a resident from the talk flow (Gift option: talking while holding Space? use Ui::Gift list opened by a third dialogue choice) with per-resident preference (fruit/fish/flower-themed, provisional) affecting friendship +1/+2/+0 once per day; tests; screenshot. Then P7-02 one seasonal event and R16 content coverage table.
 
 ## Baseline verification (before this run)
 - 19 headless tests pass. Executable bot run (2 launches) completed the full loop; screenshots inspected:
@@ -78,3 +78,8 @@ schedules, resume-outdoors policy, clock-rollback pause).
 ### 02:00 — P7-01, P6-02 done (weather)
 - `weather(day, month)`: wet days (provisional 1 in 8, deterministic) are Snow in Dec-Feb, otherwise Rain. Snowflakes per split view outdoors, HUD "Snow", resident snow lines (SNOW). Residents outdoors carry an umbrella in their clothing colour when it rains. Idle activities beyond pauses: not implemented.
 - H: 38/38 (new: weather_rule_snow_in_winter). X/S: phase 9 on 2026-12-12 (snow) and 2026-11-14 (rain); inspected p7snow/p7_weather.png (snowy ground + flakes) and p7rain/p7_weather.png (Juniper with umbrella).
+
+### 02:20 — P5-03 done; R15 rechecked
+- `Profile.catalog` (serde default; seeded on load from owned furniture/clothing for every profile); `Game::order` at full price, delivered to pockets [PROV]; counter menu line "Order from catalog" -> Ui::Catalog.
+- H: 39/39 (new: catalog_reorder_full_price). X: phase 10 bought Potted Plant at a stand, re-ordered it from the catalog (500 -> 0, two distinct uids). S (inspected): p53_catalog.
+- R15 tool FX: re-inspected p3m/p3_dig_site.png: soil spheres around the hole, but the dirt-puff effect is not distinguishable from the hole mound; recorded PARTIAL.

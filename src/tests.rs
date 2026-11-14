@@ -205,3 +205,9 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
 }
 #[test] fn weather_rule_snow_in_winter() { let wet = (739900..740400).find(|&d| rainy(d)).unwrap(); let dry = (739900..740400).find(|&d| !rainy(d)).unwrap();
     assert_eq!(weather(wet, 1), Wx::Snow); assert_eq!(weather(wet, 12), Wx::Snow); assert_eq!(weather(wet, 6), Wx::Rain); assert_eq!(weather(dry, 1), Wx::Clear); }
+#[test] fn catalog_reorder_full_price() {
+    let mut g = g0(at(11, 12, 0, 0)); g.w.p.money = 5000; let d = g.w.stock[0].def; g.buy(0).unwrap(); assert!(g.w.p.catalog.contains(&d)); let m = g.w.p.money;
+    g.order(d).unwrap(); assert_eq!(g.w.p.money, m - def(d).buy); assert_eq!(g.w.p.inv.iter().filter(|s| s.def == d).count(), 2); assert_ne!(g.w.p.inv[0].uid, g.w.p.inv[1].uid);
+    assert_eq!(g.order(57).err(), if d == 57 { None } else { Some("That isn't in your catalog.") }.filter(|_| d != 57)); g.w.p.money = 0; assert_eq!(g.order(d), Err("Not enough coins."));
+    let g2 = reload(&g, "cat"); assert!(g2.w.p.catalog.contains(&d));
+}

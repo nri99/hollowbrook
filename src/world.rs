@@ -42,9 +42,11 @@ pub struct Profile {
     /// worn shirt (item def); None = starting outfit
     #[serde(default)] pub shirt: Option<u16>,
     #[serde(default)] pub mail: Vec<Letter>,
+    /// furniture/clothing ever owned, re-orderable at the shop counter
+    #[serde(default)] pub catalog: Vec<u16>,
 }
 impl Profile {
-    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, mail: vec![] } }
+    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, mail: vec![], catalog: vec![] } }
 }
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct World {
@@ -71,7 +73,7 @@ impl World {
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Snd { Step, Blip, Splash, Coin, Dig, Rustle, Door }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize) }
 #[derive(Clone, PartialEq, Debug)]
-pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize) }
+pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize) }
 pub struct Placing { pub f: Furn, pub orig: Option<Furn>, pub slot_uid: Option<u32> }
 pub struct Fishing { pub bob: Vec2, pub fish: Option<usize>, pub t: f32, pub nib: u8, pub need: u8, pub bite: bool, pub dip: f32 }
 pub struct Shadow { pub pos: Vec2, pub def: u16, pub vel: Vec2 }
@@ -125,6 +127,7 @@ impl Game {
         if !g.free(g.me.pos) { g.me.pos = door_stand(HOME); g.me.cam = g.me.pos }
         let map = &g.map; let open = |t: &(i32, i32)| tile_at(map, t.0, t.1) != BLD && *t != mailbox_tile(0) && *t != mailbox_tile(1); // objects saved before a building existed there
         g.w.weeds.retain(open); g.w.digs.retain(open); g.w.holes.retain(open); g.w.ground.retain(|i| open(&tile_of(vec2(i.x, i.z))));
+        for p in std::iter::once(&mut g.w.p).chain(g.w.others.iter_mut()) { let owned: Vec<u16> = p.room.iter().map(|f| f.def).chain(p.inv.iter().chain(p.storage.iter()).map(|s| s.def)).filter(|&d| matches!(def(d).k, K::Furn | K::Cloth)).chain(p.shirt).collect(); for d in owned { if !p.catalog.contains(&d) { p.catalog.push(d) } } }
         if g.w.stock.is_empty() { g.refresh_world() } // migrated saves get shop stock, shells and dig sites
         g
     }
@@ -373,7 +376,9 @@ impl Game {
         if !self.w.p.seen.contains(&d) { self.w.p.seen.push(d) }
         self.note(format!("Got: {}!", def(d).name)); true
     }
-    pub fn add_furn(&mut self, d: u16) -> bool { if self.w.p.inv.len() >= INV_CAP { self.note("Your pockets are full!"); return false } let uid = self.uid(); self.w.p.inv.push(Slot { def: d, qty: 1, uid }); true }
+    pub fn add_furn(&mut self, d: u16) -> bool { if self.w.p.inv.len() >= INV_CAP { self.note("Your pockets are full!"); return false } let uid = self.uid(); self.w.p.inv.push(Slot { def: d, qty: 1, uid }); if !self.w.p.catalog.contains(&d) { self.w.p.catalog.push(d) } true }
+    /// Re-order a catalog item at full shop price (delivered to pockets immediately; provisional).
+    pub fn order(&mut self, d: u16) -> Result<(), &'static str> { if !self.w.p.catalog.contains(&d) { return Err("That isn't in your catalog.") } let p = def(d).buy; if self.w.p.money < p { return Err("Not enough coins.") } if self.w.p.inv.len() >= INV_CAP { return Err("Your pockets are full.") } self.w.p.money -= p; self.add_furn(d); Ok(()) }
     pub fn remove_one(&mut self, d: u16) -> bool {
         let Some(i) = self.w.p.inv.iter().position(|s| s.def == d && s.uid == 0) else { return false };
         self.w.p.inv[i].qty -= 1; if self.w.p.inv[i].qty == 0 { self.w.p.inv.remove(i); } true
@@ -685,11 +690,12 @@ impl Game {
                     if def(sl.def).k == crate::data::K::Cloth { self.me.ui = Ui::Play; self.wear(sl.uid) }
                     else if def(sl.def).k != crate::data::K::Furn { self.note(format!("{} sells for {} coins at the shop.", def(sl.def).name, def(sl.def).sell)) }
                     else if self.me.scene == Scene::Room(self.home()) { self.me.ui = Ui::Play; self.start_place(sl.uid) } else { self.note("Furniture can be placed inside your home.") } } }
-            Ui::Sell(s) => { let s = mv(s, n + 1); self.me.ui = Ui::Sell(s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.sell_slot(s) } else if ok && s == n { match self.expand_home() { Ok(()) => { self.snd.push(Snd::Coin); self.note("Your home has been expanded! Go take a look.") } Err(e) => self.note(e) } } else if inp.p(A) || inp.p(X) { self.sell_all() } }
+            Ui::Sell(s) => { let s = mv(s, n + 2); if ok && s == n + 1 { self.me.ui = Ui::Catalog(0); return true } self.me.ui = Ui::Sell(s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.sell_slot(s) } else if ok && s == n { match self.expand_home() { Ok(()) => { self.snd.push(Snd::Coin); self.note("Your home has been expanded! Go take a look.") } Err(e) => self.note(e) } } else if inp.p(A) || inp.p(X) { self.sell_all() } }
             Ui::Confirm(d) => { if ok || inp.p(Y) { self.me.ui = Ui::Play; match self.buy(d) { Ok(()) => { self.snd.push(Snd::Coin); self.note("Thank you for your purchase!") } Err(e) => self.note(e) } } else if esc || inp.p(N) { self.me.ui = Ui::Play } }
             Ui::Storage(c, s) => { let c = if left { 0 } else if right { 1 } else { c }; let len = if c == 0 { n } else { self.w.p.storage.len() }; let s = mv(s, len); self.me.ui = Ui::Storage(c, s);
                 if esc { self.me.ui = Ui::Play } else if ok && s < len { self.transfer(c, s) } }
             Ui::Journal => if esc || inp.p(J) { self.me.ui = Ui::Play },
+            Ui::Catalog(s) => { let s = mv(s, self.w.p.catalog.len()); self.me.ui = Ui::Catalog(s); if esc { self.me.ui = Ui::Play } else if ok && s < self.w.p.catalog.len() { let d = self.w.p.catalog[s]; match self.order(d) { Ok(()) => { self.snd.push(Snd::Coin); self.note(format!("Ordered a {}.", def(d).name)) } Err(e) => self.note(e) } } }
             Ui::Mail(s) => { let s = mv(s, self.w.p.mail.len()); self.me.ui = Ui::Mail(s); if esc { self.me.ui = Ui::Play } else if ok { self.open_letter(s) } }
             Ui::Rack(s) => { let s = mv(s, CLOTHES.len()); self.me.ui = Ui::Rack(s); if esc { self.me.ui = Ui::Play } else if ok { match self.buy_cloth(CLOTHES[s]) { Ok(()) => { self.snd.push(Snd::Coin); self.note(format!("Bought the {}. Open your pockets to wear it.", def(CLOTHES[s]).name)) } Err(e) => self.note(e) } } }
             _ => {}
