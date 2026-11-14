@@ -76,5 +76,5 @@ Status: `[ ]` open · `[x]` done · `[B]` blocked (reason given)
 - [x] **D-02 Calendar celebrations.** (DONE 2026-11-14) Four new original events (Blossom Picnic, Starlit Regatta, Frost Lantern Festival, First Light) besides the Harvest Fair: decorations, host at the plaza, event task with a yearly reward per player, resident lines, calendar in the guide. *AC:* tests + screenshot per event type.
 - [x] **D-03 Daily surprises.** (DONE 2026-11-14) One shared surprise per day (message bottle, resident's lost item to return, drifting gift) placed in town. *AC:* tests + screenshot.
 - [x] **D-04 Expressive residents.** (DONE 2026-11-14: emotes + look-at; idle prop actions not done) Mood emotes over heads (happy, sleepy, annoyed, music), contextual idle actions (watering, stretching, reading). *AC:* rendered frames.
-- [ ] **D-05 Evolving shop.** Store renovation tiers from cumulative town spending: more daily stock and a weekly special. *AC:* tests + screenshot.
-- [ ] **D-06 Environment detail.** Chimney smoke, flying birds, riverside fences and lamp posts lit at night, event-specific music variant. *AC:* screenshots.
+- [x] **D-05 Evolving shop.** (DONE 2026-11-14) Store renovation tiers from cumulative town spending: more daily stock and a weekly special. *AC:* tests + screenshot.
+- [~] **D-06 Environment detail.** (chimney smoke + birds DONE 2026-11-14; riverside fences and festival music variant open) Chimney smoke, flying birds, riverside fences and lamp posts lit at night, event-specific music variant. *AC:* screenshots.

@@ -30,7 +30,7 @@ const fn fu(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32), fp: (i3
 const fn cl(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32)) -> D { D { buy, ..b(id, name, K::Cloth, buy / 4, col) } }
 const fn tl(id: u16, name: &'static str, buy: u32) -> D { D { buy, ..b(id, name, K::Tool, 0, (0.6, 0.45, 0.3)) } }
 
-pub static DEFS: [D; 116] = [
+pub static DEFS: [D; 119] = [
     cr(0, "Cabbage White", K::Bug, 90, (1., 1., 0.95), 0.2, 0, 3, 10, 6, 17), cr(1, "Honeybee", K::Bug, 160, (1., 0.85, 0.2), 0.2, 0, 3, 7, 8, 17),
     cr(2, "Ladybug", K::Bug, 120, (0.9, 0.15, 0.1), 0.2, 0, 3, 6, 8, 17), cr(3, "Dragonfly", K::Bug, 230, (0.3, 0.8, 0.9), 0.2, 0, 5, 10, 8, 19),
     cr(4, "Cicada", K::Bug, 300, (0.4, 0.6, 0.3), 0.2, 0, 7, 8, 8, 17), cr(5, "Firefly", K::Bug, 450, (0.8, 1., 0.3), 0.2, 0, 6, 7, 19, 4),
@@ -68,6 +68,7 @@ pub static DEFS: [D; 116] = [
     // festival keepsakes (original)
     fu(146, "Blossom Lantern", 1500, (1., 0.7, 0.8), (1, 1), false, false, Act::Lamp), fu(147, "Paper Boat Model", 1500, (0.95, 0.95, 0.9), (1, 1), false, false, Act::None),
     fu(148, "Frost Lantern", 1500, (0.7, 0.85, 1.), (1, 1), false, false, Act::Lamp), fu(149, "Sunrise Banner", 1500, (1., 0.6, 0.3), (1, 1), false, true, Act::None),
+    fu(151, "Velvet Armchair", 4000, (0.6, 0.15, 0.25), (1, 1), true, false, Act::Sit), fu(152, "Crystal Lamp", 3500, (0.85, 0.95, 1.), (1, 1), false, false, Act::Lamp), fu(153, "Grand Wardrobe", 5000, (0.35, 0.22, 0.15), (1, 1), true, false, Act::Storage),
     b(150, "Lost Scarf", K::Material, 0, (0.85, 0.35, 0.45)),
     b(106, "Bramble's Garden", K::Art, 600, (0.55, 0.45, 0.6)), b(107, "Harbor Fog", K::Art, 600, (0.7, 0.75, 0.78)),
     b(103, "Lantern Night", K::Art, 600, (0.2, 0.22, 0.45)), b(104, "Pond in Summer", K::Art, 600, (0.4, 0.7, 0.4)), b(105, "First Snow", K::Art, 600, (0.85, 0.9, 0.98)),
@@ -95,7 +96,7 @@ pub const FURN_IDS: [u16; 20] = [50, 51, 52, 53, 54, 55, 56, 57, 90, 91, 92, 93,
 /// Furniture collections: (name, members). Completing one in your home shows a note.
 pub const SETS: [(&str, [u16; 6]); 2] = [("Meadow collection", [90, 91, 92, 110, 111, 112]), ("Harbor collection", [93, 94, 95, 113, 114, 115])];
 /// Base model drawn for a furniture id (collections reuse a model with their own colors and accents).
-pub fn model(d: u16) -> u16 { match d { 90 => 50, 91 => 52, 92 | 95 => 54, 93 => 51, 94 => 55, 110 | 115 => 53, 111 | 124 => 56, 112 | 120 | 123 | 130 => 57, 113 | 121 => 58, 114 => 59, 122 | 125 | 131 => 54, 126 | 133 => 55, 127 => 52, 132 => 51, 140..=145 | 149 => 57, 146 | 148 => 54, 147 => 52, _ => d } }
+pub fn model(d: u16) -> u16 { match d { 90 => 50, 91 => 52, 92 | 95 => 54, 93 => 51, 94 => 55, 110 | 115 => 53, 111 | 124 => 56, 112 | 120 | 123 | 130 => 57, 113 | 121 => 58, 114 => 59, 122 | 125 | 131 => 54, 126 | 133 => 55, 127 => 52, 132 => 51, 140..=145 | 149 => 57, 146 | 148 | 152 => 54, 147 => 52, 151 => 50, 153 => 55, _ => d } }
 pub const ARTS: [u16; 8] = [100, 101, 102, 103, 104, 105, 106, 107];
 /// Weekly art stall: open on Saturdays (when the fair isn't on) at STALL; price per painting (provisional).
 pub const ART_PRICE: u32 = 2500;
@@ -410,3 +411,11 @@ pub const BOTTLE_NOTES: [&str; 6] = [
 ];
 pub const BOTTLE_COINS: u32 = 250;
 pub const RETURN_COINS: u32 = 400;
+
+// ---- Evolving General Store (original, provisional thresholds) ----
+/// Cumulative town spending at the store that unlocks renovation tiers 1 and 2.
+pub const SHOP_TIERS: [u32; 2] = [8000, 25000];
+/// Tier 1: a weekly special (one per week for the whole town). Tier 2: one more daily stock slot.
+pub const SPECIALS: [u16; 3] = [151, 152, 153];
+pub const SPECIAL_DISPLAY: (i32, i32) = (6, 2);
+pub const EXTRA_DISPLAY: (i32, i32) = (0, 2);

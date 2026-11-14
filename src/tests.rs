@@ -497,7 +497,7 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     let g = g0(at(11, 12, 0, 0)); let mut src: Vec<u16> = vec![];
     for m in 1..=12 { for h in 0..24 { for rain in [false, true] { src.extend(Game::bug_pool(rain, m, h)) } src.extend(Game::islet_bug_pool(m, h)); for hab in [1, 2] { for mouth in [false, true] { src.extend(Game::fish_pool(hab, mouth, m, h)) } } } }
     src.extend(FRUITS); src.extend([40, 41, 42, 84, 82, 75, 85, 86, 80, 81, 45, 46, 47, 70, 71, 72, 73, 74]); src.extend(FOSSILS); src.extend(FURN_IDS); src.extend(ISTALL_ITEMS.iter().map(|x| x.0)); src.extend(CLOTHES); src.extend(ARTS);
-    for v in &VISITORS { src.extend(v.goods); src.push(v.reward) } src.extend(KEEPSAKES); src.push(150); src.extend(FESTS.iter().map(|f| f.reward)); src.extend(KIOSK_ITEMS.iter().map(|x| x.0)); src.extend([60, 61, 62]);
+    for v in &VISITORS { src.extend(v.goods); src.push(v.reward) } src.extend(KEEPSAKES); src.push(150); src.extend(SPECIALS); src.extend(FESTS.iter().map(|f| f.reward)); src.extend(KIOSK_ITEMS.iter().map(|x| x.0)); src.extend([60, 61, 62]);
     let missing: Vec<&str> = DEFS.iter().filter(|d| !src.contains(&d.id)).map(|d| d.name).collect(); assert!(missing.is_empty(), "no acquisition path: {missing:?}");
     // the islet offers every non-native fruit over consecutive days
     let mut g = g; let mut seen = vec![]; for k in 0..3 { g.w.day += 1; g.refresh_islet(); let _ = k; seen.extend(g.w.iground.iter().map(|i| i.def).filter(|d| FRUITS.contains(d))) } for f in FRUITS { if f != g.w.native { assert!(seen.contains(&f), "fruit {f} never on Gullrock") } }
@@ -547,4 +547,16 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     // drifting gift -> furniture; full pockets leave it in place
     g.w.surprise = Some(Surprise { kind: 2, x: 6, z: 20, owner: 0, day: g.w.day }); g.w.p.inv = (0..INV_CAP).map(|_| Slot { def: 20, qty: STACK, uid: 0 }).collect(); g.take_surprise(); assert!(g.w.surprise.is_some());
     g.w.p.inv.clear(); g.take_surprise(); assert!(g.w.surprise.is_none() && g.w.p.inv.iter().any(|s| def(s.def).k == K::Furn));
+}
+
+#[test] fn shop_renovation_tiers_special_extra_stock() {
+    let mut g = two(at(11, 12, 0, 0)); assert_eq!(g.shop_tier(), 0); assert!(g.buy(8).is_err() && g.buy(7).is_err());
+    g.w.p.money = 99999; let b = g.w.p.money; g.buy(0).unwrap(); assert_eq!(g.w.spent, b - g.w.p.money);
+    g.w.spent = SHOP_TIERS[0]; assert_eq!(g.shop_tier(), 1); let (d, p, sold) = g.display_item(8); assert!(SPECIALS.contains(&d) && !sold);
+    let m = g.w.p.money; g.buy(8).unwrap(); assert_eq!(g.w.p.money, m - p); assert!(g.display_item(8).2); g.activate(1); g.w.p.money = 99999; assert_eq!(g.buy(8), Err("Sold out!")); g.activate(0); // weekly, shared
+    let g2 = reload(&g, "shop"); assert!(g2.display_item(8).2);
+    let m0 = g.w.p.mail.len(); assert!(g.catch_up(at(12, 6, 0, 1))); assert!(g.w.p.mail.iter().skip(m0).any(|l| l.from == "Mr. Tumble")); assert_eq!(g.w.stock.len(), 5);
+    g.w.spent = SHOP_TIERS[1]; assert!(g.catch_up(at(13, 6, 0, 1))); assert_eq!(g.w.stock.len(), 6); let (d7, _, _) = g.display_item(7); assert_eq!(d7, g.w.stock[5].def); g.buy(7).unwrap(); assert!(g.w.stock[5].sold);
+    let th = BLDS.iter().position(|b| b.kind == BK::Shop).unwrap(); assert!(g.room_block(th, EXTRA_DISPLAY.0, EXTRA_DISPLAY.1, 0) && g.room_block(th, SPECIAL_DISPLAY.0, SPECIAL_DISPLAY.1, 0));
+    g.w.day += 7; assert!(!g.display_item(8).2); // next week's special
 }

@@ -412,6 +412,14 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
     for (i, tr) in g.w.trees.iter().enumerate() { let p = tc((tr.x, tr.z)); if near(p.x, p.y) && !fade_t.contains(&i) { let sk = g.shake.iter().find(|s| s.0 == i).map_or(0., |s| s.1); tree(r, p, tr.fruit.then(|| rgb(def(g.w.native).col)), sk, t, fol) } }
     for bi in 0..BLDS.len() { let b = &BLDS[bi]; if near(b.x as f32 + b.w as f32 / 2., b.z as f32 + b.d as f32 / 2.) && !fade_b.contains(&bi) { building(r, bi, lt.night) }
         if g.me.pos.distance(door_stand(bi)) < 3.5 { let p = door_face(bi); labels.push((vec3(p.x, 2.7, p.y), g.bname(bi), WHITE)) } }
+    // chimney smoke from homes in the morning, evening and cold months
+    let smoky = matches!(g.hr, 6..=9 | 17..=23) || matches!(now.month(), 11 | 12 | 1 | 2); if smoky { let ua = r.alpha; r.alpha = 0.5;
+        for b in BLDS.iter().filter(|b| matches!(b.kind, BK::Home(_) | BK::Res(_))) { let (cx, cz) = (b.x as f32 + b.w as f32 / 2. + b.w as f32 / 2. - 0.6, b.z as f32 + b.d as f32 / 2. - 0.25); if !near(cx, cz) { continue }
+            for k in 0..4 { let ph = (t * 0.35 + k as f32 * 0.25 + b.x as f32 * 0.13) % 1.; r.sphere(vec3(cx + ph * 0.5 + (t + k as f32).sin() * 0.05, 2.45 + ph * 1.3, cz - ph * 0.2), Vec3::splat(0.1 + ph * 0.16), Color::new(0.9, 0.9, 0.92, 1.)) } } r.alpha = ua }
+    // a small flock of birds circling over town in fair daytime weather
+    if (7..18).contains(&g.hr) && weather(g.w.day, now.month()) == Wx::Clear { let c0 = g.me.cam + vec2((t * 0.07).sin() * 5., (t * 0.05).cos() * 2. - 9.);
+        for k in 0..5 { let a = t * 0.4 + k as f32 * 0.5; let p = vec3(c0.x + a.cos() * (2.5 + k as f32 * 0.3), 2.6 + (k % 2) as f32 * 0.25, c0.y + a.sin() * 1.5); let fl = (t * 8. + k as f32).sin() * 0.5; let yaw = -a;
+            r.with(Mat4::from_scale_rotation_translation(Vec3::splat(0.6), Quat::from_rotation_y(yaw), p), |r| { r.sphere(Vec3::ZERO, vec3(0.05, 0.04, 0.09), Color::new(0.3, 0.3, 0.35, 1.)); for sgn in [-1f32, 1.] { r.with(Mat4::from_rotation_z(sgn * fl), |r| r.cube(vec3(sgn * 0.12, 0., 0.), vec3(0.11, 0.008, 0.04), Color::new(0.35, 0.35, 0.4, 1.))) } }) } }
     { let v = &VISITORS[g.visitor()]; let tc0 = vec3(33., 0., 20.); let col = rgb(v.tent);
         r.with(Mat4::from_translation(tc0), |r| { r.cube(vec3(0., 0.01, 0.), vec3(1.0, 0.01, 0.95), Color::new(0.55, 0.45, 0.3, 1.)); for s in [-1f32, 1.] { r.with(Mat4::from_translation(vec3(s * 0.45, 0.55, 0.)) * Mat4::from_rotation_z(s * 0.8), |r| r.cube(Vec3::ZERO, vec3(0.62, 0.03, 0.9), sh(col, if s > 0. { 0.85 } else { 1. }))) }
             r.cube(vec3(0., 0.45, 0.92), vec3(0.22, 0.4, 0.01), Color::new(0.2, 0.15, 0.12, 1.)); r.seg(vec3(0., 0., 0.95), vec3(0., 1.15, 0.95), 0.02, WOOD); r.cube(vec3(0.2, 1.12, 0.95), vec3(0.15, 0.08, 0.01), YELLOW) });
@@ -571,6 +579,10 @@ fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, Strin
         for k in 0..3 { r.cube(vec3(1.2 + k as f32 * 2.3, 1.4, 0.15), vec3(0.9, 0.04, 0.15), WOOD); for j in 0..4 { r.cube(vec3(0.6 + k as f32 * 2.3 + j as f32 * 0.38, 1.56, 0.15), vec3(0.12, 0.12, 0.1), rgb(DEFS[(j * 7 + k * 3) % 30].col)) } }
         let talking = matches!(g.me.ui, Ui::Sell(_) | Ui::Confirm(_)) || matches!(g.me.ui, Ui::Talk { npc: None, .. });
         resident(r, 10, vec3(3.5, 0., 0.5), 0., 0., false, t, talking, 0.);
+        for (di, tile) in [(7usize, EXTRA_DISPLAY), (8, SPECIAL_DISPLAY)] { if (di == 7 && g.w.stock.len() <= 5) || (di == 8 && g.shop_tier() < 1) { continue }
+            let p = vec3(tile.0 as f32 + 0.5, 0., tile.1 as f32 + 0.5); let (dd, price, sold) = g.display_item(di); r.cyl(p, 0.4, 0.22, if di == 8 { Color::new(0.85, 0.7, 0.35, 1.) } else { Color::new(0.85, 0.82, 0.75, 1.) });
+            if !sold { furniture(r, dd, Mat4::from_translation(p + vec3(0., if def(dd).wall { -0.2 } else { 0.22 }, 0.)) * Mat4::from_scale(Vec3::splat(0.5)), false, 0) }
+            if g.me.ipos.distance(vec2(p.x, p.z)) < 2.2 { labels.push((p + vec3(0., 1.15, 0.), if sold { "SOLD OUT".into() } else { format!("{}{} {price}", if di == 8 { "Special: " } else { "" }, def(dd).name) }, Color::new(1., 0.9, 0.5, 1.))) } }
         for (i, &(x, z)) in DISPLAYS.iter().enumerate() { let p = vec3(x as f32 + 0.5, 0., z as f32 + 0.5); r.cyl(p, 0.4, 0.22, Color::new(0.85, 0.82, 0.75, 1.));
             let (txt, show) = if i < 5 { let s = g.w.stock[i]; (if s.sold { "SOLD OUT".to_string() } else { format!("{} {}", def(s.def).name, def(s.def).buy) }, (!s.sold).then_some(s.def)) }
                 else { let tl = TOOL_DISPLAY[i - 5]; (if g.w.p.tools.contains(&tl) { "Owned".into() } else { format!("{} {}", def(tl).name, def(tl).buy) }, Some(tl)) };
@@ -631,7 +643,7 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
             if items.is_empty() { txt("(empty)", sw / 2. - 230., 170., 22., GRAY) } list(&items, Some(*s), sw / 2. - 230., 170.);
             txt(match (sell, g.me.pad) { (true, false) => "W/S select  Enter sell  A sell all finds  Esc close", (true, true) => "Up/Down select  A sell  Y sell all finds  B close", (false, false) => "W/S select  Enter place furniture (at home)  Esc close", _ => "Up/Down select  A place furniture (at home)  B close" }, sw / 2. - 240., 590., 19., DARKGRAY);
             if !sell { txt(&format!("Tools: {}", g.w.p.tools.iter().map(|t| def(*t).name).collect::<Vec<_>>().join(", ")), sw / 2. - 240., 565., 19., DARKGRAY) } }
-        Ui::Confirm(d) => { let (n, p) = if *d < 5 { let s = g.w.stock[*d]; (def(s.def).name, def(s.def).buy) } else { let t = TOOL_DISPLAY[*d - 5]; (def(t).name, def(t).buy) };
+        Ui::Confirm(d) => { let (dd, p, _) = g.display_item(*d); let n = def(dd).name;
             panel(sw / 2. - 260., sh / 2. - 80., 520., 150.); txt(&format!("Buy the {n} for {p} coins?"), sw / 2. - 235., sh / 2. - 35., 26., BLACK); txt(&format!("You have {} coins.", g.w.p.money), sw / 2. - 235., sh / 2. - 2., 22., DARKGRAY); txt(if g.me.pad { "[A] Yes     [B] No" } else { "[Enter] Yes     [Esc] No" }, sw / 2. - 235., sh / 2. + 40., 22., Color::new(0.45, 0.3, 0.2, 1.)) }
         Ui::Storage(c, s) => { panel(sw / 2. - 380., 90., 760., 520.); txt("Pockets", sw / 2. - 360., 125., 28., BLACK); txt("Cabinet storage", sw / 2. + 20., 125., 28., BLACK);
             let a: Vec<String> = g.w.p.inv.iter().map(slot_name).collect(); let bb: Vec<String> = g.w.p.storage.iter().map(slot_name).collect();

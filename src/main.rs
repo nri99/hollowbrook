@@ -316,6 +316,13 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         log!("stones={}", have(g, 81));
         if let Some(p) = g.w.project.clone() { approach(g, c, tc((p.x, p.z))).await; shot!("x01_site_before"); press(g, c, KeyCode::E).await; log!("after contribute: project={:?} built={:?} ui={:?}", g.w.project, g.w.built, g.me.ui); for _ in 0..4 { if g.me.ui == Ui::Play { break } press(g, c, KeyCode::E).await } }
         if let Some(b) = g.w.built.first().copied() { approach(g, c, tc((b.x, b.z))).await; press(g, c, KeyCode::E).await; log!("pose={:?}", g.me.pose); wait(g, c, 30).await; shot!("x01_bench_built") }
+    } else if phase == "33" {
+        // D-05 renovated shop (fixture: spending set to tier 2, then a day passes) and D-06 smoke/birds (dev clock 8:00 on a clear day).
+        g.w.spent = SHOP_TIERS[1]; let next = (c.now() + chrono::Duration::days(1)).date().and_hms_opt(8, 0, 0).unwrap(); let c2 = Clock { dev: Some((next, std::time::Instant::now())) }; let c = &c2;
+        macro_rules! shotc { ($n:expr) => {{ wait(g, c, 2).await; render::draw(g, c.now(), None); screenshot(&format!("{dir}/{}.png", $n)); next_frame().await; log!("shot {}", $n); }} }
+        wait(g, c, 5).await; log!("tier={} stock={} weather={:?}", g.shop_tier(), g.w.stock.len(), weather(g.w.day, c.now().month()));
+        go(g, c, vec2(16.5, 17.5), 0.3).await; shotc!("d06_town_morning");
+        go(g, c, door_stand(SHOP), 0.12).await; face(g, c, door_face(SHOP)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await; go(g, c, vec2(3.5, 2.6), 0.15).await; shotc!("d05_shop_renovated");
     } else if phase == "32" {
         // D-03 surprises (fixture placement near the player) and D-04 emotes (fixed times).
         let here = tile_of(g.me.pos); for (k, kind) in [0u8, 1, 2].into_iter().enumerate() { let t = (here.0 + 1, here.1 + 1);

@@ -221,3 +221,6 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - D-03 DONE: daily shared surprise (message bottle -> mailbox letter + 250c; lost scarf -> return to owner +4 friendship +400c; drifting gift -> furniture), residents hint at it; test daily_surprises_shared_and_saved; phase 32 screenshots.
 - D-04 DONE (partial scope): mood emotes (note, z, ..., !, greeting heart) and idle residents facing a nearby player; phase 32 frames. Idle prop actions (watering etc.) not implemented.
 - Next action: D-05 evolving shop.
+- D-05 DONE: store renovation tiers (spending tracked on all store purchases), weekly special display, extra daily stock slot, renovation letters; test shop_renovation_tiers_special_extra_stock; phase 33 screenshot.
+- D-06 PARTIAL: chimney smoke (morning/evening/cold months) and a distant bird flock on clear days; phase 33 screenshot. Open: riverside fences, festival music arrangement.
+- Remaining depth backlog: D-04 idle prop actions, D-06 fences + festival music. Next action: D-06 festival music variant in audio.rs (Var::Festive), then idle actions.

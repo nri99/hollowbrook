@@ -113,7 +113,7 @@ pub struct World {
     #[serde(default)] pub project: Option<Project>, #[serde(default)] pub mproject: Option<MProject>,
     /// active town policy (index into POLICIES); effects are derived, never stored
     #[serde(default)] pub policy: Option<usize>,
-    #[serde(default)] pub wtask: Option<WTask>, #[serde(default)] pub surprise: Option<Surprise>, #[serde(default)] pub camp_day: i64, #[serde(default)] pub camp_sold: Vec<u16>, #[serde(default)] pub built: Vec<Built>,
+    #[serde(default)] pub wtask: Option<WTask>, #[serde(default)] pub surprise: Option<Surprise>, #[serde(default)] pub spent: u32, #[serde(default)] pub shop_lv: u8, #[serde(default)] pub special_week: i64, #[serde(default)] pub camp_day: i64, #[serde(default)] pub camp_sold: Vec<u16>, #[serde(default)] pub built: Vec<Built>,
     /// trees already yielding a branch / rocks already yielding a stone today
     #[serde(default)] pub branches: Vec<(i32, i32)>, #[serde(default)] pub rocks_hit: Vec<(i32, i32)>,
     /// islet collectibles (islet coordinates), refreshed daily
@@ -126,7 +126,7 @@ pub fn roster0() -> Vec<usize> { vec![0, 1, 2, 3] }
 impl World {
     pub fn fresh(name: String, day: i64, map: &[u8]) -> World {
         let trees = (0..W * H).filter(|&i| map[i] == TREE).map(|i| Tree { x: (i % W) as i32, z: (i / W) as i32, fruit: true, shaken: i64::MIN / 2 }).collect();
-        World { version: SAVE_VERSION, day, native: FRUITS[gen_range(0usize, 4)], trees, ground: vec![], weeds: vec![], holes: vec![], digs: vec![], stock: vec![], stock_day: i64::MIN, uid: 1, trampled: vec![], donated: vec![], roster: roster0(), arrived: vec![day; 4], moving: vec![0; 4], project: None, mproject: None, policy: None, wtask: None, surprise: None, camp_day: 0, camp_sold: vec![], built: vec![], branches: vec![], rocks_hit: vec![], iground: vec![], p: Profile::new(0, name, door_stand(HOME)), others: vec![] }
+        World { version: SAVE_VERSION, day, native: FRUITS[gen_range(0usize, 4)], trees, ground: vec![], weeds: vec![], holes: vec![], digs: vec![], stock: vec![], stock_day: i64::MIN, uid: 1, trampled: vec![], donated: vec![], roster: roster0(), arrived: vec![day; 4], moving: vec![0; 4], project: None, mproject: None, policy: None, wtask: None, surprise: None, spent: 0, shop_lv: 0, special_week: -1, camp_day: 0, camp_sold: vec![], built: vec![], branches: vec![], rocks_hit: vec![], iground: vec![], p: Profile::new(0, name, door_stand(HOME)), others: vec![] }
     }
 }
 
@@ -305,12 +305,12 @@ impl Game {
         }
     }
     pub fn refresh_world(&mut self) {
-        let day = self.w.day; self.w.trampled.clear(); self.w.branches.clear(); self.w.rocks_hit.clear(); self.refresh_islet(); self.finish_mproject(); self.assign_weekly(); self.new_surprise(); if self.w.camp_day != self.w.day { self.w.camp_day = self.w.day; self.w.camp_sold.clear() } if self.w.project.is_none() { self.propose() } // flattened flowers recover each morning
+        let day = self.w.day; self.w.trampled.clear(); self.w.branches.clear(); self.w.rocks_hit.clear(); self.refresh_islet(); self.finish_mproject(); self.assign_weekly(); self.new_surprise(); let lv = self.shop_tier(); if lv > self.w.shop_lv { self.w.shop_lv = lv; self.mail_all("Mr. Tumble", if lv == 1 { "Thanks to all of you, the General Store has been renovated! Look for a new weekly special by the window." } else { "Another renovation! The General Store now stocks an extra item every day." }) } if self.w.camp_day != self.w.day { self.w.camp_day = self.w.day; self.w.camp_sold.clear() } if self.w.project.is_none() { self.propose() } // flattened flowers recover each morning
         for t in &mut self.w.trees { if !t.fruit && day - t.shaken >= 3 { t.fruit = true } } // persisted elapsed-time regrowth rule
         for _ in 0..self.pol().map_or(2, |p| p.weeds) { if self.w.weeds.len() < 12 { if let Some(t) = self.rand_tile(GRASS) { self.w.weeds.push(t) } } }
         while self.w.ground.iter().filter(|g| def(g.def).k == K::Shell).count() < 4 { let Some(t) = self.rand_tile(SAND) else { break }; self.drop_item([40, 42, 40, 42, 41][gen_range(0, 5)], t.0, t.1) }
         while self.w.digs.len() < 2 { let Some(t) = self.rand_tile(GRASS) else { break }; self.w.digs.push(t) }
-        if self.w.stock_day != day { let mut pool = FURN_IDS.to_vec(); self.w.stock = (0..5).map(|_| Stock { def: pool.remove(gen_range(0, pool.len())), sold: false }).collect(); self.w.stock_day = day }
+        if self.w.stock_day != day { let mut pool = FURN_IDS.to_vec(); let n = 5 + (self.shop_tier() >= 2) as usize; self.w.stock = (0..n).map(|_| Stock { def: pool.remove(gen_range(0, pool.len())), sold: false }).collect(); self.w.stock_day = day }
     }
     fn rand_tile(&self, kind: u8) -> Option<(i32, i32)> {
         for _ in 0..300 { let (x, z) = (gen_range(1, W as i32 - 1), gen_range(1, H as i32 - 1)); if tile_at(&self.map, x, z) == kind && self.walk_tile(x, z) && !self.occupied(x, z) && (x, z) != tile_of(self.me.pos) { return Some((x, z)) } }
@@ -358,7 +358,7 @@ impl Game {
     }
     pub fn room_block(&self, b: usize, x: i32, z: i32, skip: u32) -> bool {
         let (w, d) = self.rdims(b); if x < 0 || z < 0 || x >= w || z >= d { return true }
-        if BLDS[b].kind == BK::Shop { return COUNTER.contains(&(x, z)) || DISPLAYS.contains(&(x, z)) || (x, z) == RACK }
+        if BLDS[b].kind == BK::Shop { return COUNTER.contains(&(x, z)) || DISPLAYS.contains(&(x, z)) || (x, z) == RACK || ((x, z) == SPECIAL_DISPLAY && self.shop_tier() >= 1) || ((x, z) == EXTRA_DISPLAY && self.w.stock.len() > 5) }
         if BLDS[b].kind == BK::Civic { return CIVIC_DESK.contains(&(x, z)) || CIVIC_PLANTS.contains(&(x, z)) || CIVIC_BENCH.contains(&(x, z)) || (x, z) == KIOSK }
         if BLDS[b].kind == BK::Museum { return MUSEUM_DESK.contains(&(x, z)) || MUSEUM_TANK.contains(&(x, z)) || MUSEUM_CASE.contains(&(x, z)) || MUSEUM_PED.iter().any(|p| p.0 == (x, z)) }
         self.room_furn(b).iter().filter(|f| !def(f.def).wall && !(skip != 0 && f.uid == skip)).any(|f| foot(f.def, f.x, f.z, f.rot).contains(&(x, z)))
@@ -429,7 +429,7 @@ impl Game {
             }
             Scene::Room(b) => {
                 for fu in self.room_furn(b) { cand(fcenter(&fu), 1.5, 1., Tg::Furn(fu.uid, fu.def), None) }
-                if BLDS[b].kind == BK::Shop { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Counter, None); cand(vec2(3.5, 0.5), 2.6, 1.3, Tg::Keeper, None); for (i, &d) in DISPLAYS.iter().enumerate() { cand(tc(d), 1.5, 1., Tg::Display(i), None) } cand(tc(RACK), 1.5, 1., Tg::Rack, None) }
+                if BLDS[b].kind == BK::Shop { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Counter, None); cand(vec2(3.5, 0.5), 2.6, 1.3, Tg::Keeper, None); for (i, &d) in DISPLAYS.iter().enumerate() { cand(tc(d), 1.5, 1., Tg::Display(i), None) } cand(tc(RACK), 1.5, 1., Tg::Rack, None); if self.w.stock.len() > 5 { cand(tc(EXTRA_DISPLAY), 1.5, 1., Tg::Display(7), None) } if self.shop_tier() >= 1 { cand(tc(SPECIAL_DISPLAY), 1.5, 1., Tg::Display(8), None) } }
                 if BLDS[b].kind == BK::Civic { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Hazel, None); cand(tc(KIOSK), 1.4, 0.9, Tg::Kiosk, None) }
                 if BLDS[b].kind == BK::Museum { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Curator, None); cand(vec2(0.5, 2.5), 1.5, 1., Tg::Exhibit(0), None); cand(vec2(6.5, 2.5), 1.5, 1., Tg::Exhibit(1), None);
                     for (k, p) in MUSEUM_PED.iter().enumerate() { cand(tc(p.0), 1.5, 1., Tg::Exhibit(2 + k), None) } }
@@ -445,7 +445,7 @@ impl Game {
         match tg {
             Tg::Npc(i) => v(match self.me.scene { Scene::Town => self.npcs[i].pos, Scene::Room(b) if self.visit.is_some_and(|x| x.0 == i && x.1 == b) => self.visit_spot(b), _ => res_spot() }, 1.5), Tg::Door(b) => v(door_face(b), 1.3),
             Tg::Tree(i) => v(tc((self.w.trees[i].x, self.w.trees[i].z)), 2.15), Tg::Item(i) => vec3(self.w.ground[i].x, 0.45, self.w.ground[i].z),
-            Tg::Weed(i) => v(tc(self.w.weeds[i]), 0.55), Tg::Rack => vec3(1.5, 1.8, 1.5), Tg::Mailbox(o) => v(tc(mailbox_tile(o)), 1.4), Tg::Stall | Tg::ArtStall | Tg::Fest => v(tc(STALL), 1.9), Tg::Camper => vec3(CAMP_SPOT.0, 1.7, CAMP_SPOT.1), Tg::Surprise => self.w.surprise.as_ref().map_or(Vec3::ZERO, |sp| v(tc((sp.x, sp.z)), 0.9)), Tg::CampSign => v(tc(CAMP_SIGN), 1.5), Tg::Kiosk => v(tc(KIOSK), 1.5), Tg::Board => v(tc(BOARD), 1.9), Tg::MSite => self.w.mproject.as_ref().map_or(Vec3::ZERO, |m| v(tc((m.x, m.z)), 1.6)), Tg::Dock => vec3(DOCK.0 as f32 + 0.5, 1.6, DOCK.1 as f32 + 0.3), Tg::ActBoard => v(tc(ACT_BOARD), 1.5), Tg::Pell => vec3(PELL_I.0, 1.6, PELL_I.1), Tg::IStall => v(tc(ISTALL), 1.5), Tg::IItem(i) => vec3(self.w.iground[i].x, 0.45, self.w.iground[i].z), Tg::Built(i) => v(tc((self.w.built[i].x, self.w.built[i].z)), 1.2), Tg::Site => self.w.project.as_ref().map_or(Vec3::ZERO, |p| v(tc((p.x, p.z)), 1.6)), Tg::Curator | Tg::Hazel => vec3(3.5, 1.3, 1.5), Tg::Exhibit(k) => match k { 0 => vec3(0.5, 1.5, 2.5), 1 => vec3(6.5, 1.5, 2.5), _ => { let p = tc(MUSEUM_PED[k - 2].0); vec3(p.x, 1.2, p.y) } }, Tg::Counter => vec3(3.5, 1.3, 1.5), Tg::Keeper => vec3(3.5, 1.7, 0.5), Tg::Display(i) => v(tc(DISPLAYS[i]), 1.3),
+            Tg::Weed(i) => v(tc(self.w.weeds[i]), 0.55), Tg::Rack => vec3(1.5, 1.8, 1.5), Tg::Mailbox(o) => v(tc(mailbox_tile(o)), 1.4), Tg::Stall | Tg::ArtStall | Tg::Fest => v(tc(STALL), 1.9), Tg::Camper => vec3(CAMP_SPOT.0, 1.7, CAMP_SPOT.1), Tg::Surprise => self.w.surprise.as_ref().map_or(Vec3::ZERO, |sp| v(tc((sp.x, sp.z)), 0.9)), Tg::CampSign => v(tc(CAMP_SIGN), 1.5), Tg::Kiosk => v(tc(KIOSK), 1.5), Tg::Board => v(tc(BOARD), 1.9), Tg::MSite => self.w.mproject.as_ref().map_or(Vec3::ZERO, |m| v(tc((m.x, m.z)), 1.6)), Tg::Dock => vec3(DOCK.0 as f32 + 0.5, 1.6, DOCK.1 as f32 + 0.3), Tg::ActBoard => v(tc(ACT_BOARD), 1.5), Tg::Pell => vec3(PELL_I.0, 1.6, PELL_I.1), Tg::IStall => v(tc(ISTALL), 1.5), Tg::IItem(i) => vec3(self.w.iground[i].x, 0.45, self.w.iground[i].z), Tg::Built(i) => v(tc((self.w.built[i].x, self.w.built[i].z)), 1.2), Tg::Site => self.w.project.as_ref().map_or(Vec3::ZERO, |p| v(tc((p.x, p.z)), 1.6)), Tg::Curator | Tg::Hazel => vec3(3.5, 1.3, 1.5), Tg::Exhibit(k) => match k { 0 => vec3(0.5, 1.5, 2.5), 1 => vec3(6.5, 1.5, 2.5), _ => { let p = tc(MUSEUM_PED[k - 2].0); vec3(p.x, 1.2, p.y) } }, Tg::Counter => vec3(3.5, 1.3, 1.5), Tg::Keeper => vec3(3.5, 1.7, 0.5), Tg::Display(i) => v(tc(match i { 7 => EXTRA_DISPLAY, 8 => SPECIAL_DISPLAY, _ => DISPLAYS[i] }), 1.3),
             Tg::Furn(uid, d) => { let c = self.room_furn(match self.me.scene { Scene::Room(b) => b, _ => HOME }).into_iter().find(|f| f.uid == uid && f.def == d).map(|f| fcenter(&f)).unwrap_or_default(); v(c, if def(d).wall { 1.9 } else { 1.2 }) }
         }
     }
@@ -463,6 +463,7 @@ impl Game {
             Tg::ArtStall => format!("Art stall: {} ({ART_PRICE} coins)", def(art_of_week(self.w.day)).name),
             Tg::Stall => if self.w.p.fair_year == self.yr { "Harvest Fair stall (prize claimed)".into() } else { "Claim a Harvest Fair prize".into() }, Tg::Mailbox(o) => if o == self.me.id { let n = self.w.p.mail.iter().filter(|l| !l.read).count(); if n > 0 { format!("Check mailbox ({n} new)") } else { "Check mailbox".into() } } else { format!("Player {}'s mailbox", o + 1) },
             Tg::Exhibit(k) => match k { 0 => "Look at the fish tank".into(), 1 => "Look at the bug case".into(), _ => format!("Look at the {} pedestal", def(MUSEUM_PED[k - 2].1).name) },
+            Tg::Display(i) if i >= 7 => { let (d, p, sold) = self.display_item(i); if sold { "Sold out".into() } else { format!("{}Buy {} ({p} coins)", if i == 8 { "Weekly special: " } else { "" }, def(d).name) } }
             Tg::Display(i) => if i < 5 { let s = self.w.stock[i]; if s.sold { "Sold out".into() } else { format!("Buy {} ({} coins)", def(s.def).name, def(s.def).buy) } } else { let t = TOOL_DISPLAY[i - 5]; format!("Buy {} ({} coins)", def(t).name, def(t).buy) },
         }
     }
@@ -504,8 +505,9 @@ impl Game {
                 self.note(format!("{}: {n}/{t} on display.{who}", ["Fish tank", "Bug case"].get(k).copied().unwrap_or(def(MUSEUM_PED[k.max(2) - 2].1).name))) }
             Tg::Keeper => self.me.ui = Ui::Talk { npc: None, who: "Mr. Tumble the tortoise".into(), lines: KEEPER.iter().map(|s| s.to_string()).collect(), i: 0 },
             Tg::Display(i) => {
-                if i < 5 && self.w.stock[i].sold { self.note("That one's sold out. New stock arrives at 6:00.") }
-                else if i >= 5 && self.w.p.tools.contains(&TOOL_DISPLAY[i - 5]) { self.note("You already own this tool.") } else { self.me.ui = Ui::Confirm(i) }
+                if i >= 7 && self.display_item(i).2 { self.note(if i == 8 { "This week's special is sold. A new one arrives next week." } else { "That one's sold out. New stock arrives at 6:00." }) }
+                else if i < 5 && self.w.stock[i].sold { self.note("That one's sold out. New stock arrives at 6:00.") }
+                else if (5..7).contains(&i) && self.w.p.tools.contains(&TOOL_DISPLAY[i - 5]) { self.note("You already own this tool.") } else { self.me.ui = Ui::Confirm(i) }
             }
         }
     }
@@ -597,7 +599,7 @@ impl Game {
     }
     pub fn add_furn(&mut self, d: u16) -> bool { if self.w.p.inv.len() >= INV_CAP { self.note("Your pockets are full!"); return false } let uid = self.uid(); self.w.p.inv.push(Slot { def: d, qty: 1, uid }); if !self.w.p.catalog.contains(&d) { self.w.p.catalog.push(d) } true }
     /// Re-order a catalog item at full shop price (delivered to pockets immediately; provisional).
-    pub fn order(&mut self, d: u16) -> Result<(), &'static str> { if !self.w.p.catalog.contains(&d) { return Err("That isn't in your catalog.") } let p = def(d).buy; if self.w.p.money < p { return Err("Not enough coins.") } if self.w.p.inv.len() >= INV_CAP { return Err("Your pockets are full.") } self.w.p.money -= p; self.add_furn(d); Ok(()) }
+    pub fn order(&mut self, d: u16) -> Result<(), &'static str> { if !self.w.p.catalog.contains(&d) { return Err("That isn't in your catalog.") } let p = def(d).buy; if self.w.p.money < p { return Err("Not enough coins.") } if self.w.p.inv.len() >= INV_CAP { return Err("Your pockets are full.") } self.w.p.money -= p; self.add_furn(d); self.w.spent += p; Ok(()) }
     pub fn remove_one(&mut self, d: u16) -> bool {
         let Some(i) = self.w.p.inv.iter().position(|s| s.def == d && s.uid == 0) else { return false };
         self.w.p.inv[i].qty -= 1; if self.w.p.inv[i].qty == 0 { self.w.p.inv.remove(i); } true
@@ -950,7 +952,7 @@ impl Game {
     // ---- clothing ----
     pub fn buy_cloth(&mut self, d: u16) -> Result<(), &'static str> {
         let p = def(d).buy; if self.w.p.money < p { return Err("Not enough coins.") } if self.w.p.inv.len() >= INV_CAP { return Err("Your pockets are full.") }
-        self.w.p.money -= p; self.add_furn(d); self.ev(Ev::Buy, 1); Ok(())
+        self.w.p.money -= p; self.add_furn(d); self.ev(Ev::Buy, 1); self.w.spent += p; Ok(())
     }
     /// Wear a shirt from pockets; the shirt worn before goes back into the same pocket slot (no duplication, no loss).
     pub fn wear(&mut self, uid: u32) {
@@ -986,9 +988,19 @@ impl Game {
         let v: u32 = sell.iter().map(|s| def(s.def).sell * s.qty as u32).sum(); self.w.p.inv = keep; self.w.p.money += v; self.ev(Ev::Sell, v);
         if v > 0 { self.snd.push(Snd::Coin) } self.note(format!("Sold all your finds for {v} coins."));
     }
-    pub fn buy(&mut self, disp: usize) -> Result<(), &'static str> { let r = self.buy_inner(disp); if r.is_ok() { self.ev(Ev::Buy, 1) } r }
+    pub fn buy(&mut self, disp: usize) -> Result<(), &'static str> { let m0 = self.w.p.money; let r = self.buy_inner(disp); if r.is_ok() { self.ev(Ev::Buy, 1); self.w.spent += m0 - self.w.p.money } r }
+    pub fn shop_tier(&self) -> u8 { SHOP_TIERS.iter().filter(|&&t| self.w.spent >= t).count() as u8 }
+    /// (item, price, sold) for display index: 0-4 stock, 5-6 tools, 7 extra stock, 8 weekly special.
+    pub fn display_item(&self, d: usize) -> (u16, u32, bool) {
+        match d { 5 | 6 => { let t = TOOL_DISPLAY[d - 5]; (t, def(t).buy, self.w.p.tools.contains(&t)) }
+            8 => { let wk = week_of(self.w.day); let s = SPECIALS[wk.rem_euclid(SPECIALS.len() as i64) as usize]; (s, def(s).buy, self.w.special_week == wk) }
+            _ => { let i = if d == 7 { 5 } else { d }; self.w.stock.get(i).map_or((0, 0, true), |s| (s.def, def(s.def).buy, s.sold)) } }
+    }
     fn buy_inner(&mut self, disp: usize) -> Result<(), &'static str> {
-        if disp >= 5 {
+        if disp == 8 { if self.shop_tier() < 1 { return Err("Not available yet.") } let (d, p, sold) = self.display_item(8); if sold { return Err("Sold out!") } if self.w.p.money < p { return Err("Not enough coins.") }
+            if !self.add_furn(d) { return Err("Your pockets are full.") } self.w.p.money -= p; self.w.special_week = week_of(self.w.day); return Ok(()) }
+        let disp = if disp == 7 { if self.w.stock.len() <= 5 { return Err("Not available yet.") } 5 } else { if disp >= 5 { 100 + disp } else { disp } };
+        if disp >= 100 { let disp = disp - 100;
             let t = TOOL_DISPLAY[disp - 5]; if self.w.p.tools.contains(&t) { return Err("You already own one.") }
             if self.w.p.money < def(t).buy { return Err("Not enough coins.") }
             self.w.p.money -= def(t).buy; self.w.p.tools.push(t); self.w.p.equip = Some(t); return Ok(())
