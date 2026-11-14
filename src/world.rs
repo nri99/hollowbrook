@@ -340,7 +340,7 @@ impl Game {
         let fill = |s: &str, item: &str| s.replace("{p}", &name).replace("{fs}", &fruits).replace("{f}", &fruit).replace("{i}", item);
         let indoor = self.me.scene != Scene::Town;
         let mut lines = vec![fill(if indoor { HOMEL[pers] } else { GREET[pers][slot] }, "")];
-        if rainy(self.w.day) && !indoor { lines.push(fill(RAIN[pers], "")) }
+        match weather(self.w.day, self.mo) { Wx::Rain if !indoor => lines.push(fill(RAIN[pers], "")), Wx::Snow if !indoor => lines.push(fill(SNOW[pers], "")), _ => {} }
         if let Some(q) = self.w.p.npcs[i].req {
             let item = def(q).name;
             if self.remove_one(q) {

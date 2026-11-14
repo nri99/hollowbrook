@@ -1,10 +1,10 @@
 # Progress log
 
 ## Current
-- Current task: P7-01 Snow in winter + P6-02 resident rain behaviour (weather presentation)
-- Last completed: P6-01 mailbox + stored letters (per profile, claim once)
+- Current task: R15 tool-FX rendered check, then P5-03 catalog reorder
+- Last completed: P7-01 snow + P6-02 umbrellas (idle activities partial: pauses only)
 - Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
-- Next action: weather fn (rain vs snow by month; snow ground tint + falling flakes, outdoors only, per split view); residents hold umbrellas when raining outdoors; tests for weather rule; screenshots with dev clock in Jan and a rainy day. Then R16 content coverage table in DESIGN_SPEC.
+- Next action: phase capturing dig + cast FX mid-animation (shot right after Space) for R15; then P5-03: Profile.catalog (defs ever owned, serde default) + counter menu "Catalog" reorder at full price; tests.
 
 ## Baseline verification (before this run)
 - 19 headless tests pass. Executable bot run (2 launches) completed the full loop; screenshots inspected:
@@ -74,3 +74,7 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - `Letter{from,text,coins,item,read,claimed}`, `Profile.mail` (serde default). Daily refresh writes resident letters into each profile mail (also for the inactive player) instead of paying instantly; mail capped at 20 (oldest read/claimed removed). Solid mailbox beside each home door (flag up when unread); only the owner can open; Ui::Mail list with keyboard/pad prompts; gifts claimed once.
 - H: 37/37 (new: mail_delivered_per_profile_claim_once). X: phase 8 (letter inserted as logged FIXTURE) opened via mailbox: 1000 -> 1300 coins, second open no change.
 - S (inspected): p61_mailbox_flag (both mailboxes, prompt "Check mailbox (1 new)").
+
+### 02:00 — P7-01, P6-02 done (weather)
+- `weather(day, month)`: wet days (provisional 1 in 8, deterministic) are Snow in Dec-Feb, otherwise Rain. Snowflakes per split view outdoors, HUD "Snow", resident snow lines (SNOW). Residents outdoors carry an umbrella in their clothing colour when it rains. Idle activities beyond pauses: not implemented.
+- H: 38/38 (new: weather_rule_snow_in_winter). X/S: phase 9 on 2026-12-12 (snow) and 2026-11-14 (rain); inspected p7snow/p7_weather.png (snowy ground + flakes) and p7rain/p7_weather.png (Juniper with umbrella).

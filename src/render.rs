@@ -116,7 +116,9 @@ pub fn human(r: &mut R, id: usize, worn: Option<u16>, pos: Vec3, yaw: f32, anim:
                 r.cube(vec3(0., -0.12, 0.255), vec3(0.035, 0.01, 0.01), Color::new(0.6, 0.25, 0.25, 1.)); }) }) });
 }
 /// Residents 0-3 and the shopkeeper (4): distinct heads, ears, muzzles, tails, clothes; talk mouth + happy eyes.
-pub fn resident(r: &mut R, i: usize, pos: Vec3, yaw: f32, anim: f32, moving: bool, t: f32, talk: bool, happy: f32) {
+pub fn resident(r: &mut R, i: usize, pos: Vec3, yaw: f32, anim: f32, moving: bool, t: f32, talk: bool, happy: f32) { resident_u(r, i, pos, yaw, anim, moving, t, talk, happy, false) }
+/// `umbrella`: held over the head (outdoors in rain).
+pub fn resident_u(r: &mut R, i: usize, pos: Vec3, yaw: f32, anim: f32, moving: bool, t: f32, talk: bool, happy: f32, umbrella: bool) {
     let (fur, cloth) = if i < 4 { (rgb(RES[i].fur), rgb(RES[i].cloth)) } else if i == 5 { (Color::new(0.93, 0.93, 0.96, 1.), Color::new(0.32, 0.34, 0.6, 1.)) } else { (Color::new(0.55, 0.65, 0.38, 1.), Color::new(0.92, 0.86, 0.7, 1.)) };
     let light = Color::new(0.97, 0.94, 0.88, 1.); let sw = if moving { anim.sin() * 0.6 } else { 0. };
     let jump = if happy > 0. { (t * 10.).sin().abs() * 0.18 } else { 0. }; let bob = (t * 2. + i as f32).sin() * 0.012;
@@ -132,7 +134,8 @@ pub fn resident(r: &mut R, i: usize, pos: Vec3, yaw: f32, anim: f32, moving: boo
             match i { 0 => { r.sphere(vec3(wag * 0.05, 0.05, -0.28), vec3(0.12, 0.12, 0.22), fur); r.sphere(vec3(wag * 0.07, 0.07, -0.47), Vec3::splat(0.08), light) }
                 1 => r.sphere(vec3(0., 0.02, -0.15), Vec3::splat(0.07), fur),
                 3 => { r.sphere(vec3(wag * 0.03, 0., -0.22), vec3(0.08, 0.07, 0.16), fur); r.sphere(vec3(wag * 0.06, -0.05, -0.38), vec3(0.06, 0.05, 0.12), fur) } _ => {} }
-            r.with(Mat4::from_translation(vec3(0., 0.58, 0.02)), |r| head(r, i, fur, light, t, talk, happy)) }) });
+            r.with(Mat4::from_translation(vec3(0., 0.58, 0.02)), |r| head(r, i, fur, light, t, talk, happy));
+            if umbrella { r.seg(vec3(0.2, 0.15, 0.08), vec3(0.08, 1.05, 0.02), 0.015, DARKGRAY); r.cone(vec3(0.08, 0.95, 0.02), 0.5, 0.22, rgb(RES[i.min(3)].cloth)); } }) });
 }
 fn head(r: &mut R, i: usize, fur: Color, light: Color, t: f32, talk: bool, happy: f32) {
     let (hr, ey, ez) = match i { 2 => (vec3(0.3, 0.2, 0.26), 0.19, 0.13), 4 => (vec3(0.2, 0.19, 0.21), 0.02, 0.17), _ => (vec3(0.26, 0.24, 0.25), 0.03, 0.2) };
@@ -210,7 +213,7 @@ pub fn draw(g: &mut Game, now: NaiveDateTime, dbg: Option<&str>) {
 }
 fn hud_cam(vp: Option<(f32, f32)>) { match vp { Some((x, w)) => set_camera(&Camera2D { target: vec2(w / 2., vh() / 2.), zoom: vec2(2. / w, 2. / vh()), viewport: Some((x as i32, 0, w as i32, vh() as i32)), ..Default::default() }), None => set_default_camera() } }
 fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(f32, f32)>) {
-    let hf = now.hour() as f32 + now.minute() as f32 / 60.; let rain = rainy(g.w.day); let lt = light(hf, rain);
+    let hf = now.hour() as f32 + now.minute() as f32 / 60.; let wx = weather(g.w.day, now.month()); let rain = wx != Wx::Clear; let lt = light(hf, rain);
     let (cam, curve, c0) = match g.me.scene {
         Scene::Town => (Camera3D { position: vec3(g.me.cam.x, 7.4, g.me.cam.y + 7.6), target: vec3(g.me.cam.x, 0.5, g.me.cam.y - 0.8), up: Vec3::Y, fovy: 40f32.to_radians(), ..Default::default() }, g.curve, g.me.cam),
         Scene::Room(b) => { let (w, d) = g.rdims(b); let s = w.max(d) as f32 / 4.; (Camera3D { position: vec3(w as f32 / 2., 5.4 * s, d as f32 + 3.4 * s), target: vec3(w as f32 / 2., 0.3, d as f32 / 2. + 0.1), up: Vec3::Y, fovy: 45f32.to_radians(), ..Default::default() }, 0., Vec2::ZERO) }
@@ -227,7 +230,8 @@ fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(f32, f32)>)
     for (p, s, c) in labels { let d2 = (p.x - c0.x).powi(2) + (p.z - c0.y).powi(2); let q = m * vec4(p.x, p.y - curve * d2, p.z, 1.); if q.w <= 0. { continue }
         let (x, y) = ((q.x / q.w + 1.) * 0.5 * vw(), (1. - q.y / q.w) * 0.5 * vh()); let tw = measure_text(&s, None, 20, 1.).width;
         draw_rectangle(x - tw / 2. - 5., y - 17., tw + 10., 23., Color::new(0., 0., 0., 0.55)); draw_text(&s, x - tw / 2., y, 20., c); }
-    if rain && g.me.scene == Scene::Town { for i in 0..140 { let x = ((i * 97) as f32 + g.t * 40.) % vw(); let y = ((i * 53) as f32 + g.t * 520.) % vh(); draw_line(x, y, x - 3., y + 12., 1., Color::new(0.8, 0.85, 1., 0.45)) } }
+    if wx == Wx::Snow && g.me.scene == Scene::Town { for i in 0..160 { let x = ((i * 97) as f32 + (g.t * 0.7 + i as f32).sin() * 25. + g.t * 15.) % vw(); let y = ((i * 53) as f32 + g.t * 70.) % vh(); draw_circle(x, y, 2. + (i % 3) as f32, Color::new(1., 1., 1., 0.85)) } }
+    else if rain && g.me.scene == Scene::Town { for i in 0..140 { let x = ((i * 97) as f32 + g.t * 40.) % vw(); let y = ((i * 53) as f32 + g.t * 520.) % vh(); draw_line(x, y, x - 3., y + 12., 1., Color::new(0.8, 0.85, 1., 0.45)) } }
     hud(g, now, dbg);
 }
 fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(Vec3, String, Color)>) {
@@ -283,7 +287,7 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
     for it in &g.w.ground { let c = rgb(def(it.def).col); match def(it.def).k { K::Shell => { r.sphere(vec3(it.x, 0.05, it.z), vec3(0.14, 0.06, 0.12), c); r.cone(vec3(it.x, 0.05, it.z), 0.08, 0.1, sh(c, 0.9)) } _ => r.sphere(vec3(it.x, 0.11, it.z), Vec3::splat(0.11), c) } }
     for (i, n) in g.npcs.iter().enumerate() { if n.inside || !near(n.pos.x, n.pos.y) { continue }
         let talking = matches!(g.me.ui, Ui::Talk { npc: Some(j), .. } if j == i);
-        resident(r, i, vec3(n.pos.x, 0., n.pos.y), n.yaw, n.anim, n.moving, t, talking, n.happy);
+        resident_u(r, i, vec3(n.pos.x, 0., n.pos.y), n.yaw, n.anim, n.moving, t, talking, n.happy, weather(g.w.day, now.month()) == Wx::Rain);
         if n.pos.distance(g.me.pos) < 4. { labels.push((vec3(n.pos.x, 1.75, n.pos.y), RES[i].name.into(), Color::new(1., 0.95, 0.7, 1.))) } }
     human(r, g.me.id, g.w.p.shirt, vec3(g.me.pos.x, 0., g.me.pos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, 0, g.w.p.equip, t, g.me.swing);
     others(r, g, t);
@@ -379,7 +383,7 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
     let season = match now.month() { 3..=5 => "Spring", 6..=8 => "Summer", 9..=11 => "Autumn", _ => "Winter" };
     draw_rectangle(10., 10., 540., 62., Color::new(0., 0., 0., 0.45));
     const MON: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    txt(&format!("{} {:02}:{:02}  {} {}  {}{}", now.weekday(), now.hour(), now.minute(), MON[now.month0() as usize], now.day(), season, if rainy(g.w.day) { "  Rain" } else { "" }), 20., 35., 26., WHITE);
+    txt(&format!("{} {:02}:{:02}  {} {}  {}{}", now.weekday(), now.hour(), now.minute(), MON[now.month0() as usize], now.day(), season, match weather(g.w.day, now.month()) { Wx::Rain => "  Rain", Wx::Snow => "  Snow", Wx::Clear => "" }), 20., 35., 26., WHITE);
     txt(&format!("{} coins    pockets {}/{}    tool: {}", g.w.p.money, g.w.p.inv.len(), INV_CAP, g.w.p.equip.map_or("none", |t| def(t).name)), 20., 62., 22., GOLD);
     for (k, (m, _)) in g.me.msgs.iter().rev().filter(|m| g.t - m.1 < 5.).take(4).enumerate() { txt(m, 14., 100. + k as f32 * 24., 22., WHITE) }
     if g.me.ui == Ui::Play && g.me.placing.is_none() && g.me.trans.is_none() { if let Some(tg) = g.target() { let s = if g.me.pad { format!("[A] {}", g.tg_label(tg)).replace("[F]", "[Select]").replace("[G]", "[LB]") } else { format!("[E] {}", g.tg_label(tg)) }; let tw = measure_text(&s, None, 24, 1.).width; draw_rectangle(sw / 2. - tw / 2. - 10., sh - 92., tw + 20., 32., Color::new(0., 0., 0., 0.55)); txt(&s, sw / 2. - tw / 2., sh - 69., 24., WHITE) } }

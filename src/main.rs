@@ -7,7 +7,7 @@ mod save;
 mod tests;
 mod world;
 
-use chrono::{Local, Timelike};
+use chrono::{Datelike, Local, Timelike};
 use clock::Clock;
 use data::*;
 use macroquad::audio::{load_sound_from_bytes, play_sound, PlaySoundParams, Sound};
@@ -213,6 +213,11 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         let mb = tc(mailbox_tile(0)); approach(g, c, mb).await; log!("target={:?}", g.target()); shot!("p61_mailbox_flag"); let m0 = g.w.p.money;
         press(g, c, KeyCode::E).await; log!("ui={:?}", g.me.ui); press(g, c, KeyCode::Enter).await; log!("money {m0} -> {}, letter={:?}", g.w.p.money, g.w.p.mail[0]); shot!("p61_mail_menu");
         press(g, c, KeyCode::Enter).await; log!("second open: money {}", g.w.p.money); press(g, c, KeyCode::Escape).await;
+    } else if phase == "9" {
+        // P7-01/P6-02: weather presentation near a resident who is out
+        wait(g, c, 60).await;
+        if let Some(i) = (0..4).find(|&i| !g.npcs[i].inside) { for _ in 0..900 { let np = g.npcs[i].pos; if g.me.pos.distance(np) < 2.2 { break } let path = g.bfs(tile_of(g.me.pos), tile_of(np), false).unwrap_or_default(); let wp = if path.len() > 1 { tc(path[0]) } else { np }; step(g, c, &keys_toward(wp - g.me.pos), &[]).await } }
+        log!("weather={:?} pos={:?}", weather(g.w.day, c.now().month()), g.me.pos); shot!("p7_weather");
     } else if phase == "0" {
         log!("load-only check");
     } else if phase == "3" && c.now().hour() < 18 {

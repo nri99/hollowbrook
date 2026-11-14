@@ -203,3 +203,5 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     g.activate(0); assert!(g.w.p.mail.is_empty()); let mut g2 = reload(&g, "mail"); g2.join("x"); g2.activate(1); assert!(g2.w.p.mail.last().unwrap().claimed);
     assert!(!g.walk_tile(mailbox_tile(0).0, mailbox_tile(0).1));
 }
+#[test] fn weather_rule_snow_in_winter() { let wet = (739900..740400).find(|&d| rainy(d)).unwrap(); let dry = (739900..740400).find(|&d| !rainy(d)).unwrap();
+    assert_eq!(weather(wet, 1), Wx::Snow); assert_eq!(weather(wet, 12), Wx::Snow); assert_eq!(weather(wet, 6), Wx::Rain); assert_eq!(weather(dry, 1), Wx::Clear); }

@@ -65,6 +65,10 @@ pub fn foot(id: u16, x: i32, z: i32, rot: u8) -> Vec<(i32, i32)> {
     (0..d).flat_map(|j| (0..w).map(move |i| (x + i, z + j))).collect()
 }
 pub fn rainy(d: i64) -> bool { (d as u64).wrapping_mul(2654435761) >> 8 & 7 == 0 }
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Wx { Clear, Rain, Snow }
+/// Weather for a gameplay day: wet days (deterministic per day, provisional 1 in 8) fall as snow in Dec-Feb.
+pub fn weather(day: i64, month: u32) -> Wx { if !rainy(day) { Wx::Clear } else if month == 12 || month <= 2 { Wx::Snow } else { Wx::Rain } }
 /// Provisional content choice for this milestone: shop open 08:00-22:00; stock refresh is separate (06:00).
 pub fn shop_open(hr: u32) -> bool { (8..22).contains(&hr) }
 
@@ -159,6 +163,7 @@ pub const CHAT: [[&str; 4]; 4] = [
     ["Fishing is basically arm day. Respect.", "Race you to the bridge! ...After my nap.", "Digging holes is great cardio. Don't tell Bramble.", "Shake a tree, catch the fruit. Reflexes!"],
 ];
 pub const AGAIN: [&str; 4] = ["We already chatted today, but I don't mind more!", "Still here? Hmph.", "Oh... you're back. Like a tide.", "Round two? Let's go!"];
+pub const SNOW: [&str; 4] = ["Snow! Let's build a snow-fox!", "Snow. Cold paws. Marvelous.", "Every snowflake is a tiny cloud that gave up.", "Snow sprints are the best sprints!"];
 pub const RAIN: [&str; 4] = ["Rain means puddles! Puddles mean jumping!", "Rain. Wet fur. Wonderful. Truly.", "The rain is singing to the frogs. I'm a frog.", "Running in the rain builds character!"];
 pub const ASK: [&str; 4] = ["Could you find me a {i}? I've been craving one!", "Bring me a {i}. If it's not too much trouble. Which it isn't.", "I keep dreaming of a {i}... could you find one?", "Challenge for you: get me a {i}! Go go go!"];
 pub const THANKS: [&str; 4] = ["A {i}! You're the best! Here, take this!", "...A {i}. Hm. Thanks. Take this before I change my mind.", "Oh, a {i}... just like my dream. Thank you.", "A {i}! Record time! Here's your prize!"];
