@@ -274,6 +274,9 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
     for (i, tr) in g.w.trees.iter().enumerate() { let p = tc((tr.x, tr.z)); if near(p.x, p.y) && !fade_t.contains(&i) { let sk = g.shake.iter().find(|s| s.0 == i).map_or(0., |s| s.1); tree(r, p, tr.fruit.then(|| rgb(def(g.w.native).col)), sk, t, fol) } }
     for bi in 0..BLDS.len() { let b = &BLDS[bi]; if near(b.x as f32 + b.w as f32 / 2., b.z as f32 + b.d as f32 / 2.) && !fade_b.contains(&bi) { building(r, bi, lt.night) }
         if g.me.pos.distance(door_stand(bi)) < 3.5 { let p = door_face(bi); labels.push((vec3(p.x, 2.7, p.y), BLDS[bi].name.into(), WHITE)) } }
+    for o in 0..2 { let p = tc(mailbox_tile(o)); let unread = if g.w.p.id == o { g.w.p.mail.iter().any(|l| !l.read) } else { g.w.others.iter().find(|pr| pr.id == o).is_some_and(|pr| pr.mail.iter().any(|l| !l.read)) };
+        r.cube(vec3(p.x, 0.35, p.y), vec3(0.04, 0.35, 0.04), WOOD); r.cube(vec3(p.x, 0.78, p.y), vec3(0.16, 0.12, 0.22), if o == 0 { Color::new(0.85, 0.3, 0.3, 1.) } else { Color::new(0.3, 0.6, 0.5, 1.) });
+        r.with(Mat4::from_translation(vec3(p.x + 0.18, 0.8, p.y - 0.05)) * Mat4::from_rotation_z(if unread { 0. } else { -FRAC_PI_2 }), |r| { r.cube(vec3(0., 0.12, 0.), vec3(0.012, 0.12, 0.012), DARKGRAY); r.cube(vec3(0., 0.2, 0.06), vec3(0.01, 0.04, 0.06), YELLOW) }) }
     for &w in &g.w.weeds { let p = tc(w); for (ox, oz) in [(-0.1, 0.), (0.08, 0.06), (0., -0.08)] { r.cone(vec3(p.x + ox, 0., p.y + oz), 0.05, 0.22, Color::new(0.25, 0.5, 0.2, 1.)) } }
     for &h in &g.w.holes { let p = tc(h); for k in 0..5 { let a = k as f32 * 1.26; r.sphere(vec3(p.x + a.cos() * 0.36, 0.03, p.y + a.sin() * 0.32), vec3(0.1, 0.06, 0.1), Color::new(0.5, 0.36, 0.24, 1.)) } }
     for &dg in &g.w.digs { let p = tc(dg); for a in [0.7f32, -0.7] { r.with(Mat4::from_translation(vec3(p.x, 0.012, p.y)) * Mat4::from_rotation_y(a), |r| r.cube(Vec3::ZERO, vec3(0.2, 0.01, 0.025), Color::new(0.35, 0.25, 0.16, 1.))) } }
@@ -368,6 +371,7 @@ fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, Strin
 // ---- HUD / menus (2D, undistorted) ----
 fn txt(s: &str, x: f32, y: f32, z: f32, c: Color) { draw_text(s, x, y, z, c); }
 fn panel(x: f32, y: f32, w: f32, h: f32) { draw_rectangle(x, y, w, h, Color::new(0.99, 0.96, 0.88, 0.97)); draw_rectangle_lines(x, y, w, h, 3., Color::new(0.45, 0.3, 0.2, 1.)) }
+fn wrap_txt(s: &str, n: usize) -> Vec<String> { let mut o = vec![String::new()]; for w in s.split(' ') { if o.last().unwrap().len() + w.len() > n { o.push(String::new()) } let l = o.last_mut().unwrap(); if !l.is_empty() { l.push(' ') } l.push_str(w) } o }
 fn slot_name(s: &Slot) -> String { if s.qty > 1 { format!("{} x{}", def(s.def).name, s.qty) } else { def(s.def).name.to_string() } }
 fn list(items: &[String], sel: Option<usize>, x: f32, y: f32) { for (k, s) in items.iter().enumerate() { let on = sel == Some(k); if on { draw_rectangle(x - 6., y + k as f32 * 26. - 19., 330., 25., Color::new(1., 0.85, 0.4, 0.6)) } txt(s, x, y + k as f32 * 26., 22., BLACK) } }
 fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
@@ -399,6 +403,11 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         Ui::Storage(c, s) => { panel(sw / 2. - 380., 90., 760., 520.); txt("Pockets", sw / 2. - 360., 125., 28., BLACK); txt("Cabinet storage", sw / 2. + 20., 125., 28., BLACK);
             let a: Vec<String> = g.w.p.inv.iter().map(slot_name).collect(); let bb: Vec<String> = g.w.p.storage.iter().map(slot_name).collect();
             list(&a, (*c == 0).then_some(*s), sw / 2. - 350., 165.); list(&bb, (*c == 1).then_some(*s), sw / 2. + 30., 165.); txt(if g.me.pad { "Left/Right switch side  Up/Down select  A move item  B close" } else { "A/D switch side  W/S select  Enter move item  Esc close" }, sw / 2. - 360., 590., 19., DARKGRAY) }
+        Ui::Mail(sel) => { panel(sw / 2. - 280., 100., 560., 440.); txt("Mailbox", sw / 2. - 260., 135., 28., Color::new(0.45, 0.3, 0.2, 1.));
+            let items: Vec<String> = g.w.p.mail.iter().rev().map(|l| format!("{}{}{}", if l.read { "   " } else { "* " }, l.from, if !l.claimed && (l.coins > 0 || l.item.is_some()) { "  (gift)" } else { "" })).collect();
+            if items.is_empty() { txt("No letters yet.", sw / 2. - 250., 175., 22., GRAY) } list(&items[..items.len().min(8)], Some(*sel), sw / 2. - 250., 175.);
+            if let Some(l) = g.w.p.mail.iter().rev().nth(*sel) { for (k, line) in wrap_txt(&l.text, 44).iter().enumerate() { txt(line, sw / 2. - 250., 400. + k as f32 * 24., 21., BLACK) } }
+            txt(if g.me.pad { "Up/Down select  A open/claim  B close" } else { "W/S select  Enter open/claim  Esc close" }, sw / 2. - 260., 525., 19., DARKGRAY) }
         Ui::Rack(sel) => { panel(sw / 2. - 260., 120., 520., 260.); txt("Clothing rack", sw / 2. - 240., 155., 28., Color::new(0.45, 0.3, 0.2, 1.));
             let items: Vec<String> = CLOTHES.iter().map(|&d| format!("{}  -  {} coins", def(d).name, def(d).buy)).collect(); list(&items, Some(*sel), sw / 2. - 230., 195.);
             txt(&format!("You have {} coins.", g.w.p.money), sw / 2. - 240., 320., 20., DARKGRAY); txt(if g.me.pad { "Up/Down select  A buy  B close" } else { "W/S select  Enter buy  Esc close" }, sw / 2. - 240., 350., 19., DARKGRAY) }

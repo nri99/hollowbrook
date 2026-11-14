@@ -73,6 +73,8 @@ pub enum BK { Shop, Home(usize), Res(usize), Civic, Museum }
 pub struct Bld { pub x: i32, pub z: i32, pub w: i32, pub d: i32, pub kind: BK, pub name: &'static str, pub wall: (f32, f32, f32), pub roof: (f32, f32, f32) }
 /// Stable building ids = index. 1 = player 1's home (same id as earlier saves), 7 = player 2's home.
 pub fn home_of(player: usize) -> usize { if player == 0 { 1 } else { 7 } }
+/// Mailbox tile beside each home's door (solid).
+pub fn mailbox_tile(player: usize) -> (i32, i32) { let (x, z) = door_tile(home_of(player)); (x + 1, z) }
 pub const BLDS: [Bld; 9] = [
     Bld { x: 4, z: 3, w: 5, d: 4, kind: BK::Shop, name: "General Store", wall: (0.96, 0.9, 0.78), roof: (0.25, 0.55, 0.7) },
     Bld { x: 12, z: 12, w: 3, d: 3, kind: BK::Home(0), name: "Player 1's Home", wall: (0.98, 0.95, 0.88), roof: (0.78, 0.32, 0.3) },

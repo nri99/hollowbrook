@@ -207,6 +207,12 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         shot!("p51_counter_expand"); press(g, c, KeyCode::Enter).await; log!("after expand: level={} money={} dims={:?}", g.w.p.home, g.w.p.money, g.rdims(HOME)); press(g, c, KeyCode::Escape).await;
         go(g, c, vec2(3.5, 4.5), 0.12).await; for _ in 0..30 { if g.me.scene == Scene::Town { break } step(g, c, &[KeyCode::S], &[]).await } wait(g, c, 40).await;
         go(g, c, door_stand(HOME), 0.12).await; face(g, c, door_face(HOME)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await; log!("home scene={:?} ipos={:?}", g.me.scene, g.me.ipos); shot!("p51_bigger_home");
+    } else if phase == "8" {
+        // P6-01: mailbox (one letter inserted as a logged FIXTURE; opening/claiming uses the normal interaction)
+        g.w.p.mail.push(world::Letter { from: "Juniper".into(), text: "Thinking of you! Here's a little something.".into(), coins: 300, item: None, read: false, claimed: false }); log!("FIXTURE: letter with 300 coins placed in P1 mail");
+        let mb = tc(mailbox_tile(0)); approach(g, c, mb).await; log!("target={:?}", g.target()); shot!("p61_mailbox_flag"); let m0 = g.w.p.money;
+        press(g, c, KeyCode::E).await; log!("ui={:?}", g.me.ui); press(g, c, KeyCode::Enter).await; log!("money {m0} -> {}, letter={:?}", g.w.p.money, g.w.p.mail[0]); shot!("p61_mail_menu");
+        press(g, c, KeyCode::Enter).await; log!("second open: money {}", g.w.p.money); press(g, c, KeyCode::Escape).await;
     } else if phase == "0" {
         log!("load-only check");
     } else if phase == "3" && c.now().hour() < 18 {

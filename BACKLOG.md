@@ -45,7 +45,7 @@ Status: `[ ]` open · `[x]` done · `[B]` blocked (reason given)
 - [ ] **P5-03 Catalog reorder.** Furniture ever owned can be re-ordered at the counter at full price. *AC:* test.
 
 ## P6 — residents
-- [ ] **P6-01 Mailbox and letters.** Letters are stored (not just toasts) in a mailbox by the home; read/claim attached gifts once. *AC:* tests: claim once, persists.
+- [x] **P6-01 Mailbox and letters.** Letters are stored (not just toasts) in a mailbox by the home; read/claim attached gifts once. *AC:* tests: claim once, persists.
 - [ ] **P6-02 Idle activities & rain.** Residents sometimes stop to look at flowers / stretch; carry umbrellas in rain. *AC:* rendered.
 - [ ] **P6-03 Gifts.** Give a resident an item from pockets; reaction depends on preference. *AC:* test.
 

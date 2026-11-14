@@ -1,10 +1,10 @@
 # Progress log
 
 ## Current
-- Current task: P6-01 Mailbox and stored letters (per profile)
-- Last completed: P5-01 home expansion (counter menu, per profile, paid up front)
+- Current task: P7-01 Snow in winter + P6-02 resident rain behaviour (weather presentation)
+- Last completed: P6-01 mailbox + stored letters (per profile, claim once)
 - Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
-- Next action: Profile.mail: Vec<Letter{from, text, gift: Option<u16 money or item>, read}> (serde default); refresh letters go to mail for every profile (not only the active player); mailbox object outside each home (target Tg::Mailbox(owner)) opening Ui::Mail list; claiming a gift once; tests (claim once, persists, P2 gets own letters); screenshot.
+- Next action: weather fn (rain vs snow by month; snow ground tint + falling flakes, outdoors only, per split view); residents hold umbrellas when raining outdoors; tests for weather rule; screenshots with dev clock in Jan and a rainy day. Then R16 content coverage table in DESIGN_SPEC.
 
 ## Baseline verification (before this run)
 - 19 headless tests pass. Executable bot run (2 launches) completed the full loop; screenshots inspected:
@@ -69,3 +69,8 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - `Game::rdims(b)` sizes homes by owner house level: 4x4 -> 5x5 -> 6x5; costs 3000 / 15000 [PROV]; bought from the last line of the shop counter menu; furniture on the new doorway tile moves to home storage; per profile (P2 home unaffected). No debt/loan (loans remain blocked, see BACKLOG).
 - H: 36/36 (new: home_expansion_paid_upfront_keeps_furniture). X: phase 7 (coins set as logged FIXTURE, purchase via counter menu) -> level 1, room 5x5.
 - S (inspected): p51_bigger_home (5x5 room, camera reframed).
+
+### 01:40 — P6-01 done (mailbox)
+- `Letter{from,text,coins,item,read,claimed}`, `Profile.mail` (serde default). Daily refresh writes resident letters into each profile mail (also for the inactive player) instead of paying instantly; mail capped at 20 (oldest read/claimed removed). Solid mailbox beside each home door (flag up when unread); only the owner can open; Ui::Mail list with keyboard/pad prompts; gifts claimed once.
+- H: 37/37 (new: mail_delivered_per_profile_claim_once). X: phase 8 (letter inserted as logged FIXTURE) opened via mailbox: 1000 -> 1300 coins, second open no change.
+- S (inspected): p61_mailbox_flag (both mailboxes, prompt "Check mailbox (1 new)").

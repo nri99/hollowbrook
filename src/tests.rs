@@ -195,3 +195,11 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     assert_eq!(g.expand_home(), Err("Your home is already as big as it gets!")); assert_eq!(g.w.p.money, 2000); assert_eq!(g.rdims(7), (4, 4)); // P2 home unaffected
     let g2 = reload(&g, "exp"); assert_eq!(g2.rdims(HOME), (6, 5)); g.w.p.home = 0; g.w.p.money = 10; assert_eq!(g.expand_home(), Err("Not enough coins."));
 }
+#[test] fn mail_delivered_per_profile_claim_once() {
+    let mut g = two(at(11, 12, 0, 0)); g.activate(1); for n in &mut g.w.p.npcs { n.friend = 20 } let m0 = g.w.p.money; g.activate(0);
+    for d in 12..40 { g.catch_up(at(1 + d % 28, 7, 0, 0).checked_add_months(chrono::Months::new((d / 28) as u32)).unwrap()); g.activate(1); if !g.w.p.mail.is_empty() { break } g.activate(0) }
+    g.activate(1); assert!(!g.w.p.mail.is_empty(), "P2 got no letter"); assert_eq!(g.w.p.money, m0); // coins wait in the letter
+    let c = g.w.p.mail.last().unwrap().coins; g.open_letter(0); assert_eq!(g.w.p.money, m0 + c); g.open_letter(0); assert_eq!(g.w.p.money, m0 + c); assert!(g.w.p.mail.last().unwrap().claimed);
+    g.activate(0); assert!(g.w.p.mail.is_empty()); let mut g2 = reload(&g, "mail"); g2.join("x"); g2.activate(1); assert!(g2.w.p.mail.last().unwrap().claimed);
+    assert!(!g.walk_tile(mailbox_tile(0).0, mailbox_tile(0).1));
+}
