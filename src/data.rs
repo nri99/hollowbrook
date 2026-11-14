@@ -162,6 +162,8 @@ pub const CHAT: [[&str; 4]; 4] = [
     ["Do you think fish dream about us?", "A {f} fell on my head during my nap. A sign, maybe.", "The beach shells whisper if you hold them close.", "I'd like a house made entirely of pillows."],
     ["Fishing is basically arm day. Respect.", "Race you to the bridge! ...After my nap.", "Digging holes is great cardio. Don't tell Bramble.", "Shake a tree, catch the fruit. Reflexes!"],
 ];
+/// Gift preference per resident (provisional): liked kinds give more friendship.
+pub const LIKES: [K; 4] = [K::Fruit, K::Fossil, K::Fish, K::Bug];
 pub const AGAIN: [&str; 4] = ["We already chatted today, but I don't mind more!", "Still here? Hmph.", "Oh... you're back. Like a tide.", "Round two? Let's go!"];
 pub const SNOW: [&str; 4] = ["Snow! Let's build a snow-fox!", "Snow. Cold paws. Marvelous.", "Every snowflake is a tiny cloud that gave up.", "Snow sprints are the best sprints!"];
 pub const RAIN: [&str; 4] = ["Rain means puddles! Puddles mean jumping!", "Rain. Wet fur. Wonderful. Truly.", "The rain is singing to the frogs. I'm a frog.", "Running in the rain builds character!"];

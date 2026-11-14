@@ -394,7 +394,8 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
     txt(hint, 12., sh - 14., 19., WHITE);
     match &g.me.ui {
         Ui::Play => {}
-        Ui::Talk { who, lines, i, .. } => { panel(sw / 2. - 430., sh - 200., 860., 140.); txt(who, sw / 2. - 410., sh - 168., 26., Color::new(0.55, 0.3, 0.15, 1.)); txt(lines.get(*i).map_or("", |s| s.as_str()), sw / 2. - 410., sh - 128., 24., BLACK); txt(if g.me.pad { "[A] next" } else { "[E] next" }, sw / 2. + 330., sh - 75., 20., GRAY) }
+        Ui::Talk { who, lines, i, .. } => { panel(sw / 2. - 430., sh - 200., 860., 140.); txt(who, sw / 2. - 410., sh - 168., 26., Color::new(0.55, 0.3, 0.15, 1.)); txt(lines.get(*i).map_or("", |s| s.as_str()), sw / 2. - 410., sh - 128., 24., BLACK); if matches!(g.me.ui, Ui::Talk { npc: Some(_), .. }) { txt(if g.me.pad { "[LB] give gift" } else { "[G] give gift" }, sw / 2. - 410., sh - 75., 20., GRAY) }
+            txt(if g.me.pad { "[A] next" } else { "[E] next" }, sw / 2. + 330., sh - 75., 20., GRAY) }
         Ui::Inv(s) | Ui::Sell(s) => { let sell = matches!(g.me.ui, Ui::Sell(_)); panel(sw / 2. - 260., 90., 520., 520.);
             txt(if sell { "Sell to Mr. Tumble" } else { "Pockets" }, sw / 2. - 240., 125., 30., Color::new(0.45, 0.3, 0.2, 1.));
             let mut items: Vec<String> = g.w.p.inv.iter().map(|it| if sell { format!("{}  -  {}c", slot_name(it), def(it.def).sell * it.qty as u32) } else { slot_name(it) }).collect();
@@ -407,6 +408,9 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         Ui::Storage(c, s) => { panel(sw / 2. - 380., 90., 760., 520.); txt("Pockets", sw / 2. - 360., 125., 28., BLACK); txt("Cabinet storage", sw / 2. + 20., 125., 28., BLACK);
             let a: Vec<String> = g.w.p.inv.iter().map(slot_name).collect(); let bb: Vec<String> = g.w.p.storage.iter().map(slot_name).collect();
             list(&a, (*c == 0).then_some(*s), sw / 2. - 350., 165.); list(&bb, (*c == 1).then_some(*s), sw / 2. + 30., 165.); txt(if g.me.pad { "Left/Right switch side  Up/Down select  A move item  B close" } else { "A/D switch side  W/S select  Enter move item  Esc close" }, sw / 2. - 360., 590., 19., DARKGRAY) }
+        Ui::Gift(j, sel) => { panel(sw / 2. - 260., 100., 520., 440.); txt(&format!("Give {} a gift", RES[*j].name), sw / 2. - 240., 135., 28., Color::new(0.45, 0.3, 0.2, 1.));
+            let items: Vec<String> = g.w.p.inv.iter().map(slot_name).collect(); list(&items, Some(*sel), sw / 2. - 230., 175.);
+            txt(if g.me.pad { "Up/Down select  A give  B cancel" } else { "W/S select  Enter give  Esc cancel" }, sw / 2. - 240., 525., 19., DARKGRAY) }
         Ui::Catalog(sel) => { panel(sw / 2. - 260., 100., 520., 440.); txt("Catalog", sw / 2. - 240., 135., 28., Color::new(0.45, 0.3, 0.2, 1.));
             let items: Vec<String> = g.w.p.catalog.iter().map(|&d| format!("{}  -  {}c", def(d).name, def(d).buy)).collect(); if items.is_empty() { txt("Items you own appear here.", sw / 2. - 230., 175., 22., GRAY) }
             list(&items[..items.len().min(12)], Some(*sel), sw / 2. - 230., 175.); txt(if g.me.pad { "Up/Down select  A order  B close" } else { "W/S select  Enter order  Esc close" }, sw / 2. - 240., 525., 19., DARKGRAY) }

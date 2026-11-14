@@ -24,7 +24,7 @@ pub struct Slot { pub def: u16, pub qty: u16, pub uid: u32 }
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
 pub struct Furn { pub uid: u32, pub def: u16, pub x: i32, pub z: i32, pub rot: u8, pub on: bool }
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub struct NpcS { pub friend: i32, pub req: Option<u16>, pub talked: bool }
+pub struct NpcS { pub friend: i32, pub req: Option<u16>, pub talked: bool, #[serde(default)] pub gifted: bool }
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
 pub struct Tree { pub x: i32, pub z: i32, pub fruit: bool, pub shaken: i64 }
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
@@ -46,7 +46,7 @@ pub struct Profile {
     #[serde(default)] pub catalog: Vec<u16>,
 }
 impl Profile {
-    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, mail: vec![], catalog: vec![] } }
+    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, mail: vec![], catalog: vec![] } }
 }
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct World {
@@ -73,7 +73,7 @@ impl World {
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Snd { Step, Blip, Splash, Coin, Dig, Rustle, Door }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize) }
 #[derive(Clone, PartialEq, Debug)]
-pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize) }
+pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize) }
 pub struct Placing { pub f: Furn, pub orig: Option<Furn>, pub slot_uid: Option<u32> }
 pub struct Fishing { pub bob: Vec2, pub fish: Option<usize>, pub t: f32, pub nib: u8, pub need: u8, pub bite: bool, pub dip: f32 }
 pub struct Shadow { pub pos: Vec2, pub def: u16, pub vel: Vec2 }
@@ -190,7 +190,7 @@ impl Game {
     fn refresh_profile(&mut self, letters: bool) {
         let mine = self.w.p.id == self.me.id;
         let reqs = [self.w.native, 40, 42, 10, 12, 30];
-        for i in 0..4 { let s = &mut self.w.p.npcs[i]; s.talked = false; s.req = if gen_range(0, 2) == 0 { Some(reqs[gen_range(0, reqs.len())]) } else { None };
+        for i in 0..4 { let s = &mut self.w.p.npcs[i]; s.talked = false; s.gifted = false; s.req = if gen_range(0, 2) == 0 { Some(reqs[gen_range(0, reqs.len())]) } else { None };
             if letters && s.friend >= 10 && gen_range(0, 3) == 0 { let m = gen_range(2u32, 8) * 100;
                 const NOTES: [&str; 4] = ["Thinking of you! Here's a little something.", "Hmph. Found this. Don't make it weird.", "I dreamed you liked coins. So here are some.", "Training fund! Spend it on snacks!"];
                 self.w.p.mail.push(Letter { from: RES[i].name.into(), text: NOTES[RES[i].pers].into(), coins: m, item: None, read: false, claimed: false });
@@ -368,7 +368,7 @@ impl Game {
             if n == 3 { break } let (x, z) = (tr.x + dx, tr.z + dz);
             if self.walk_tile(x, z) && !self.item_at(x, z) { self.drop_item(self.w.native, x, z); n += 1 }
         }
-        self.note(format!("{n} {}s fell from the tree!", def(self.w.native).name));
+        let nm = def(self.w.native).name.to_lowercase(); self.note(format!("{n} {}{} fell from the tree!", nm, if nm.ends_with("ch") { "es" } else { "s" }));
     }
     pub fn add(&mut self, d: u16) -> bool {
         if let Some(s) = self.w.p.inv.iter_mut().find(|s| s.def == d && s.uid == 0 && s.qty < STACK) { s.qty += 1 }
@@ -408,6 +408,18 @@ impl Game {
         if let Some(d) = l.item { if self.w.p.inv.len() >= INV_CAP { return self.note("Your pockets are full; the gift stays in the letter.") } if def(d).k == K::Furn || def(d).k == K::Cloth { self.add_furn(d); } else { self.add(d); } }
         if l.coins > 0 { self.w.p.money += l.coins; self.note(format!("{} coins were enclosed.", l.coins)); self.snd.push(Snd::Coin) }
         self.w.p.mail[k].claimed = true;
+    }
+
+    /// Give one unit of pocket slot `slot` to resident `j` (once per resident per day per player).
+    pub fn give_gift(&mut self, j: usize, slot: usize) {
+        let r = &RES[j]; let who = format!("{} the {}", r.name, r.species);
+        if self.w.p.npcs[j].gifted { self.me.ui = Ui::Talk { npc: Some(j), who, lines: vec!["You already gave me something today. Save it for tomorrow!".into()], i: 0 }; return }
+        let Some(sl) = self.w.p.inv.get(slot).copied() else { return };
+        if sl.uid != 0 { self.w.p.inv.remove(slot); } else if !self.remove_one(sl.def) { return }
+        let liked = def(sl.def).k == LIKES[r.pers]; let s = &mut self.w.p.npcs[j]; s.gifted = true; s.friend += if liked { 2 } else { 1 };
+        let name = def(sl.def).name;
+        let line = if liked { self.npcs[j].happy = 2.; let hp = if self.me.scene == Scene::Town { self.npcs[j].pos } else { res_spot() }; for k in 0..4 { self.hearts.push((vec3(hp.x + (k as f32 - 1.5) * 0.12, 1.3, hp.y), -(k as f32) * 0.12)) } format!("A {name}! Oh, I really love these. Thank you!") } else { format!("A {name}? How kind. Thank you!") };
+        self.snd.push(Snd::Blip); self.me.ui = Ui::Talk { npc: Some(j), who, lines: vec![line], i: 0 };
     }
 
     // ---- clothing ----
@@ -680,6 +692,7 @@ impl Game {
         if self.me.ui == Ui::Play { return false }
         let (up, down) = (inp.p(Up) || inp.p(W), inp.p(Down) || inp.p(S)); let (left, right) = (inp.p(Left) || inp.p(A), inp.p(Right) || inp.p(D));
         let ok = inp.p(Enter) || inp.p(KpEnter) || inp.p(E); let esc = inp.p(Escape);
+        if let Ui::Talk { npc: Some(j), .. } = self.me.ui { if inp.p(G) { if self.w.p.inv.is_empty() { self.note("You have nothing to give.") } else { self.me.ui = Ui::Gift(j, 0) } return true } }
         if let Ui::Talk { lines, i, .. } = &mut self.me.ui { if ok || inp.p(Space) { *i += 1; if *i >= lines.len() { self.me.ui = Ui::Play } } else if esc { self.me.ui = Ui::Play } return true }
         let n = self.w.p.inv.len();
         let mv = |s: usize, len: usize| if up && s > 0 { s - 1 } else if down && s + 1 < len { s + 1 } else { s.min(len.saturating_sub(1)) };
@@ -695,6 +708,7 @@ impl Game {
             Ui::Storage(c, s) => { let c = if left { 0 } else if right { 1 } else { c }; let len = if c == 0 { n } else { self.w.p.storage.len() }; let s = mv(s, len); self.me.ui = Ui::Storage(c, s);
                 if esc { self.me.ui = Ui::Play } else if ok && s < len { self.transfer(c, s) } }
             Ui::Journal => if esc || inp.p(J) { self.me.ui = Ui::Play },
+            Ui::Gift(j, s) => { let s = mv(s, n); self.me.ui = Ui::Gift(j, s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.give_gift(j, s) } }
             Ui::Catalog(s) => { let s = mv(s, self.w.p.catalog.len()); self.me.ui = Ui::Catalog(s); if esc { self.me.ui = Ui::Play } else if ok && s < self.w.p.catalog.len() { let d = self.w.p.catalog[s]; match self.order(d) { Ok(()) => { self.snd.push(Snd::Coin); self.note(format!("Ordered a {}.", def(d).name)) } Err(e) => self.note(e) } } }
             Ui::Mail(s) => { let s = mv(s, self.w.p.mail.len()); self.me.ui = Ui::Mail(s); if esc { self.me.ui = Ui::Play } else if ok { self.open_letter(s) } }
             Ui::Rack(s) => { let s = mv(s, CLOTHES.len()); self.me.ui = Ui::Rack(s); if esc { self.me.ui = Ui::Play } else if ok { match self.buy_cloth(CLOTHES[s]) { Ok(()) => { self.snd.push(Snd::Coin); self.note(format!("Bought the {}. Open your pockets to wear it.", def(CLOTHES[s]).name)) } Err(e) => self.note(e) } } }

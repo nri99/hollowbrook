@@ -211,3 +211,11 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     assert_eq!(g.order(57).err(), if d == 57 { None } else { Some("That isn't in your catalog.") }.filter(|_| d != 57)); g.w.p.money = 0; assert_eq!(g.order(d), Err("Not enough coins."));
     let g2 = reload(&g, "cat"); assert!(g2.w.p.catalog.contains(&d));
 }
+#[test] fn gifts_once_per_day_with_preferences() {
+    let mut g = g0(at(11, 12, 0, 0)); g.add(20); g.add(20); g.add(40); let f0 = g.w.p.npcs[0].friend;
+    g.give_gift(0, 0); assert_eq!(g.w.p.npcs[0].friend, f0 + 2); assert_eq!(g.w.p.inv[0].qty, 1); // Juniper likes fruit
+    g.give_gift(0, 0); assert_eq!(g.w.p.npcs[0].friend, f0 + 2); assert_eq!(g.w.p.inv[0].qty, 1); // once per day
+    let f1 = g.w.p.npcs[1].friend; let shell = g.w.p.inv.iter().position(|s| s.def == 40).unwrap(); g.give_gift(1, shell); assert_eq!(g.w.p.npcs[1].friend, f1 + 1);
+    assert!(g.catch_up(at(12, 6, 0, 1))); assert!(!g.w.p.npcs[0].gifted);
+    g.me.ui = Ui::Talk { npc: Some(2), who: "x".into(), lines: vec!["a".into()], i: 0 }; g.update(&Inp::keys(&[KeyCode::G], &[KeyCode::G]), 0.016, at(12, 7, 0, 0)); assert_eq!(g.me.ui, Ui::Gift(2, 0));
+}

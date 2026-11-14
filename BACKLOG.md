@@ -47,7 +47,7 @@ Status: `[ ]` open · `[x]` done · `[B]` blocked (reason given)
 ## P6 — residents
 - [x] **P6-01 Mailbox and letters.** Letters are stored (not just toasts) in a mailbox by the home; read/claim attached gifts once. *AC:* tests: claim once, persists.
 - [x] **P6-02 Idle activities & rain.** Residents sometimes stop to look at flowers / stretch; carry umbrellas in rain. *AC:* rendered.
-- [ ] **P6-03 Gifts.** Give a resident an item from pockets; reaction depends on preference. *AC:* test.
+- [x] **P6-03 Gifts.** Give a resident an item from pockets; reaction depends on preference. *AC:* test.
 
 ## P7 — seasons, weather, events
 - [x] **P7-01 Snow in winter** (ground tint + falling snow instead of rain). *AC:* rendered with dev clock.

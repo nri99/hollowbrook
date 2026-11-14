@@ -226,6 +226,15 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         go(g, c, vec2(3.5, 2.5), 0.12).await; face(g, c, vec2(3.5, 1.5)).await; press(g, c, KeyCode::E).await; for _ in 0..g.w.p.inv.len() + 1 { press(g, c, KeyCode::S).await }
         press(g, c, KeyCode::Enter).await; log!("ui={:?} catalog={:?}", g.me.ui, g.w.p.catalog); shot!("p53_catalog"); press(g, c, KeyCode::Enter).await;
         log!("after order: money={} inv={:?}", g.w.p.money, g.w.p.inv.iter().map(|s| (def(s.def).name, s.uid)).collect::<Vec<_>>());
+    } else if phase == "11" {
+        // P6-03: fruit gathered normally, then given to Juniper through the talk -> G -> gift menu path
+        if let Some(ti) = (0..g.w.trees.len()).filter(|&i| g.w.trees[i].fruit).min_by(|&a, &b| tc((g.w.trees[a].x, g.w.trees[a].z)).distance(g.me.pos).total_cmp(&tc((g.w.trees[b].x, g.w.trees[b].z)).distance(g.me.pos))) {
+            approach(g, c, tc((g.w.trees[ti].x, g.w.trees[ti].z))).await; press(g, c, KeyCode::E).await;
+            if let Some(f) = g.w.ground.iter().filter(|i| i.def == g.w.native).map(|i| vec2(i.x, i.z)).min_by(|a, b| a.distance(g.me.pos).total_cmp(&b.distance(g.me.pos))) { approach(g, c, f).await; press(g, c, KeyCode::E).await } }
+        log!("pockets: {:?}", g.w.p.inv);
+        for _ in 0..1500 { let np = g.npcs[0].pos; if !g.npcs[0].inside && g.me.pos.distance(np) < 1.1 { break } let path = g.bfs(tile_of(g.me.pos), tile_of(np), false).unwrap_or_default(); let wp = if path.len() > 1 { tc(path[0]) } else { np }; step(g, c, &keys_toward(wp - g.me.pos), &[]).await }
+        face(g, c, g.npcs[0].pos).await; let f0 = g.w.p.npcs[0].friend; press(g, c, KeyCode::E).await; press(g, c, KeyCode::G).await; log!("ui={:?}", g.me.ui); press(g, c, KeyCode::Enter).await;
+        log!("friendship {f0} -> {} gifted={} ui={:?}", g.w.p.npcs[0].friend, g.w.p.npcs[0].gifted, g.me.ui); shot!("p63_gift_reaction");
     } else if phase == "0" {
         log!("load-only check");
     } else if phase == "3" && c.now().hour() < 18 {

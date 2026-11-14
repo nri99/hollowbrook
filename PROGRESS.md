@@ -1,10 +1,10 @@
 # Progress log
 
 ## Current
-- Current task: P6-03 gifts to residents
-- Last completed: P5-03 catalog reorder
+- Current task: P7-02 one recurring seasonal event (provisional rules) + R16 content coverage table
+- Last completed: P6-03 gifts to residents
 - Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
-- Next action: give a pocket item to a resident from the talk flow (Gift option: talking while holding Space? use Ui::Gift list opened by a third dialogue choice) with per-resident preference (fruit/fish/flower-themed, provisional) affecting friendship +1/+2/+0 once per day; tests; screenshot. Then P7-02 one seasonal event and R16 content coverage table.
+- Next action: add a provisional "Harvest Fair" (last Saturday of October? choose fixed date window, provisional) with plaza decorations + a resident line + a once-per-day prize; tests for the date window. Then write the DESIGN_SPEC content coverage table (counts per category vs spec, missing-data list) and update RELEASE_CHECKLIST R16.
 
 ## Baseline verification (before this run)
 - 19 headless tests pass. Executable bot run (2 launches) completed the full loop; screenshots inspected:
@@ -83,3 +83,7 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - `Profile.catalog` (serde default; seeded on load from owned furniture/clothing for every profile); `Game::order` at full price, delivered to pockets [PROV]; counter menu line "Order from catalog" -> Ui::Catalog.
 - H: 39/39 (new: catalog_reorder_full_price). X: phase 10 bought Potted Plant at a stand, re-ordered it from the catalog (500 -> 0, two distinct uids). S (inspected): p53_catalog.
 - R15 tool FX: re-inspected p3m/p3_dig_site.png: soil spheres around the hole, but the dirt-puff effect is not distinguishable from the hole mound; recorded PARTIAL.
+
+### 02:40 — P6-03 done (gifts)
+- During a resident conversation G (pad LB) opens Ui::Gift; one unit leaves pockets; liked kind (LIKES per personality [PROV]: fruit/fossil/fish/bug) +2 friendship with happy jump + hearts, other items +1; once per resident per day per profile (`NpcS.gifted`, serde default, reset 06:00).
+- H: 40/40 (new: gifts_once_per_day_with_preferences). X: phase 11 shook a tree, picked a Peach, talked to Juniper, G -> Enter: friendship 0 -> 3 (1 chat + 2 liked gift). S (inspected): p63_gift_reaction. Fixed "Peachs" plural in the tree message seen in that screenshot.
