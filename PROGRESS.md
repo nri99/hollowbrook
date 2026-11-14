@@ -1,10 +1,10 @@
 # Progress log
 
 ## Current
-- Current task: C-01 swimming + diving
-- Last completed: P7-02 Harvest Fair + R16 content coverage table
+- Current task: C-02 resident home visits
+- Last completed: C-01 swimming + diving
 - Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
-- Next action: allow entering SEA tiles while "swimming" (Space at shore without rod? or walking into sea from sand toggles swim state), swim speed, dive button (Space) to find sea creatures from a small original roster (3-4, provisional), sell/donate them; tests; screenshot.
+- Next action: provisional rule: once per day a resident with friendship >= 5 may "knock" while a player is inside their own home during that resident awake+Out hours; the resident appears inside at the spot near the door for 2 game hours or until the player leaves; talk works there; tests + screenshot.
 
 ## Baseline verification (before this run)
 - 19 headless tests pass. Executable bot run (2 launches) completed the full loop; screenshots inspected:
@@ -92,3 +92,7 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - Harvest Fair [PROV]: 13-16 Nov, stall at plaza tile (11,10) solid only during the fair, lantern posts, residents mention it, one random furniture prize per player per year (`Profile.fair_year`, serde default; pockets-full keeps it unclaimed).
 - H: 41/41 (new: harvest_fair_window_and_prize_once). X: phase 12 at 16:30 on 14 Nov: prize Lamp, second claim refused. S (inspected): p72_fair.
 - DESIGN_SPEC: content coverage table with COMPLETE/PARTIAL/NOT IMPLEMENTED/BLOCKED and missing data; BACKLOG C-01..C-05 added from it.
+
+### 03:20 — C-01 done (swimming + diving)
+- [PROV] Walking from sand into SEA tiles starts swimming (player-only passability; residents never enter water); swim speed 2.0, no running/tools; Space/X dives at shared bubble spots (max 3 near players) holding Sea Star / Sea Urchin / Sea Slug / Octopus (new K::Sea, sellable, donatable, shown in the museum tank, journal column "Fish & sea"). Swimmers drawn waist-deep with a ripple ring (both players).
+- H: 42/42 (new: swimming_and_diving). X: phase 13 walked off the beach, swam to a bubble, dived -> Sea Slug. S (inspected): c01_swimming.

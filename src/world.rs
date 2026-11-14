@@ -114,6 +114,8 @@ pub struct Game {
     pub snd: Vec<Snd>, pub hr: u32, pub mo: u32, pub curve: f32, pub dom: u32, pub yr: i32,
     /// transient tool effects: (position, age, kind 0 splash / 1 dirt / 2 swish)
     pub fx: Vec<(Vec3, f32, u8)>,
+    /// shared bubble spots in the sea marking a sea creature below
+    pub bubbles: Vec<(Vec2, u16)>,
 }
 
 impl Game {
@@ -125,7 +127,7 @@ impl Game {
     pub fn from_world(w: World, map: Vec<u8>) -> Game {
         let pos = vec2(w.p.pos[0], w.p.pos[1]);
         let npcs = (0..4).map(|i| NpcRt { pos: door_stand(RES[i].bld), path: vec![], wait: gen_range(0., 2.), yaw: 0., inside: true, happy: 0., moving: false, last_chat: 9, anim: 0. }).collect();
-        let mut g = Game { me: Player::new(w.p.id, pos), w, map, others: vec![], npcs, t: 0., log: vec![], rolled: false, shadows: vec![], bugs: vec![], shake: vec![], hearts: vec![], snd: vec![], hr: 12, mo: 6, curve: 0.01, dom: 1, yr: 2026, fx: vec![] };
+        let mut g = Game { me: Player::new(w.p.id, pos), w, map, others: vec![], npcs, t: 0., log: vec![], rolled: false, shadows: vec![], bugs: vec![], shake: vec![], hearts: vec![], snd: vec![], hr: 12, mo: 6, curve: 0.01, dom: 1, yr: 2026, bubbles: vec![], fx: vec![] };
         if !g.free(g.me.pos) { g.me.pos = door_stand(HOME); g.me.cam = g.me.pos }
         let map = &g.map; let open = |t: &(i32, i32)| tile_at(map, t.0, t.1) != BLD && *t != mailbox_tile(0) && *t != mailbox_tile(1); // objects saved before a building existed there
         g.w.weeds.retain(open); g.w.digs.retain(open); g.w.holes.retain(open); g.w.ground.retain(|i| open(&tile_of(vec2(i.x, i.z))));
@@ -230,14 +232,14 @@ impl Game {
         self.room_furn(b).iter().filter(|f| !def(f.def).wall && !(skip != 0 && f.uid == skip)).any(|f| foot(f.def, f.x, f.z, f.rot).contains(&(x, z)))
     }
     pub fn free(&self, p: Vec2) -> bool {
-        [(-PR, -PR), (PR, -PR), (-PR, PR), (PR, PR)].iter().all(|&(dx, dz)| { let (x, z) = tile_of(p + vec2(dx, dz)); match self.me.scene { Scene::Town => self.walk_tile(x, z), Scene::Room(b) => !self.room_block(b, x, z, 0) } })
+        [(-PR, -PR), (PR, -PR), (-PR, PR), (PR, PR)].iter().all(|&(dx, dz)| { let (x, z) = tile_of(p + vec2(dx, dz)); match self.me.scene { Scene::Town => self.walk_tile(x, z) || self.tile(x, z) == SEA, Scene::Room(b) => !self.room_block(b, x, z, 0) } })
     }
     pub fn step_move(&mut self, d: Vec2, run: bool, dt: f32) {
         self.me.spd = 0.;
         if d == Vec2::ZERO { return }
         if self.me.pose != Pose::Stand { self.me.pose = Pose::Stand; self.me.ipos = self.me.stand_from; return }
         if self.me.fish.is_some() { self.me.fish = None; self.note("You reel in your line.") }
-        let d = d.normalize(); self.me.face = d; let s = (if run { 5.5 } else { 3.0 }) * dt;
+        let d = d.normalize(); self.me.face = d; let s = (if self.swimming() { 2.0 } else if run { 5.5 } else { 3.0 }) * dt;
         let p0 = self.ppos(); let mut p = p0;
         let nx = p + vec2(d.x * s, 0.); if self.free(nx) { p = nx }
         let nz = p + vec2(0., d.y * s);
@@ -461,7 +463,7 @@ impl Game {
             if !self.add(f) { self.add(47); lines.push("Your pockets are too full for me to hand it back. Make some room first.".to_string()); break }
             lines.push(format!("Let me see... this fossil is a {}!", def(f).name));
         }
-        let mut cands: Vec<u16> = self.w.p.inv.iter().map(|s| s.def).filter(|&d| matches!(def(d).k, K::Fish | K::Bug | K::Fossil) && d != 47).collect(); cands.dedup();
+        let mut cands: Vec<u16> = self.w.p.inv.iter().map(|s| s.def).filter(|&d| matches!(def(d).k, K::Fish | K::Bug | K::Fossil | K::Sea) && d != 47).collect(); cands.dedup();
         for d in cands { if self.w.donated.iter().any(|x| x.0 == d) { continue } if self.remove_one(d) { self.w.donated.push((d, self.me.id)); lines.push(format!("A {}! It will make a splendid exhibit.", def(d).name)) } }
         if lines.is_empty() { lines.push("Bring me fish, bugs or fossils the museum doesn't have yet, and I'll put them on display.".into()) } else { self.snd.push(Snd::Coin) }
         let tot = |k: K| DEFS.iter().filter(|d| d.k == k).count();
@@ -552,7 +554,16 @@ impl Game {
         let i = opts.iter().position(|&o| o == self.w.p.equip).unwrap_or(0); self.w.p.equip = opts[(i + 1) % opts.len()];
         self.note(match self.w.p.equip { Some(t) => format!("Equipped: {}", def(t).name), None => "Tools put away.".into() });
     }
+    /// Player is in the sea (outdoors). Swimming is entered by walking off the beach (provisional rule).
+    pub fn swimming(&self) -> bool { self.me.scene == Scene::Town && { let t = tile_of(self.me.pos); self.tile(t.0, t.1) == SEA } }
+    /// Dive under the nearest bubble spot within reach and collect the sea creature there.
+    pub fn dive(&mut self) {
+        let p = self.me.pos; self.fx.push((vec3(p.x, -0.17, p.y), 0., 0)); self.snd.push(Snd::Splash);
+        let Some(i) = self.bubbles.iter().position(|b| b.0.distance(p) < 1.3) else { return self.note("You dive... nothing down here.") };
+        let d = self.bubbles[i].1; if self.add(d) { self.bubbles.remove(i); self.note(format!("You found a {} while diving!", def(d).name)) }
+    }
     pub fn use_tool(&mut self) {
+        if self.swimming() { return self.dive() }
         if self.me.scene != Scene::Town { return }
         if self.me.fish.is_some() { return self.reel() }
         let (p, f) = (self.me.pos, self.me.face);
@@ -614,6 +625,9 @@ impl Game {
         for (i, s) in self.shadows.iter_mut().enumerate() { if att.contains(&i) { continue }
             if gen_range(0, 60) == 0 { s.vel = vec2(gen_range(-0.5, 0.5), gen_range(-0.5, 0.5)) }
             let n = s.pos + s.vel * dt; let nt = tile_of(n); if matches!(tile_at(map, nt.0, nt.1), RIVER | SEA) { s.pos = n } else { s.vel = -s.vel } }
+        self.bubbles.retain(|b| anchors.iter().any(|a| b.0.distance(*a) < 20.));
+        if self.bubbles.len() < 3 && gen_range(0, 40) == 0 { let tt = tile_of(p + vec2(gen_range(-9., 9.), gen_range(-6., 6.)));
+            if tile_at(map, tt.0, tt.1) == SEA { let d = [70, 70, 71, 71, 72, 73][gen_range(0, 6)]; self.bubbles.push((tc(tt), d)) } }
         if self.bugs.len() < 4 && gen_range(0, if rainy(self.w.day) { 400 } else { 90 }) == 0 {
             let tt = tile_of(p + vec2(gen_range(-9., 9.), gen_range(-9., 9.)));
             if matches!(tile_at(map, tt.0, tt.1), GRASS | FLOWER) { let av: Vec<u16> = DEFS.iter().filter(|d| d.k == K::Bug && avail(d, mo, hr)).map(|d| d.id).collect();

@@ -283,6 +283,7 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
         for x in [-0.45, 0.45] { r.cube(vec3(c.x + x, 0.62, c.y + 0.3), vec3(0.03, 0.62, 0.03), WOOD) } for (k, f) in [20u16, 21, 22, 23].iter().enumerate() { r.sphere(vec3(c.x - 0.3 + k as f32 * 0.2, 0.98, c.y + 0.1), Vec3::splat(0.08), rgb(def(*f).col)) }
         let u = r.unlit; for (px, pz) in [(-2.5, -1.5), (2.5, -1.5), (-2.5, 1.5), (2.5, 1.5)] { let p = vec3(c.x + px, 0., c.y + pz); r.unlit = false; r.cube(p + vec3(0., 0.7, 0.), vec3(0.04, 0.7, 0.04), WOOD); r.unlit = true; r.sphere(p + vec3(0., 1.45, 0.), Vec3::splat(0.12), Color::new(1., 0.75 + 0.1 * px.signum(), 0.35, 1.)) } r.unlit = u;
         if g.me.pos.distance(c) < 5. { labels.push((vec3(c.x, 2.0, c.y), "Harvest Fair".into(), Color::new(1., 0.8, 0.4, 1.))) } }
+    for b in &g.bubbles { for k in 0..3 { let ph = (t * 1.5 + k as f32 * 2.1) % 1.; r.sphere(vec3(b.0.x + (k as f32 - 1.) * 0.12, -0.18 + ph * 0.05, b.0.y + ph * 0.1), Vec3::splat(0.04 + ph * 0.03), Color::new(0.95, 0.98, 1., 1.)) } }
     for o in 0..2 { let p = tc(mailbox_tile(o)); let unread = if g.w.p.id == o { g.w.p.mail.iter().any(|l| !l.read) } else { g.w.others.iter().find(|pr| pr.id == o).is_some_and(|pr| pr.mail.iter().any(|l| !l.read)) };
         r.cube(vec3(p.x, 0.35, p.y), vec3(0.04, 0.35, 0.04), WOOD); r.cube(vec3(p.x, 0.78, p.y), vec3(0.16, 0.12, 0.22), if o == 0 { Color::new(0.85, 0.3, 0.3, 1.) } else { Color::new(0.3, 0.6, 0.5, 1.) });
         r.with(Mat4::from_translation(vec3(p.x + 0.18, 0.8, p.y - 0.05)) * Mat4::from_rotation_z(if unread { 0. } else { -FRAC_PI_2 }), |r| { r.cube(vec3(0., 0.12, 0.), vec3(0.012, 0.12, 0.012), DARKGRAY); r.cube(vec3(0., 0.2, 0.06), vec3(0.01, 0.04, 0.06), YELLOW) }) }
@@ -294,7 +295,8 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
         let talking = matches!(g.me.ui, Ui::Talk { npc: Some(j), .. } if j == i);
         resident_u(r, i, vec3(n.pos.x, 0., n.pos.y), n.yaw, n.anim, n.moving, t, talking, n.happy, weather(g.w.day, now.month()) == Wx::Rain);
         if n.pos.distance(g.me.pos) < 4. { labels.push((vec3(n.pos.x, 1.75, n.pos.y), RES[i].name.into(), Color::new(1., 0.95, 0.7, 1.))) } }
-    human(r, g.me.id, g.w.p.shirt, vec3(g.me.pos.x, 0., g.me.pos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, 0, g.w.p.equip, t, g.me.swing);
+    let sy = if g.swimming() { for k in 0..10 { let a = k as f32 * 0.63 + t; r.sphere(vec3(g.me.pos.x + a.cos() * 0.38, -0.17, g.me.pos.y + a.sin() * 0.3), vec3(0.05, 0.015, 0.05), Color::new(0.9, 0.97, 1., 1.)) } -0.55 } else { 0. };
+    human(r, g.me.id, g.w.p.shirt, vec3(g.me.pos.x, sy, g.me.pos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, 0, g.w.p.equip, t, g.me.swing);
     others(r, g, t);
     for b in &g.bugs { let c = rgb(def(b.0).col); let fl = (t * 20. + b.2).sin().abs(); let y = 0.6 + (t * 3. + b.2).sin() * 0.15;
         for s in [-1f32, 1.] { r.sphere(vec3(b.1.x + s * 0.07, y + fl * 0.04, b.1.y), vec3(0.07, 0.01 + fl * 0.03, 0.05), c) } r.sphere(vec3(b.1.x, y, b.1.y), Vec3::splat(0.03), DARK) }
@@ -316,7 +318,8 @@ fn others(r: &mut R, g: &Game, t: f32) {
         let tool = if o.scene == Scene::Town { g.w.others.iter().find(|pr| pr.id == o.id).and_then(|pr| pr.equip) } else { None };
         if pose == 0 { r.disc(vec3(p.x, 0.02, p.y), vec2(0.32, 0.26), Color::new(0., 0., 0., 0.22)) }
         let shirt = g.w.others.iter().find(|pr| pr.id == o.id).and_then(|pr| pr.shirt);
-        human(r, o.id, shirt, vec3(p.x, 0., p.y), yaw_of(o.face), o.anim, o.spd, pose, tool, t, o.swing);
+        let sy = if o.scene == Scene::Town && tile_at(&g.map, p.x.floor() as i32, p.y.floor() as i32) == SEA { -0.55 } else { 0. };
+        human(r, o.id, shirt, vec3(p.x, sy, p.y), yaw_of(o.face), o.anim, o.spd, pose, tool, t, o.swing);
     }
 }
 fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, String, Color)>) {
@@ -338,7 +341,7 @@ fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, Strin
         for &(x, z) in &MUSEUM_DESK { r.cube(vec3(x as f32 + 0.5, 0.45, z as f32 + 0.5), vec3(0.5, 0.45, 0.42), Color::new(0.4, 0.3, 0.25, 1.)) }
         let talking = matches!(g.me.ui, Ui::Talk { npc: None, .. }); resident(r, 5, vec3(3.5, 0., 0.5), 0., 0., false, t, talking, 0.);
         r.cube(vec3(0.5, 0.15, 2.5), vec3(0.48, 0.15, 1.48), Color::new(0.35, 0.3, 0.28, 1.)); // tank base
-        for (k, d) in g.w.donated.iter().filter(|x| def(x.0).k == K::Fish).enumerate() { let ph = t * 0.6 + k as f32 * 1.7; let s = def(d.0).size * 0.35;
+        for (k, d) in g.w.donated.iter().filter(|x| matches!(def(x.0).k, K::Fish | K::Sea)).enumerate() { let ph = t * 0.6 + k as f32 * 1.7; let s = def(d.0).size * 0.35;
             r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(if ph.cos() > 0. { 0. } else { PI }), vec3(0.5, 0.55 + (k % 4) as f32 * 0.18, 2.5 + ph.sin() * 1.1)), |r| { r.sphere(Vec3::ZERO, vec3(s * 0.45, s * 0.5, s), rgb(def(d.0).col)); r.cone(vec3(0., 0., -s), s * 0.4, s * 0.6, rgb(def(d.0).col)) }) }
         let ua = r.alpha; r.alpha = 0.35; r.cube(vec3(0.5, 0.75, 2.5), vec3(0.47, 0.45, 1.46), Color::new(0.45, 0.75, 0.95, 1.)); r.alpha = ua;
         r.cube(vec3(6.5, 0.45, 2.5), vec3(0.45, 0.45, 1.45), Color::new(0.55, 0.38, 0.25, 1.)); r.cube(vec3(6.5, 0.92, 2.5), vec3(0.43, 0.02, 1.43), Color::new(0.95, 0.93, 0.85, 1.));
@@ -395,7 +398,7 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
     if g.me.fish.as_ref().is_some_and(|f| f.bite) { txt("!", sw / 2. - 10., sh / 2. - 80., 90., Color::new(1., 0.3, 0.2, 1.)) }
     let narrow = sw < 900.;
     if narrow { draw_rectangle(sw - 62., 14., 50., 30., if g.me.id == 0 { Color::new(0.2, 0.45, 0.9, 0.9) } else { Color::new(0.9, 0.35, 0.3, 0.9) }); txt(&format!("P{}", g.me.id + 1), sw - 52., 38., 26., WHITE) }
-    let hint = if g.me.pad { if g.me.placing.is_some() { "Stick move  RB rotate  A place  B cancel" } else { if narrow { "Stick move  A act  X tool  RB tool  Y bag  B back" } else { "Stick move  RT run  A act  X tool  RB next tool  Y bag  Start journal  B cancel" } } } else if narrow { if g.me.placing.is_some() { "Move  R rotate  Enter place  Esc cancel" } else { "Move  E act  Space tool  Tab tool  I bag  J journal" } } else if g.me.placing.is_some() { "Placing:  WASD/Arrows move   R rotate   Enter place   Esc cancel" } else { "WASD move  Shift run  E interact  Space use tool  Tab tool  I inventory  J journal  F/G move/pick up furniture  Esc cancel" };
+    let hint = if g.swimming() { if g.me.pad { "Swimming:  X dive  stick swim" } else { "Swimming:  Space dive  WASD swim" } } else if g.me.pad { if g.me.placing.is_some() { "Stick move  RB rotate  A place  B cancel" } else { if narrow { "Stick move  A act  X tool  RB tool  Y bag  B back" } else { "Stick move  RT run  A act  X tool  RB next tool  Y bag  Start journal  B cancel" } } } else if narrow { if g.me.placing.is_some() { "Move  R rotate  Enter place  Esc cancel" } else { "Move  E act  Space tool  Tab tool  I bag  J journal" } } else if g.me.placing.is_some() { "Placing:  WASD/Arrows move   R rotate   Enter place   Esc cancel" } else { "WASD move  Shift run  E interact  Space use tool  Tab tool  I inventory  J journal  F/G move/pick up furniture  Esc cancel" };
     txt(hint, 12., sh - 14., 19., WHITE);
     match &g.me.ui {
         Ui::Play => {}
@@ -428,8 +431,8 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
             let items: Vec<String> = CLOTHES.iter().map(|&d| format!("{}  -  {} coins", def(d).name, def(d).buy)).collect(); list(&items, Some(*sel), sw / 2. - 230., 195.);
             txt(&format!("You have {} coins.", g.w.p.money), sw / 2. - 240., 320., 20., DARKGRAY); txt(if g.me.pad { "Up/Down select  A buy  B close" } else { "W/S select  Enter buy  Esc close" }, sw / 2. - 240., 350., 19., DARKGRAY) }
         Ui::Journal => { panel(60., 80., sw - 120., sh - 160.); txt("Field Journal", 80., 115., 30., Color::new(0.45, 0.3, 0.2, 1.));
-            for (col, (k, title)) in [(K::Fish, "Fish"), (K::Bug, "Bugs"), (K::Shell, "Shells & finds")].iter().enumerate() { let x = 80. + col as f32 * 380.; txt(title, x, 155., 26., BLACK);
-                for (j, dd) in DEFS.iter().filter(|dd| dd.k == *k || (*k == K::Shell && matches!(dd.k, K::Treasure | K::Fruit | K::Fossil))).enumerate() { let seen = g.w.p.seen.contains(&dd.id);
+            for (col, (k, title)) in [(K::Fish, "Fish & sea"), (K::Bug, "Bugs"), (K::Shell, "Shells & finds")].iter().enumerate() { let x = 80. + col as f32 * 380.; txt(title, x, 155., 26., BLACK);
+                for (j, dd) in DEFS.iter().filter(|dd| dd.k == *k || (*k == K::Shell && matches!(dd.k, K::Treasure | K::Fruit | K::Fossil)) || (*k == K::Fish && dd.k == K::Sea)).enumerate() { let seen = g.w.p.seen.contains(&dd.id);
                     txt(&format!("{}{}", if avail(dd, g.mo, g.hr) && matches!(dd.k, K::Fish | K::Bug) { "* " } else { "  " }, if seen { format!("{}  {}c{}", dd.name, dd.sell, if g.w.donated.iter().any(|x| x.0 == dd.id) { "  [museum]" } else { "" }) } else { "???".into() }), x, 185. + j as f32 * 24., 20., if seen { BLACK } else { GRAY }) } }
             txt("* = active right now", 80., sh - 100., 18., DARKGRAY) }
     }

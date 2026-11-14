@@ -224,3 +224,10 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     g.fair_prize(); assert_eq!(g.w.p.inv.len(), 1); assert_eq!(g.w.p.fair_year, 2026); g.fair_prize(); assert_eq!(g.w.p.inv.len(), 1);
     assert!(!fair_active(11, 17) && !fair_active(10, 14) && fair_active(11, 13)); let mut h = g0(at(20, 12, 0, 0)); h.update(&Inp::none(), 0.016, at(20, 12, 0, 0)); assert!(!h.fair()); h.fair_prize(); assert!(h.w.p.inv.is_empty()); assert!(h.walk_tile(STALL.0, STALL.1));
 }
+#[test] fn swimming_and_diving() {
+    let mut g = g0(at(11, 12, 0, 0)); g.me.pos = vec2(13.5, 25.5); g.me.face = vec2(0., 1.); assert!(!g.swimming());
+    for _ in 0..40 { g.step_move(vec2(0., 1.), false, 0.05) } assert!(g.swimming(), "pos {:?}", g.me.pos); assert!(!g.walk_tile(13, 27)); // residents never path into the sea
+    g.bubbles = vec![(g.me.pos + vec2(0.4, 0.), 73)]; g.use_tool(); assert!(g.w.p.inv.iter().any(|s| s.def == 73)); assert!(g.bubbles.is_empty());
+    g.use_tool(); assert_eq!(g.w.p.inv.len(), 1); g.donate(); assert!(g.w.donated.iter().any(|x| x.0 == 73));
+    for _ in 0..60 { g.step_move(vec2(0., -1.), false, 0.05) } assert!(!g.swimming());
+}

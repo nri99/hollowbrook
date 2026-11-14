@@ -104,7 +104,7 @@ original sample, not a claim of full coverage.
 |---|---|---|---|
 | Bugs | 8 species, month/hour windows | PARTIAL | full roster, weather/location rules |
 | Fish | 11 (8 river, 3 sea), habitat + hours | PARTIAL | ponds, river mouth, shadow sizes per species |
-| Sea creatures / swimming / diving | — | NOT IMPLEMENTED | swim/dive movement, sea creature roster |
+| Sea creatures / swimming / diving | swim in sea, dive at bubbles, 4 sea creatures | PARTIAL | river swimming, larger roster, season rules |
 | Fossils | 4 + unknown (assessment at museum) | PARTIAL | full roster, multi-part fossils |
 | Art | — | NOT IMPLEMENTED | art exhibits, authenticity |
 | Museum exhibits | fish tank, bug case, 4 fossil pedestals, shared donations | PARTIAL | per-species exhibit layouts, art wing |

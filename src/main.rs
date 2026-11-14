@@ -239,6 +239,13 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         // P7-02: Harvest Fair stall (dev clock inside the provisional window)
         approach(g, c, tc(STALL)).await; log!("fair={} target={:?}", g.fair(), g.target()); press(g, c, KeyCode::E).await; log!("prize: inv={:?} fair_year={}", g.w.p.inv, g.w.p.fair_year);
         press(g, c, KeyCode::E).await; log!("second try inv len={}", g.w.p.inv.len()); step(g, c, &[KeyCode::S], &[]).await; for _ in 0..12 { step(g, c, &[KeyCode::S], &[]).await } face(g, c, tc(STALL)).await; shot!("p72_fair");
+    } else if phase == "13" {
+        // C-01: walk off the beach, swim to a bubble, dive
+        go(g, c, vec2(13.5, 25.4), 0.15).await; for _ in 0..40 { if g.swimming() { break } step(g, c, &[KeyCode::S], &[]).await } for _ in 0..15 { step(g, c, &[KeyCode::S], &[]).await }
+        log!("swimming={} pos={:?}", g.swimming(), g.me.pos);
+        for _ in 0..600 { if !g.bubbles.is_empty() { break } step(g, c, &[], &[]).await }
+        if let Some(b) = g.bubbles.iter().map(|b| b.0).min_by(|a, b| a.distance(g.me.pos).total_cmp(&b.distance(g.me.pos))) { for _ in 0..600 { if g.me.pos.distance(b) < 0.9 { break } let k = keys_toward(b - g.me.pos); step(g, c, &k, &[]).await } }
+        shot!("c01_swimming"); press(g, c, KeyCode::Space).await; log!("after dive: inv={:?} bubbles={}", g.w.p.inv, g.bubbles.len());
     } else if phase == "0" {
         log!("load-only check");
     } else if phase == "3" && c.now().hour() < 18 {
