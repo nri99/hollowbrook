@@ -104,6 +104,7 @@ pub fn human(r: &mut R, id: usize, look: (Option<u16>, Option<u16>, u8), pos: Ve
     if pose == 2 { base = base * Mat4::from_translation(vec3(0., 0.45, 0.55)) * Mat4::from_rotation_x(-FRAC_PI_2) }
     let hip = if pose == 1 { 0.14 } else { 0. };
     r.with(base, |r| {
+        if spd > 4. && pose == 0 && pos.y > -0.1 { for k in 0..3 { let ph = (anim * 0.35 + k as f32 / 3.).fract(); r.sphere(vec3((k as f32 - 1.) * 0.08, 0.04 + ph * 0.08, -0.2 - ph * 0.35), Vec3::splat(0.04 + ph * 0.05), Color::new(0.92, 0.88, 0.78, 0.55 * (1. - ph))) } }
         for s in [-1f32, 1.] { let a = if pose == 1 { -FRAC_PI_2 } else { sw * s };
             r.with(Mat4::from_translation(vec3(s * 0.085, 0.28 + hip, 0.)) * Mat4::from_rotation_x(a), |r| { r.cube(vec3(0., -0.12, 0.), vec3(0.06, 0.12, 0.065), pants); r.cube(vec3(0., -0.255, 0.03), vec3(0.065, 0.035, 0.095), shoe) }) }
         r.with(Mat4::from_translation(vec3(0., 0.28 + hip + bob, 0.)) * Mat4::from_rotation_x(lean), |r| {
@@ -119,7 +120,8 @@ pub fn human(r: &mut R, id: usize, look: (Option<u16>, Option<u16>, u8), pos: Ve
                     Some(68) => { r.sphere(vec3(0., 0.12, -0.02), vec3(0.3, 0.24, 0.29), rgb(def(68).col)); r.sphere(vec3(0., 0.37, -0.02), Vec3::splat(0.06), WHITE) }
                     Some(69) => { for k in 0..9 { let a = k as f32 / 9. * 2. * PI; r.sphere(vec3(a.cos() * 0.26, 0.2, a.sin() * 0.25), Vec3::splat(0.05), [PINK, YELLOW, WHITE][k % 3]) } }
                     _ => {} }
-                for s in [-1f32, 1.] { r.sphere(vec3(s * 0.095, -0.01, 0.245), vec3(0.038, 0.055, 0.02), DARK); r.sphere(vec3(s * 0.09, 0.015, 0.262), Vec3::splat(0.012), WHITE); r.sphere(vec3(s * 0.165, -0.085, 0.215), vec3(0.045, 0.03, 0.02), Color::new(1., 0.62, 0.62, 1.)) }
+                let bl = if (t + id as f32 * 1.7) % 4.2 < 0.13 { 0.12 } else { 1. };
+                for s in [-1f32, 1.] { r.cube(vec3(s * 0.1, 0.075, 0.25), vec3(0.04, 0.009, 0.01), sh(hair, 0.8)); r.sphere(vec3(s * 0.095, -0.01, 0.245), vec3(0.038, 0.055 * bl, 0.02), DARK); if bl > 0.5 { r.sphere(vec3(s * 0.09, 0.015, 0.262), Vec3::splat(0.012), WHITE) } r.sphere(vec3(s * 0.165, -0.085, 0.215), vec3(0.045, 0.03, 0.02), Color::new(1., 0.62, 0.62, 1.)) }
                 r.cube(vec3(0., -0.12, 0.255), vec3(0.035, 0.01, 0.01), Color::new(0.6, 0.25, 0.25, 1.)); }) }) });
 }
 /// Residents 0-3 and the shopkeeper (4): distinct heads, ears, muzzles, tails, clothes; talk mouth + happy eyes.
@@ -141,7 +143,7 @@ pub fn resident_u(r: &mut R, i: usize, pos: Vec3, yaw: f32, anim: f32, moving: b
             match i { 0 => { r.sphere(vec3(wag * 0.05, 0.05, -0.28), vec3(0.12, 0.12, 0.22), fur); r.sphere(vec3(wag * 0.07, 0.07, -0.47), Vec3::splat(0.08), light) }
                 1 => r.sphere(vec3(0., 0.02, -0.15), Vec3::splat(0.07), fur),
                 3 => { r.sphere(vec3(wag * 0.03, 0., -0.22), vec3(0.08, 0.07, 0.16), fur); r.sphere(vec3(wag * 0.06, -0.05, -0.38), vec3(0.06, 0.05, 0.12), fur) } _ => {} }
-            r.with(Mat4::from_translation(vec3(0., 0.58, 0.02)), |r| head(r, i, fur, light, t, talk, happy));
+            r.with(Mat4::from_translation(vec3(0., 0.58, 0.02)) * Mat4::from_rotation_z(if talk { (t * 3.).sin() * 0.08 } else { 0. }) * Mat4::from_rotation_x(if talk { (t * 5.).sin().max(0.) * -0.06 } else { 0. }), |r| head(r, i, fur, light, t, talk, happy));
             if umbrella { r.seg(vec3(0.2, 0.15, 0.08), vec3(0.08, 1.05, 0.02), 0.015, DARKGRAY); r.cone(vec3(0.08, 0.95, 0.02), 0.5, 0.22, rgb(CHARS[i.min(CHARS.len() - 1)].cloth)); } }) });
 }
 fn head(r: &mut R, i: usize, fur: Color, light: Color, t: f32, talk: bool, happy: f32) {
@@ -160,7 +162,7 @@ fn head(r: &mut R, i: usize, fur: Color, light: Color, t: f32, talk: bool, happy
     }
     for s in [-1f32, 1.] { let ex = s * if i == 2 { 0.13 } else { 0.085 };
         if happy > 0. { r.cube(vec3(ex, ey, ez + 0.06), vec3(0.035, 0.009, 0.012), if i == 1 { WHITE } else { DARK }) }
-        else { r.sphere(vec3(ex, ey, ez + 0.05), vec3(0.03, 0.042, 0.02), if i == 1 { WHITE } else { DARK }); r.sphere(vec3(ex + 0.01, ey + 0.012, ez + 0.068), Vec3::splat(0.011), if i == 1 { DARK } else { WHITE }) } }
+        else { let bl = if (t + i as f32 * 1.3) % 4.6 < 0.13 { 0.15 } else { 1. }; r.sphere(vec3(ex, ey, ez + 0.05), vec3(0.03, 0.042 * bl, 0.02), if i == 1 { WHITE } else { DARK }); r.sphere(vec3(ex + 0.01, ey + 0.012, ez + 0.068), Vec3::splat(0.011), if i == 1 { DARK } else { WHITE }) } }
     let open = if talk { (t * 12.).sin().abs() * 0.028 } else { 0. } + 0.008;
     let (my, mz, mw) = match i { 0 => (-0.14, 0.28, 0.035), 2 => (-0.05, 0.255, 0.14), 10 => (-0.08, 0.2, 0.03), 3 => (-0.13, 0.25, 0.035), _ => (-0.13, 0.24, 0.035) };
     r.cube(vec3(0., my, mz), vec3(mw, open, 0.012), Color::new(0.45, 0.15, 0.15, 1.));
@@ -211,6 +213,9 @@ fn building(r: &mut R, bi: usize, night: f32) {
     let hg = if civic { 2.0 } else { 1.5 }; let (wall, roof) = (rgb(b.wall), rgb(b.roof)); let c = vec3(x + w / 2., 0., z + d / 2.);
     r.cube(c + vec3(0., 0.08, 0.), vec3(w / 2. + 0.04, 0.08, d / 2. + 0.04), Color::new(0.62, 0.6, 0.57, 1.));
     r.cube(c + vec3(0., hg / 2., 0.), vec3(w / 2. - 0.05, hg / 2., d / 2. - 0.05), wall);
+    let (sid, trim) = (sh(wall, 0.9), sh(wall, 1.12)); let n = (hg / 0.22) as i32;
+    for k in 1..n { let y = k as f32 * 0.22; r.cube(vec3(c.x, y, z + d - 0.045), vec3(w / 2. - 0.05, 0.012, 0.006), sid); for sx in [x + 0.045, x + w - 0.045] { r.cube(vec3(sx, y, c.z), vec3(0.006, 0.012, d / 2. - 0.05), sid) } }
+    for (cx, cz) in [(x + 0.05, z + d - 0.05), (x + w - 0.05, z + d - 0.05), (x + 0.05, z + 0.05), (x + w - 0.05, z + 0.05)] { r.cube(vec3(cx, hg / 2., cz), vec3(0.05, hg / 2., 0.05), trim) }
     r.roof(c + vec3(0., hg, 0.), w / 2. + 0.25, d / 2. + 0.3, if civic { 1.0 } else { 0.85 }, roof);
     let dx = door_face(bi).x; let fz = z + d - 0.05;
     r.cube(vec3(dx, 0.52, fz), vec3(0.3, 0.52, 0.06), Color::new(0.45, 0.28, 0.18, 1.)); r.sphere(vec3(dx + 0.18, 0.5, fz + 0.07), Vec3::splat(0.04), GOLD);
@@ -220,8 +225,7 @@ fn building(r: &mut R, bi: usize, night: f32) {
         BK::Shop => { for k in 0..7 { r.cube(vec3(x + 0.4 + k as f32 * (w - 0.8) / 6., hg * 0.82, fz + 0.32), vec3((w - 0.8) / 14., 0.04, 0.3), if k % 2 == 0 { WHITE } else { Color::new(0.2, 0.6, 0.6, 1.) }) } r.cube(vec3(c.x, hg + 0.15, fz + 0.1), vec3(0.8, 0.22, 0.05), WOOD) }
         BK::Museum => { for k in 0..4 { r.cyl(vec3(x + 0.45 + k as f32 * (w - 0.9) / 3., 0.16, fz + 0.3), 0.1, hg - 0.16, Color::new(0.97, 0.96, 0.92, 1.)) } r.cube(vec3(c.x, hg - 0.05, fz + 0.3), vec3(w / 2., 0.08, 0.14), Color::new(0.97, 0.96, 0.92, 1.)) }
         BK::Civic => { r.cube(vec3(c.x, hg + 1.15, c.z), vec3(0.38, 0.55, 0.38), wall); r.roof(vec3(c.x, hg + 1.7, c.z), 0.48, 0.48, 0.5, roof); r.cylinder_clock(c.x, hg + 1.25, c.z + 0.39);
-            r.seg(vec3(c.x, hg + 2.2, c.z), vec3(c.x, hg + 2.9, c.z), 0.02, DARKGRAY); r.cube(vec3(c.x + 0.2, hg + 2.75, c.z), vec3(0.2, 0.12, 0.01), Color::new(0.9, 0.3, 0.3, 1.));
-            r.with(Mat4::from_translation(vec3(dx, 0.55, fz + 0.09)) * Mat4::from_rotation_z(0.35), |r| r.cube(Vec3::ZERO, vec3(0.42, 0.05, 0.02), WOOD)) }
+            r.seg(vec3(c.x, hg + 2.2, c.z), vec3(c.x, hg + 2.9, c.z), 0.02, DARKGRAY); r.cube(vec3(c.x + 0.2, hg + 2.75, c.z), vec3(0.2, 0.12, 0.01), Color::new(0.9, 0.3, 0.3, 1.)); }
         _ => r.cube(c + vec3(w / 2. - 0.6, hg + 0.65, -0.25), vec3(0.13, 0.32, 0.13), Color::new(0.65, 0.35, 0.3, 1.)),
     }
 }

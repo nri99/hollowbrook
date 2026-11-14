@@ -185,3 +185,7 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - Item 1 DONE: split-screen dialogue "[A]/[E] next" now anchored inside each viewport's panel (rendered: phase 22 screenshot). HUMAN_VERIFICATION.md now has the controller mapping table taken from src/pad.rs.
 - X-04 DONE: see DESIGN_SPEC. Test x04_collections_art_critters; autotest phase 28 (Saturday dev clock) screenshots inspected: art stall, art wing with donated painting, home with both collections.
 - Next: X-06 remaining (animation, facial readability, materials).
+- X-06 DONE: player blink + brows, resident blink + talking head nod/tilt, running dust puffs, lap siding + corner trim on all buildings; removed the leftover boarding plank from the (now open) Town Hall door. Autotest phase 29 screenshots inspected (siding/trim/open door; mid-run frame with dust). Blink is transient (0.13 s every ~4 s) and was not captured in a screenshot: code inspection only.
+- Full suite: 64/64 pass.
+- Remaining (human): physical controllers, activity difficulty, Windows HDMI audio (game produces sound at peak 0.33 on the TV endpoint per Core Audio meter; output path beyond Windows unverified).
+- Next action: await user feedback; no open agent tasks.

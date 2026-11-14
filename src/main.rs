@@ -311,6 +311,11 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         log!("stones={}", have(g, 81));
         if let Some(p) = g.w.project.clone() { approach(g, c, tc((p.x, p.z))).await; shot!("x01_site_before"); press(g, c, KeyCode::E).await; log!("after contribute: project={:?} built={:?} ui={:?}", g.w.project, g.w.built, g.me.ui); for _ in 0..4 { if g.me.ui == Ui::Play { break } press(g, c, KeyCode::E).await } }
         if let Some(b) = g.w.built.first().copied() { approach(g, c, tc((b.x, b.z))).await; press(g, c, KeyCode::E).await; log!("pose={:?}", g.me.pose); wait(g, c, 30).await; shot!("x01_bench_built") }
+    } else if phase == "29" {
+        // X-06: running dust, building siding/trim, Town Hall exterior without the boarding plank
+        let th = BLDS.iter().position(|b| b.kind == BK::Civic).unwrap(); go(g, c, vec2(15.5, 17.5), 0.2).await;
+        for _ in 0..14 { step(g, c, &[KeyCode::D, KeyCode::LeftShift], &[]).await } log!("spd={:.1} pos={:?} ui={:?} scene={:?}", g.me.spd, g.me.pos, g.me.ui, g.me.scene); render::draw(g, c.now(), None); screenshot(&format!("{dir}/x06_run_dust.png")); next_frame().await;
+        go(g, c, door_stand(th) + vec2(0., 1.0), 0.2).await; face(g, c, door_face(th)).await; shot!("x06_townhall_ext");
     } else if phase == "28" {
         // X-04: Saturday art stall purchase, art wing donation + labels, furniture collections in the home. Fixture: coins and room furniture set directly; dev clock set to Saturday 2026-11-21.
         let c2 = Clock { dev: Some((chrono::NaiveDate::from_ymd_opt(2026, 11, 21).unwrap().and_hms_opt(12, 0, 0).unwrap(), std::time::Instant::now())) }; let c = &c2;
