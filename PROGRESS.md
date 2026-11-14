@@ -228,3 +228,5 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - D-04 idle hobby props (basket, watering can, telescope, towel, yarn, wrench) when residents stand still in dry weather; phase 33 frame d04_props (fixture places residents) shows basket/towel; others occluded from that angle.
 - Depth backlog status: D-01..D-05 done, D-06 done except riverside fences (low priority). Suite 79 pass.
 - Next action: optional riverside fences; otherwise await user playtest feedback.
+- Visual gap fixes: riverside fences (grass edges meeting the river), Regatta boats now along the river tiles nearest the camera, larger/offset hobby props with an arm. Verified in phase 34 (split-screen night Regatta frame; clear-day prop frame with all 4 props visible).
+- M2 defined in BACKLOG (gardening, tool upgrades, home evaluation + exterior paint). Next action: M2-1 gardening.

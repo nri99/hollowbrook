@@ -316,6 +316,15 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         log!("stones={}", have(g, 81));
         if let Some(p) = g.w.project.clone() { approach(g, c, tc((p.x, p.z))).await; shot!("x01_site_before"); press(g, c, KeyCode::E).await; log!("after contribute: project={:?} built={:?} ui={:?}", g.w.project, g.w.built, g.me.ui); for _ in 0..4 { if g.me.ui == Ui::Play { break } press(g, c, KeyCode::E).await } }
         if let Some(b) = g.w.built.first().copied() { approach(g, c, tc((b.x, b.z))).await; press(g, c, KeyCode::E).await; log!("pose={:?}", g.me.pose); wait(g, c, 30).await; shot!("x01_bench_built") }
+    } else if phase == "34" {
+        // Visual gap fixes from ordinary cameras: riverside fences + Regatta boats near the river at night (split-screen), hobby props on each resident.
+        g.join("Player 2"); let c2 = Clock { dev: Some((chrono::NaiveDate::from_ymd_opt(2026, 7, 25).unwrap().and_hms_opt(21, 0, 0).unwrap(), std::time::Instant::now())) }; let c = &c2;
+        wait(g, c, 5).await; let riv = (0..H as i32).flat_map(|z| (0..W as i32).map(move |x| (x, z))).find(|&(x, z)| tile_at(&g.map, x, z) == RIVER && g.walk_tile(x - 1, z)).unwrap();
+        go(g, c, tc((riv.0 - 1, riv.1)) + vec2(-0.6, 1.0), 0.3).await; face(g, c, tc(riv)).await; log!("fest={:?} river {:?} pos={:?}", g.fest(), riv, g.me.pos); render::draw(g, c.now(), None); screenshot(&format!("{dir}/fix_regatta_fences_split.png")); next_frame().await;
+        g.leave(1); let dd = (1..28).map(|d| chrono::NaiveDate::from_ymd_opt(2026, 11, d).unwrap()).filter(|d| d.day() > 16).find(|d| weather(d.num_days_from_ce() as i64, 11) == Wx::Clear).unwrap(); let c3 = Clock { dev: Some((dd.and_hms_opt(11, 0, 0).unwrap(), std::time::Instant::now())) }; let c = &c3; wait(g, c, 5).await;
+        go(g, c, vec2(16.5, 17.5), 0.3).await; log!("weather={:?} day={} dd={} mo={}", weather(g.w.day, 11), g.w.day, dd, g.mo);
+        for (k, j) in (0..4).enumerate() { let pp = g.me.pos; let n = &mut g.npcs[j]; n.inside = false; n.pos = pp + vec2(-2.4 + k as f32 * 1.6, -1.4); n.moving = false; n.path.clear(); n.yaw = 0.; } g.me.pos += vec2(0., 1.2); g.w.p.npcs.iter_mut().for_each(|n| n.talked = true);
+        g.t = 1.3; render::draw(g, c.now(), None); screenshot(&format!("{dir}/fix_props.png")); next_frame().await; log!("FIXTURE: residents placed idle in a row for the prop frame");
     } else if phase == "33" {
         // D-05 renovated shop (fixture: spending set to tier 2, then a day passes) and D-06 smoke/birds (dev clock 8:00 on a clear day).
         g.w.spent = SHOP_TIERS[1]; let next = (c.now() + chrono::Duration::days(1)).date().and_hms_opt(8, 0, 0).unwrap(); let c2 = Clock { dev: Some((next, std::time::Instant::now())) }; let c = &c2;

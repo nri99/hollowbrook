@@ -77,4 +77,12 @@ Status: `[ ]` open · `[x]` done · `[B]` blocked (reason given)
 - [x] **D-03 Daily surprises.** (DONE 2026-11-14) One shared surprise per day (message bottle, resident's lost item to return, drifting gift) placed in town. *AC:* tests + screenshot.
 - [x] **D-04 Expressive residents.** (DONE 2026-11-14: emotes, look-at, idle hobby props) Mood emotes over heads (happy, sleepy, annoyed, music), contextual idle actions (watering, stretching, reading). *AC:* rendered frames.
 - [x] **D-05 Evolving shop.** (DONE 2026-11-14) Store renovation tiers from cumulative town spending: more daily stock and a weekly special. *AC:* tests + screenshot.
-- [~] **D-06 Environment detail.** (chimney smoke, birds, festival music arrangement DONE 2026-11-14; riverside fences open, low priority) Chimney smoke, flying birds, riverside fences and lamp posts lit at night, event-specific music variant. *AC:* screenshots.
+- [x] **D-06 Environment detail.** (DONE 2026-11-14: smoke, birds, festival music, riverside fences) Chimney smoke, flying birds, riverside fences and lamp posts lit at night, event-specific music variant. *AC:* screenshots.
+
+## Milestone M2 — playable depth (gap analysis vs DESIGN_SPEC, 2026-11-14)
+Largest remaining gaps: (1) no gardening / town planting, (2) no tool progression, (3) no home evaluation or exterior
+customization, (4) residents never initiate activities, (5) no competitive calendar contests. M2 covers 1-3.
+- [ ] **M2-1 Gardening.** Keeper sells 4 original flower seeds and a watering can; plant on free grass, water daily (rain counts), 3 growth stages, blooms pick into sellable flowers, adjacent different colours can cross into a rare bloom; blooms raise liveliness; shared town garden saved; "water a flower" initiative. *AC:* tests (plant/water/grow/pick/cross/reload/2 players) + screenshot.
+- [ ] **M2-2 Tool upgrades.** Per-player tool levels 0-2 for net, rod, shovel, can bought from the keeper with coins + materials; real effects (net reach, easier bites, extra stones/finds, wider watering); tinted tools. *AC:* tests per effect + screenshot.
+- [ ] **M2-3 Home evaluation + exterior paint.** Weekly home score letter with tips and one-time tier rewards; journal shows score; Hazel offers house repainting (wall/roof palette, fee) shown on the town model. *AC:* tests + screenshot.
+- [ ] M3 candidates (not started): resident invitations (meet-ups, hide-and-seek), monthly fishing/bug contests.

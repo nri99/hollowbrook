@@ -135,10 +135,10 @@ pub fn emote(g: &Game, i: usize, t: f32) -> Option<u8> {
 }
 /// Idle hobby prop held at the resident's side (CHARS order): basket, watering can, telescope, towel, yarn, wrench.
 pub fn hobby_prop(r: &mut R, ch: usize, pos: Vec3, yaw: f32, t: f32) {
-    r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(yaw), pos + vec3(0., 0., 0.)), |r| { let h = vec3(0.26, 0.32, 0.12);
+    r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(yaw), pos + vec3(0., 0., 0.)), |r| { let h = vec3(0.36, 0.34, 0.2); r.seg(vec3(0.22, 0.42, 0.06), h, 0.022, Color::new(0.97, 0.94, 0.88, 1.)); // arm reaching to the prop
         match ch { 0 => { r.cyl(h - vec3(0., 0.08, 0.), 0.09, 0.1, Color::new(0.75, 0.55, 0.3, 1.)); r.sphere(h + vec3(0., 0.04, 0.), vec3(0.07, 0.03, 0.07), Color::new(0.95, 0.85, 0.6, 1.)) }
-            1 => { r.cyl(h - vec3(0., 0.08, 0.), 0.07, 0.12, Color::new(0.4, 0.6, 0.45, 1.)); r.seg(h + vec3(0., 0., 0.05), h + vec3(0., -0.02, 0.2), 0.015, Color::new(0.4, 0.6, 0.45, 1.)); let ph = (t * 3.) % 1.; r.sphere(h + vec3(0., -0.05 - ph * 0.25, 0.22), Vec3::splat(0.015), Color::new(0.5, 0.75, 1., 1.)) }
-            2 => r.seg(h, h + vec3(0., 0.25, 0.2), 0.025, Color::new(0.75, 0.65, 0.35, 1.)),
+            1 => { r.cyl(h - vec3(0., 0.08, 0.), 0.09, 0.15, Color::new(0.4, 0.6, 0.45, 1.)); r.seg(h + vec3(0., 0., 0.05), h + vec3(0., -0.02, 0.2), 0.015, Color::new(0.4, 0.6, 0.45, 1.)); let ph = (t * 3.) % 1.; r.sphere(h + vec3(0., -0.05 - ph * 0.25, 0.22), Vec3::splat(0.015), Color::new(0.5, 0.75, 1., 1.)) }
+            2 => { r.seg(h, h + vec3(0.05, 0.3, 0.12), 0.045, Color::new(0.8, 0.68, 0.35, 1.)); r.cyl(h + vec3(0.05, 0.3, 0.12), 0.05, 0.04, Color::new(0.3, 0.3, 0.35, 1.)) }
             3 => r.cube(h + vec3(0., -0.05, 0.), vec3(0.03, 0.12, 0.08), Color::new(0.95, 0.95, 0.95, 1.)),
             4 => { r.sphere(h, Vec3::splat(0.06), Color::new(0.85, 0.4, 0.55, 1.)); r.seg(h + vec3(-0.05, 0.05, 0.), h + vec3(0.05, 0.12, 0.05), 0.006, Color::new(0.8, 0.75, 0.6, 1.)) }
             _ => r.seg(h, h + vec3(0., 0.18, 0.06), 0.02, Color::new(0.6, 0.6, 0.65, 1.)) } });
@@ -422,6 +422,11 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
     for (i, tr) in g.w.trees.iter().enumerate() { let p = tc((tr.x, tr.z)); if near(p.x, p.y) && !fade_t.contains(&i) { let sk = g.shake.iter().find(|s| s.0 == i).map_or(0., |s| s.1); tree(r, p, tr.fruit.then(|| rgb(def(g.w.native).col)), sk, t, fol) } }
     for bi in 0..BLDS.len() { let b = &BLDS[bi]; if near(b.x as f32 + b.w as f32 / 2., b.z as f32 + b.d as f32 / 2.) && !fade_b.contains(&bi) { building(r, bi, lt.night) }
         if g.me.pos.distance(door_stand(bi)) < 3.5 { let p = door_face(bi); labels.push((vec3(p.x, 2.7, p.y), g.bname(bi), WHITE)) } }
+    for z in 0..H as i32 { for x in 0..W as i32 { if !near(x as f32 + 0.5, z as f32 + 0.5) || !matches!(tile_at(&g.map, x, z), GRASS | FLOWER) { continue }
+        for (dx, dz) in [(1, 0), (-1, 0), (0, 1), (0, -1)] { if tile_at(&g.map, x + dx, z + dz) != RIVER { continue }
+            let (cx, cz) = (x as f32 + 0.5 + dx as f32 * 0.45, z as f32 + 0.5 + dz as f32 * 0.45); let along = if dx != 0 { vec3(0., 0., 0.5) } else { vec3(0.5, 0., 0.) }; let c = vec3(cx, 0., cz); let wood = Color::new(0.62, 0.45, 0.28, 1.);
+            for e in [-1f32, 1.] { r.cube(c + along * e * 0.92 + vec3(0., 0.2, 0.), vec3(0.035, 0.2, 0.035), sh(wood, 0.85)) }
+            for y in [0.16f32, 0.3] { r.cube(c + vec3(0., y, 0.), if dx != 0 { vec3(0.015, 0.02, 0.48) } else { vec3(0.48, 0.02, 0.015) }, wood) } } } }
     // chimney smoke from homes in the morning, evening and cold months
     let smoky = matches!(g.hr, 6..=9 | 17..=23) || matches!(now.month(), 11 | 12 | 1 | 2); if smoky { let ua = r.alpha; r.alpha = 0.5;
         for b in BLDS.iter().filter(|b| matches!(b.kind, BK::Home(_) | BK::Res(_))) { let (cx, cz) = (b.x as f32 + b.w as f32 / 2. + b.w as f32 / 2. - 0.6, b.z as f32 + b.d as f32 / 2. - 0.25); if !near(cx, cz) { continue }
@@ -460,8 +465,9 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
         match f {
             0 => { for (k, (bx, bz)) in [(-1.5f32, 2.6f32), (1.4, 2.8), (0., 3.4)].into_iter().enumerate() { r.cube(vec3(c.x + bx, 0.02, c.y + bz), vec3(0.55, 0.01, 0.45), [Color::new(0.95, 0.4, 0.45, 1.), Color::new(0.4, 0.6, 0.95, 1.), Color::new(0.95, 0.85, 0.4, 1.)][k]); r.cube(vec3(c.x + bx, 0.12, c.y + bz), vec3(0.15, 0.1, 0.1), WOOD) }
                 for i in 0..30 { let a = i as f32 * 2.4 + t * 0.3; let rr = 1. + (i % 5) as f32 * 0.6; r.sphere(vec3(c.x + a.cos() * rr, 2.2 - ((t * 0.4 + i as f32 * 0.37) % 2.2), c.y + 1. + a.sin() * rr), vec3(0.04, 0.01, 0.03), main) } }
-            1 => { let mut n = 0; for z in 0..H as i32 { for x in 0..W as i32 { if tile_at(&g.map, x, z) == RIVER && (x * 7 + z * 3) % 5 == 0 && n < 16 { n += 1; let bob = (t * 1.5 + x as f32).sin() * 0.02; let p = vec3(x as f32 + 0.5, -0.12 + bob, z as f32 + 0.5);
-                r.cube(p, vec3(0.16, 0.03, 0.08), WHITE); r.cone(p + vec3(0., 0.03, 0.), 0.06, 0.1, Color::new(0.95, 0.95, 0.9, 1.)); let u = r.unlit; r.unlit = night; r.sphere(p + vec3(0., 0.16, 0.), Vec3::splat(0.04), acc); r.unlit = u } } } }
+            1 => { let mut riv: Vec<(i32, i32)> = (0..H as i32).flat_map(|z| (0..W as i32).map(move |x| (x, z))).filter(|&(x, z)| tile_at(&g.map, x, z) == RIVER && (x + z) % 2 == 0).collect(); let cam = g.me.cam; riv.sort_by(|a, b| tc(*a).distance(cam).total_cmp(&tc(*b).distance(cam)));
+                for &(x, z) in riv.iter().take(14) { let bob = (t * 1.5 + x as f32).sin() * 0.02; let drift = ((t * 0.15 + (x * 3 + z) as f32 * 0.37) % 1. - 0.5) * 0.6; let p = vec3(x as f32 + 0.5 + drift * 0.3, -0.12 + bob, z as f32 + 0.5 + drift);
+                r.cube(p, vec3(0.16, 0.03, 0.08), WHITE); r.cone(p + vec3(0., 0.03, 0.), 0.06, 0.1, Color::new(0.95, 0.95, 0.9, 1.)); let u = r.unlit; r.unlit = night; r.sphere(p + vec3(0., 0.16, 0.), Vec3::splat(0.04), acc); r.unlit = u } }
             2 => { let p = vec3(c.x, 0., c.y + 2.6); r.cyl(p, 0.08, 0.4, WOOD); for k in 0..3 { r.cone(p + vec3(0., 0.35 + k as f32 * 0.45, 0.), 0.7 - k as f32 * 0.18, 0.7, Color::new(0.2, 0.45, 0.35, 1.)) }
                 let u = r.unlit; r.unlit = true; for i in 0..14 { let a = i as f32 * 1.9; let h = 0.5 + (i % 7) as f32 * 0.22; let rr = 0.65 - (h - 0.5) * 0.35; r.sphere(p + vec3(a.cos() * rr, h, a.sin() * rr), Vec3::splat(0.05), if (t * 2. + i as f32).sin() > 0. { acc } else { WHITE }) } r.sphere(p + vec3(0., 1.85, 0.), Vec3::splat(0.1), Color::new(1., 0.95, 0.6, 1.)); r.unlit = u }
             _ => for k in 0..3 { let x = c.x - 2. + k as f32 * 2.; r.cube(vec3(x, 0.9, c.y + 2.6), vec3(0.03, 0.9, 0.03), WOOD); r.cube(vec3(x + 0.25, 1.55, c.y + 2.6), vec3(0.25, 0.18, 0.01), [main, acc, Color::new(0.95, 0.35, 0.35, 1.)][k]) },
