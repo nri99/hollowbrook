@@ -280,3 +280,16 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     g.add(80); g.contribute(); assert!(g.walk_tile(25, 21) && g.walk_tile(26, 21));
     let ti = g.w.trees.iter().position(|t| g.walk_tile(t.x, t.z + 1)).unwrap(); let n0 = g.w.ground.len(); g.w.trees[ti].fruit = false; g.shake_tree_pub(ti); assert_eq!(g.w.ground.len(), n0 + 1); g.shake_tree_pub(ti); assert_eq!(g.w.ground.len(), n0 + 1);
 }
+
+// ---- Gullrock Islet (X-03) ----
+#[test] fn islet_travel_task_stall_and_safety() {
+    let mut g = two(at(16, 12, 0, 0)); let day = g.w.day; let (td, n, _) = islet_task(day);
+    g.activate(0); g.me.ui = Ui::Travel(true); g.update_player(&Inp::keys(&[KeyCode::Enter], &[KeyCode::Enter]), 0.016); for _ in 0..40 { g.update_player(&Inp::none(), 0.016) }
+    assert_eq!(g.me.scene, Scene::Islet); assert_eq!(g.w.p.money, 1000 - FARE); g.activate(1); assert_eq!(g.me.scene, Scene::Town); assert_eq!(g.w.p.money, 1000); g.activate(0);
+    assert!(!g.w.iground.is_empty()); for _ in 0..n { g.add(td); } g.add(40); g.pell(); assert_eq!(g.w.p.inv.iter().filter(|s| s.def == 85).map(|s| s.qty).sum::<u16>(), 3); assert!(!g.w.p.inv.iter().any(|s| s.def == td));
+    for _ in 0..n { g.add(td); } g.pell(); assert_eq!(g.w.p.inv.iter().filter(|s| s.def == 85).map(|s| s.qty).sum::<u16>(), 3); // once per day
+    assert_eq!(g.istall_buy(1), Err("Not enough Sea Glass.")); g.add(85); assert!(g.istall_buy(0).is_ok()); assert!(g.w.p.inv.iter().any(|s| s.def == 58 && s.uid != 0)); assert!(!g.w.p.inv.iter().any(|s| s.def == 85));
+    for _ in 0..3 { g.add(85); } g.sell_all(); assert!(g.w.p.inv.iter().any(|s| s.def == 85)); // sea glass is never sold for 0
+    let w = g.persist(); assert_eq!(w.p.pos, [dock_stand().x, dock_stand().y]); let inv = w.p.inv.clone(); let g2 = reload(&g, "islet"); assert_eq!(g2.w.p.inv, inv); assert_eq!(g2.me.scene, Scene::Town);
+    assert!(!g.walk_tile(DOCK.0, DOCK.1));
+}

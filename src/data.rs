@@ -30,7 +30,7 @@ const fn fu(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32), fp: (i3
 const fn cl(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32)) -> D { D { buy, ..b(id, name, K::Cloth, buy / 4, col) } }
 const fn tl(id: u16, name: &'static str, buy: u32) -> D { D { buy, ..b(id, name, K::Tool, 0, (0.6, 0.45, 0.3)) } }
 
-pub static DEFS: [D; 57] = [
+pub static DEFS: [D; 64] = [
     cr(0, "Cabbage White", K::Bug, 90, (1., 1., 0.95), 0.2, 0, 3, 10, 6, 17), cr(1, "Honeybee", K::Bug, 160, (1., 0.85, 0.2), 0.2, 0, 3, 7, 8, 17),
     cr(2, "Ladybug", K::Bug, 120, (0.9, 0.15, 0.1), 0.2, 0, 3, 6, 8, 17), cr(3, "Dragonfly", K::Bug, 230, (0.3, 0.8, 0.9), 0.2, 0, 5, 10, 8, 19),
     cr(4, "Cicada", K::Bug, 300, (0.4, 0.6, 0.3), 0.2, 0, 7, 8, 8, 17), cr(5, "Firefly", K::Bug, 450, (0.8, 1., 0.3), 0.2, 0, 6, 7, 19, 4),
@@ -51,6 +51,9 @@ pub static DEFS: [D; 57] = [
     fu(54, "Lamp", 700, (0.95, 0.88, 0.65), (1, 1), false, false, Act::Lamp), fu(55, "Cabinet", 1500, (0.58, 0.38, 0.24), (1, 1), true, false, Act::Storage),
     fu(56, "Potted Plant", 500, (0.3, 0.62, 0.3), (1, 1), false, false, Act::None), fu(57, "Painting", 900, (0.4, 0.62, 0.88), (1, 1), false, true, Act::None),
     b(70, "Sea Star", K::Sea, 200, (0.95, 0.55, 0.35)), b(71, "Sea Urchin", K::Sea, 350, (0.35, 0.2, 0.45)), b(72, "Sea Slug", K::Sea, 500, (0.6, 0.85, 0.5)), b(73, "Octopus", K::Sea, 1200, (0.85, 0.35, 0.4)),
+    b(82, "Driftwood", K::Material, 10, (0.75, 0.68, 0.55)), b(84, "Moon Shell", K::Shell, 60, (0.93, 0.93, 0.98)), b(85, "Sea Glass", K::Material, 0, (0.45, 0.85, 0.75)),
+    b(74, "Glass Shrimp", K::Sea, 700, (0.8, 0.95, 0.95)), b(75, "Palm Crab", K::Sea, 450, (0.85, 0.3, 0.2)),
+    fu(58, "Driftwood Stool", 1200, (0.72, 0.62, 0.47), (1, 1), false, false, Act::Sit), fu(59, "Glass Float", 1500, (0.4, 0.78, 0.82), (1, 1), false, false, Act::None),
     b(80, "Branch", K::Material, 20, (0.55, 0.4, 0.25)), b(81, "Stone", K::Material, 30, (0.6, 0.6, 0.62)),
     cl(67, "Straw Hat", 350, (0.9, 0.8, 0.45)), cl(68, "Beanie", 350, (0.3, 0.42, 0.8)), cl(69, "Flower Crown", 350, (0.95, 0.6, 0.72)),
     cl(63, "Sky Tee", 400, (0.45, 0.7, 0.95)), cl(64, "Sunflower Tee", 400, (0.98, 0.82, 0.3)), cl(65, "Forest Hoodie", 650, (0.25, 0.5, 0.32)), cl(66, "Berry Sweater", 650, (0.75, 0.25, 0.45)),
@@ -151,6 +154,28 @@ pub const PK_BRIDGE: u8 = 3;
 /// Candidate sites per project kind (validated at proposal time; bridge = two river tiles from x).
 pub const SITES: [&[(i32, i32)]; 4] = [&[(10, 8), (16, 16), (22, 8), (5, 18), (28, 18)], &[(8, 10), (19, 16), (27, 10), (14, 18), (10, 16)], &[(12, 11), (18, 10), (29, 8), (7, 16), (34, 18)], &[(25, 21)]];
 pub const BOARD: (i32, i32) = (14, 8);
+/// Gullrock Islet (original getaway; initial balance): fare 200 coins one way, return free; daily activity alternates
+/// between gathering 5 Driftwood and finding 3 Moon Shells; completing it once per player per day pays 3 Sea Glass;
+/// the islet stall trades Sea Glass for exclusive furniture.
+pub const IW: usize = 16;
+pub const IH: usize = 14;
+pub const FARE: u32 = 200;
+pub const DOCK: (i32, i32) = (20, 25);
+pub fn dock_stand() -> Vec2 { vec2(20.5, 24.5) }
+pub const ISLET_SPAWN: (f32, f32) = (7.5, 10.5);
+pub const PELL_I: (f32, f32) = (6.5, 11.5);
+pub const ISTALL: (i32, i32) = (10, 9);
+pub const ISTALL_ITEMS: [(u16, u16); 2] = [(58, 4), (59, 6)];
+pub fn islet_task(day: i64) -> (u16, u16, &'static str) { if day % 2 == 0 { (82, 5, "Gather 5 Driftwood") } else { (84, 3, "Find 3 Moon Shells") } }
+pub fn islet() -> Vec<u8> {
+    let mut m = vec![SEA; IW * IH];
+    for z in 0..IH as i32 { for x in 0..IW as i32 { let (dx, dz) = ((x as f32 - 7.5) / 6.8, (z as f32 - 6.5) / 5.6); let d = dx * dx + dz * dz;
+        m[z as usize * IW + x as usize] = if d < 0.45 { GRASS } else if d < 1.0 { SAND } else { SEA } } }
+    for &(x, z) in &[(5, 5), (9, 4), (11, 7), (4, 8)] { m[z * IW + x] = TREE }
+    for &(x, z) in &[(8, 7), (12, 5)] { m[z * IW + x] = ROCK }
+    for z in 12..14 { m[z * IW + 7] = BRIDGE } m[10 * IW + 3] = RIVER; m[10 * IW + 4] = RIVER; // tide pool
+    m
+}
 pub const KEEPER: [&str; 2] = ["Welcome to the General Store! New furniture arrives every morning at 6.", "Sell your finds at the counter. We're open from 8:00 until 22:00."];
 
 fn put(m: &mut [u8], x: i32, z: i32, c: u8) { if x >= 0 && z >= 0 && (x as usize) < W && (z as usize) < H { m[z as usize * W + x as usize] = c } }

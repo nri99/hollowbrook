@@ -303,6 +303,17 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         log!("stones={}", have(g, 81));
         if let Some(p) = g.w.project.clone() { approach(g, c, tc((p.x, p.z))).await; shot!("x01_site_before"); press(g, c, KeyCode::E).await; log!("after contribute: project={:?} built={:?} ui={:?}", g.w.project, g.w.built, g.me.ui); for _ in 0..4 { if g.me.ui == Ui::Play { break } press(g, c, KeyCode::E).await } }
         if let Some(b) = g.w.built.first().copied() { approach(g, c, tc((b.x, b.z))).await; press(g, c, KeyCode::E).await; log!("pose={:?}", g.me.pose); wait(g, c, 30).await; shot!("x01_bench_built") }
+    } else if phase == "20" {
+        // X-03: P1 sails to the islet (P2 stays in town), does today's task normally, gets Sea Glass, sails back
+        g.join("Player 2");
+        go(g, c, dock_stand(), 0.12).await; face(g, c, vec2(20.5, 26.)).await; log!("target={:?}", g.target()); press(g, c, KeyCode::E).await; log!("ui={:?}", g.me.ui); press(g, c, KeyCode::Enter).await; wait(g, c, 40).await;
+        log!("P1 scene={:?} money={}", g.me.scene, g.w.p.money);
+        let (td, n, label) = islet_task(g.w.day); log!("task: {label}");
+        for _ in 0..12 { let have: u16 = g.w.p.inv.iter().filter(|s| s.def == td).map(|s| s.qty).sum(); if have >= n { break }
+            let Some(it) = g.w.iground.iter().filter(|i| i.def == td).map(|i| vec2(i.x, i.z)).min_by(|a, b| a.distance(g.me.ipos).total_cmp(&b.distance(g.me.ipos))) else { break }; approach(g, c, it).await; press(g, c, KeyCode::E).await }
+        log!("pockets={:?}", g.w.p.inv); for _ in 0..10 { step2(g, c, Inp::none(), Inp::none()).await } shot!("x03_split_islet_town");
+        approach(g, c, vec2(PELL_I.0, PELL_I.1)).await; press(g, c, KeyCode::E).await; log!("pell: {:?}", g.me.ui); for _ in 0..4 { if !matches!(g.me.ui, Ui::Talk { .. }) { break } press(g, c, KeyCode::E).await }
+        log!("sea glass={} ui={:?}", g.w.p.inv.iter().filter(|s| s.def == 85).map(|s| s.qty).sum::<u16>(), g.me.ui); press(g, c, KeyCode::Enter).await; wait(g, c, 40).await; log!("back: scene={:?} pos={:?}", g.me.scene, g.me.pos);
     } else if phase == "0" {
         log!("load-only check");
     } else if phase == "3" && c.now().hour() < 18 {

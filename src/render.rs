@@ -125,7 +125,7 @@ pub fn human(r: &mut R, id: usize, look: (Option<u16>, Option<u16>, u8), pos: Ve
 pub fn resident(r: &mut R, i: usize, pos: Vec3, yaw: f32, anim: f32, moving: bool, t: f32, talk: bool, happy: f32) { resident_u(r, i, pos, yaw, anim, moving, t, talk, happy, false) }
 /// `umbrella`: held over the head (outdoors in rain).
 pub fn resident_u(r: &mut R, i: usize, pos: Vec3, yaw: f32, anim: f32, moving: bool, t: f32, talk: bool, happy: f32, umbrella: bool) {
-    let (fur, cloth) = if i < CHARS.len() { (rgb(CHARS[i].fur), rgb(CHARS[i].cloth)) } else if i == 11 { (Color::new(0.93, 0.93, 0.96, 1.), Color::new(0.32, 0.34, 0.6, 1.)) } else { (Color::new(0.55, 0.65, 0.38, 1.), Color::new(0.92, 0.86, 0.7, 1.)) };
+    let (fur, cloth) = if i < CHARS.len() { (rgb(CHARS[i].fur), rgb(CHARS[i].cloth)) } else if i == 12 { (Color::new(0.96, 0.96, 0.94, 1.), Color::new(0.2, 0.25, 0.45, 1.)) } else if i == 11 { (Color::new(0.93, 0.93, 0.96, 1.), Color::new(0.32, 0.34, 0.6, 1.)) } else { (Color::new(0.55, 0.65, 0.38, 1.), Color::new(0.92, 0.86, 0.7, 1.)) };
     let light = Color::new(0.97, 0.94, 0.88, 1.); let sw = if moving { anim.sin() * 0.6 } else { 0. };
     let jump = if happy > 0. { (t * 10.).sin().abs() * 0.18 } else { 0. }; let bob = (t * 2. + i as f32).sin() * 0.012;
     r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(yaw), pos + vec3(0., jump, 0.)), |r| {
@@ -152,6 +152,7 @@ fn head(r: &mut R, i: usize, fur: Color, light: Color, t: f32, talk: bool, happy
         2 => { for s in [-1f32, 1.] { r.sphere(vec3(s * 0.13, 0.16, 0.08), Vec3::splat(0.095), fur); r.sphere(vec3(s * 0.2, -0.06, 0.15), vec3(0.05, 0.03, 0.03), Color::new(1., 0.6, 0.6, 1.)) } }
         4 => { for (x, y, z) in [(0., 0.2, -0.02), (-0.15, 0.14, -0.04), (0.15, 0.14, -0.04), (-0.08, 0.24, 0.08), (0.08, 0.24, 0.08), (0., 0.12, -0.18)] { r.sphere(vec3(x, y, z), Vec3::splat(0.12), WHITE) } for s in [-1f32, 1.] { r.sphere(vec3(s * 0.25, 0.02, 0.), vec3(0.08, 0.04, 0.05), fur) } }
         5 => { for k in 0..7 { let a = -1.2 + k as f32 * 0.4; r.with(Mat4::from_translation(vec3(a.sin() * 0.2, 0.1 + a.cos() * 0.05, -0.12)) * Mat4::from_rotation_x(-1.9), |r| r.cone(Vec3::ZERO, 0.07, 0.22, sh(fur, 0.6))) } r.sphere(vec3(0., -0.06, 0.2), vec3(0.08, 0.06, 0.1), light); r.sphere(vec3(0., -0.04, 0.29), Vec3::splat(0.03), DARK) }
+        12 => { r.with(Mat4::from_translation(vec3(0., -0.06, 0.2)) * Mat4::from_rotation_x(FRAC_PI_2 * 0.92), |r| r.cone(Vec3::ZERO, 0.09, 0.42, Color::new(0.98, 0.7, 0.25, 1.))); r.sphere(vec3(0., -0.13, 0.32), vec3(0.07, 0.06, 0.12), Color::new(0.98, 0.8, 0.5, 1.)); r.cube(vec3(0., 0.22, 0.), vec3(0.2, 0.04, 0.2), Color::new(0.2, 0.25, 0.45, 1.)) }
         11 => { r.with(Mat4::from_translation(vec3(0., -0.03, 0.2)) * Mat4::from_rotation_x(FRAC_PI_2), |r| r.cone(Vec3::ZERO, 0.055, 0.3, GOLD)); r.sphere(vec3(0., 0.2, -0.12), vec3(0.04, 0.12, 0.04), DARKGRAY) }
         3 => { r.sphere(vec3(0., -0.07, 0.17), vec3(0.12, 0.08, 0.1), light); r.sphere(vec3(0., -0.04, 0.27), Vec3::splat(0.035), DARK); for s in [-1f32, 1.] { r.sphere(vec3(s * 0.18, 0.13, -0.02), Vec3::splat(0.05), fur) } }
         _ => {}
@@ -174,6 +175,8 @@ pub fn furniture(r: &mut R, d: u16, base: Mat4, on: bool, tint: u8) {
         55 => { r.cube(vec3(0., 0.55, 0.), vec3(0.42, 0.55, 0.35), c); r.cube(vec3(0., 0.55, 0.352), vec3(0.01, 0.5, 0.005), sh(c, 0.6)); for x in [-0.08, 0.08] { r.sphere(vec3(x, 0.6, 0.37), Vec3::splat(0.03), GOLD) } }
         56 => { r.cyl(Vec3::ZERO, 0.22, 0.32, Color::new(0.8, 0.45, 0.3, 1.)); for (x, y, z, s) in [(0., 0.6, 0., 0.25), (0.15, 0.48, 0.08, 0.17), (-0.14, 0.5, -0.05, 0.18)] { r.sphere(vec3(x, y, z), Vec3::splat(s), c) } }
         57 => { r.cube(vec3(0., 1.35, 0.03), vec3(0.36, 0.28, 0.03), WOOD); r.cube(vec3(0., 1.35, 0.065), vec3(0.3, 0.22, 0.005), c); r.cube(vec3(0., 1.24, 0.072), vec3(0.3, 0.11, 0.003), Color::new(0.35, 0.65, 0.35, 1.)); r.sphere(vec3(0.15, 1.45, 0.07), Vec3::splat(0.05), YELLOW) }
+        58 => { r.cyl(vec3(0., 0., 0.), 0.25, 0.38, sh(c, 0.85)); r.cyl(vec3(0., 0.38, 0.), 0.3, 0.06, c) }
+        59 => { r.cyl(Vec3::ZERO, 0.2, 0.08, WOOD); r.sphere(vec3(0., 0.42, 0.), Vec3::splat(0.32), Color::new(c.r, c.g, c.b, 0.85)); for k in 0..6 { let a = k as f32; r.seg(vec3(a.cos() * 0.3, 0.3, a.sin() * 0.3), vec3(a.cos() * 0.15, 0.7, a.sin() * 0.15), 0.01, WOOD) } }
         _ => r.cube(vec3(0., 0.3, 0.), vec3(0.3, 0.3, 0.3), c),
     });
 }
@@ -209,6 +212,41 @@ fn draw_project(r: &mut R, kind: u8, x: i32, z: i32, night: f32, ghost: bool) {
         _ => { for k in 0..2 { let bx = px + k as f32; r.cube(vec3(bx, 0.06, pz), vec3(0.5, 0.06, 0.48), Color::new(0.65, 0.62, 0.58, 1.)); for zz in [pz - 0.45, pz + 0.45] { r.cube(vec3(bx, 0.35, zz), vec3(0.5, 0.05, 0.04), Color::new(0.55, 0.52, 0.5, 1.)); r.cube(vec3(bx - 0.4, 0.2, zz), vec3(0.05, 0.2, 0.05), Color::new(0.55, 0.52, 0.5, 1.)) } } }
     }
 }
+fn palm(r: &mut R, x: f32, z: f32, t: f32) {
+    let sway = (t * 0.8 + x).sin() * 0.04;
+    for k in 0..6 { let y = k as f32 * 0.3; r.cyl(vec3(x + k as f32 * 0.06 + sway * k as f32, y, z), 0.11 - k as f32 * 0.008, 0.3, Color::new(0.6, 0.45, 0.3, 1.)) }
+    let top = vec3(x + 0.36 + sway * 6., 1.8, z);
+    for k in 0..6 { let a = k as f32 / 6. * 2. * PI; r.with(Mat4::from_translation(top) * Mat4::from_rotation_y(a) * Mat4::from_rotation_z(-0.35), |r| r.cube(vec3(0.42, 0., 0.), vec3(0.42, 0.02, 0.1), Color::new(0.25, 0.6, 0.3, 1.))) }
+    for k in 0..3 { let a = k as f32 * 2.1; r.sphere(top + vec3(a.cos() * 0.12, -0.12, a.sin() * 0.12), Vec3::splat(0.08), Color::new(0.45, 0.32, 0.2, 1.)) }
+}
+/// Gullrock Islet: own tropical terrain, palms, tide pool, dock, Captain Pell, Sea Glass stall, collectibles, both players.
+fn islet_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(Vec3, String, Color)>) {
+    let t = g.t; let (sand, grass) = (Color::new(0.97, 0.9, 0.7, 1.), Color::new(0.42, 0.78, 0.38, 1.));
+    let m = &g.imap; let water = |c: u8| matches!(c, SEA | RIVER | BRIDGE);
+    for z in -10..IH as i32 + 8 { for x in -12..IW as i32 + 12 { let (fx, fz) = (x as f32, z as f32); if (fx - g.me.cam.x).powi(2) + (fz - g.me.cam.y).powi(2) > 480. { continue }
+        let c = tile_at_i(m, x, z);
+        if water(c) { let sv = (t * 1.4 + (x + z) as f32 * 0.6).sin() * 0.03; let wc = if c == RIVER { Color::new(0.25 + sv, 0.7 + sv, 0.72 + sv, 1.) } else { Color::new(0.2 + sv, 0.62 + sv, 0.82 + sv, 1.) };
+            r.quad(vec3(fx, -0.2, fz), vec3(fx + 1., -0.2, fz), vec3(fx + 1., -0.2, fz + 1.), vec3(fx, -0.2, fz + 1.), Vec3::Y, wc);
+            for (dx, dz) in [(0, -1), (0, 1), (-1, 0), (1, 0)] { if water(tile_at_i(m, x + dx, z + dz)) { continue } let (a, b, n) = match (dx, dz) { (0, -1) => (vec3(fx, 0., fz), vec3(fx + 1., 0., fz), Vec3::Z), (0, 1) => (vec3(fx + 1., 0., fz + 1.), vec3(fx, 0., fz + 1.), -Vec3::Z), (-1, 0) => (vec3(fx, 0., fz + 1.), vec3(fx, 0., fz), Vec3::X), _ => (vec3(fx + 1., 0., fz), vec3(fx + 1., 0., fz + 1.), -Vec3::X) }; r.quad(a, b, b - Vec3::Y * 0.2, a - Vec3::Y * 0.2, n, sand) } }
+        else { r.quad(vec3(fx, 0., fz), vec3(fx + 1., 0., fz), vec3(fx + 1., 0., fz + 1.), vec3(fx, 0., fz + 1.), Vec3::Y, sh(if c == GRASS || c == TREE || c == ROCK { grass } else { sand }, 1. + ((hash(x, z) % 5) as f32 - 2.) * 0.015)) }
+        let (px, pz) = (fx + 0.5, fz + 0.5);
+        match c { TREE => palm(r, px, pz, t), ROCK => r.sphere(vec3(px, 0.12, pz), vec3(0.4, 0.28, 0.34), Color::new(0.55, 0.5, 0.48, 1.)), BRIDGE => { r.cube(vec3(px, 0.05, pz), vec3(0.5, 0.05, 0.5), WOOD); r.cube(vec3(px - 0.45, -0.05, pz), vec3(0.05, 0.25, 0.05), sh(WOOD, 0.7)) } _ => {} }
+    } }
+    let shc = Color::new(0., 0., 0., 0.22);
+    r.disc(vec3(PELL_I.0, 0.02, PELL_I.1), vec2(0.3, 0.24), shc); let talking = matches!(g.me.ui, Ui::Talk { npc: None, .. }); resident(r, 12, vec3(PELL_I.0, 0., PELL_I.1), yaw_of(g.me.ipos - vec2(PELL_I.0, PELL_I.1)), 0., false, t, talking, 0.);
+    r.cube(vec3(7.5 + 1.2, -0.05, 13.3), vec3(0.35, 0.12, 0.8), Color::new(0.85, 0.85, 0.9, 1.));
+    let st = tc(ISTALL); r.cube(vec3(st.x, 0.4, st.y), vec3(0.45, 0.4, 0.35), Color::new(0.6, 0.48, 0.35, 1.)); for k in 0..4 { let a = k as f32 * 1.6; r.sphere(vec3(st.x - 0.25 + k as f32 * 0.17, 0.92 + (t * 2. + a).sin() * 0.02, st.y), Vec3::splat(0.08), Color::new(0.45, 0.85 - k as f32 * 0.08, 0.78, 0.9)) }
+    r.cube(vec3(st.x, 1.25, st.y + 0.25), vec3(0.5, 0.03, 0.35), Color::new(0.3, 0.7, 0.75, 1.));
+    for it in &g.w.iground { let c = rgb(def(it.def).col); match it.def { 82 => r.with(Mat4::from_translation(vec3(it.x, 0.06, it.z)) * Mat4::from_rotation_y(it.x * 3.), |r| r.cube(Vec3::ZERO, vec3(0.28, 0.05, 0.05), c)), 75 => { r.sphere(vec3(it.x, 0.08, it.z), vec3(0.14, 0.07, 0.11), c); for s in [-1f32, 1.] { r.sphere(vec3(it.x + s * 0.15, 0.08, it.z + 0.08), Vec3::splat(0.05), c) } } _ => { r.sphere(vec3(it.x, 0.05, it.z), vec3(0.12, 0.06, 0.12), c); r.cone(vec3(it.x, 0.05, it.z), 0.07, 0.12, sh(c, 0.9)) } } }
+    for b in &g.ibubbles { for k in 0..3 { let ph = (t * 1.5 + k as f32 * 2.1) % 1.; r.sphere(vec3(b.0.x + (k as f32 - 1.) * 0.12, -0.18 + ph * 0.05, b.0.y + ph * 0.1), Vec3::splat(0.04 + ph * 0.03), Color::new(0.95, 0.98, 1., 1.)) } }
+    for &(p, a, k) in &g.fx { if k == 0 { let sz = a / 0.8; for i in 0..10 { let an = i as f32 / 10. * 2. * PI; let rr = 0.15 + sz * 0.6; r.sphere(p + vec3(an.cos() * rr, 0.02, an.sin() * rr), vec3(0.05, 0.015, 0.05), Color::new(0.92, 0.97, 1., 1. - sz)) } } }
+    let swim = g.swimming(); let sy = if swim { -0.55 } else { 0. }; if !swim { r.disc(vec3(g.me.ipos.x, 0.02, g.me.ipos.y), vec2(0.32, 0.26), shc) }
+    human(r, g.me.id, (g.w.p.shirt, g.w.p.hat, g.w.p.hair), vec3(g.me.ipos.x, sy, g.me.ipos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, 0, None, t, g.me.swing);
+    others(r, g, t);
+    if g.me.pos.distance(Vec2::ZERO) >= 0. && g.me.ipos.distance(st) < 3.5 { labels.push((vec3(st.x, 1.7, st.y), "Sea Glass stall".into(), Color::new(0.7, 1., 0.95, 1.))) }
+    if g.me.ui == Ui::Play && g.me.trans.is_none() { if let Some(tg) = g.target() { indicator(r, g.tg_pos(tg), t) } }
+    let _ = lt;
+}
 fn tree(r: &mut R, p: Vec2, fruit: Option<Color>, shake: f32, t: f32, fol: Color) {
     r.cyl(vec3(p.x, 0., p.y), 0.13, 0.85, Color::new(0.5, 0.33, 0.2, 1.));
     let o = vec3(p.x + (t * 45.).sin() * 0.08 * shake, 0., p.y);
@@ -234,16 +272,16 @@ fn hud_cam(vp: Option<(f32, f32)>) { match vp { Some((x, w)) => set_camera(&Came
 fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(f32, f32)>) {
     let hf = now.hour() as f32 + now.minute() as f32 / 60.; let wx = weather(g.w.day, now.month()); let rain = wx != Wx::Clear; let lt = light(hf, rain);
     let (cam, curve, c0) = match g.me.scene {
-        Scene::Town => (Camera3D { position: vec3(g.me.cam.x, 7.4, g.me.cam.y + 7.6), target: vec3(g.me.cam.x, 0.5, g.me.cam.y - 0.8), up: Vec3::Y, fovy: 40f32.to_radians(), ..Default::default() }, g.curve, g.me.cam),
+        Scene::Town | Scene::Islet => (Camera3D { position: vec3(g.me.cam.x, 7.4, g.me.cam.y + 7.6), target: vec3(g.me.cam.x, 0.5, g.me.cam.y - 0.8), up: Vec3::Y, fovy: 40f32.to_radians(), ..Default::default() }, g.curve, g.me.cam),
         Scene::Room(b) => { let (w, d) = g.rdims(b); let s = w.max(d) as f32 / 4.; (Camera3D { position: vec3(w as f32 / 2., 5.4 * s, d as f32 + 3.4 * s), target: vec3(w as f32 / 2., 0.3, d as f32 / 2. + 0.1), up: Vec3::Y, fovy: 45f32.to_radians(), ..Default::default() }, 0., Vec2::ZERO) }
     };
-    let bg = if g.me.scene == Scene::Town { lt.sky } else { Color::new(0.08, 0.06, 0.06, 1.) };
+    let bg = if g.me.scene != Scene::Room(0) && !matches!(g.me.scene, Scene::Room(_)) { lt.sky } else { Color::new(0.08, 0.06, 0.06, 1.) };
     let cam = Camera3D { viewport: vp.map(|(x, w)| (x as i32, 0, w as i32, vh() as i32)), aspect: Some(vw() / vh()), ..cam };
     if vp.is_some() { hud_cam(vp); draw_rectangle(0., 0., vw(), vh(), bg) } else { clear_background(bg) }
     set_camera(&cam);
-    let mut r = R::new(curve, c0, &lt, if g.me.scene == Scene::Town { (12., 21.) } else { (100., 200.) });
+    let mut r = R::new(curve, c0, &lt, if matches!(g.me.scene, Scene::Room(_)) { (100., 200.) } else { (12., 21.) });
     let mut labels: Vec<(Vec3, String, Color)> = vec![];
-    match g.me.scene { Scene::Town => town(&mut r, g, &lt, now, &mut labels), Scene::Room(b) => room(&mut r, g, b, &lt, &mut labels) }
+    match g.me.scene { Scene::Islet => islet_scene(&mut r, g, &lt, &mut labels), Scene::Town => town(&mut r, g, &lt, now, &mut labels), Scene::Room(b) => room(&mut r, g, b, &lt, &mut labels) }
     r.flush(); hud_cam(vp);
     let m = cam.matrix();
     for (p, s, c) in labels { let d2 = (p.x - c0.x).powi(2) + (p.z - c0.y).powi(2); let q = m * vec4(p.x, p.y - curve * d2, p.z, 1.); if q.w <= 0. { continue }
@@ -307,6 +345,10 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
     { let b = tc(BOARD); r.cube(vec3(b.x - 0.35, 0.6, b.y), vec3(0.04, 0.6, 0.04), WOOD); r.cube(vec3(b.x + 0.35, 0.6, b.y), vec3(0.04, 0.6, 0.04), WOOD); r.cube(vec3(b.x, 0.95, b.y), vec3(0.45, 0.3, 0.04), Color::new(0.5, 0.35, 0.22, 1.));
         for (k, c) in [WHITE, Color::new(1., 0.9, 0.6, 1.), Color::new(0.8, 0.9, 1., 1.)].iter().enumerate() { r.cube(vec3(b.x - 0.25 + k as f32 * 0.25, 0.97, b.y + 0.045), vec3(0.09, 0.12, 0.005), *c) } }
     for bt in &g.w.built { draw_project(r, bt.kind, bt.x, bt.z, lt.night, false) }
+    { let (dx, dz) = (DOCK.0 as f32 + 0.5, DOCK.1 as f32); for k in 0..3 { r.cube(vec3(dx, 0.05, dz + 0.5 + k as f32), vec3(0.5, 0.05, 0.5), WOOD); r.cube(vec3(dx - 0.45, -0.05, dz + 0.5 + k as f32), vec3(0.05, 0.25, 0.05), sh(WOOD, 0.7)); r.cube(vec3(dx + 0.45, -0.05, dz + 0.5 + k as f32), vec3(0.05, 0.25, 0.05), sh(WOOD, 0.7)) }
+        r.cube(vec3(dx + 1.0, -0.05, dz + 2.3), vec3(0.35, 0.12, 0.8), Color::new(0.85, 0.85, 0.9, 1.)); r.cube(vec3(dx + 1.0, 0.08, dz + 2.3), vec3(0.3, 0.02, 0.7), WOOD);
+        resident(r, 12, vec3(dx, 0.1, dz + 0.4), 0., 0., false, g.t, false, 0.);
+        if g.me.pos.distance(vec2(dx, dz)) < 4. { labels.push((vec3(dx, 1.9, dz + 0.4), "Captain Pell's boat".into(), Color::new(0.8, 0.95, 1., 1.))) } }
     if let Some(p) = &g.w.project { let (sx, sz) = if p.kind == PK_BRIDGE { (p.x as f32 + 1., p.z as f32 + 1.3) } else { (p.x as f32 + 0.5, p.z as f32 + 0.5) };
         r.cube(vec3(sx, 0.45, sz + 0.3), vec3(0.04, 0.45, 0.04), WOOD); r.cube(vec3(sx, 0.85, sz + 0.3), vec3(0.3, 0.18, 0.03), Color::new(0.85, 0.75, 0.55, 1.)); r.cube(vec3(sx, 0.85, sz + 0.335), vec3(0.3 * p.need.iter().map(|n| n.2 as f32 / n.1 as f32).sum::<f32>() / p.need.len() as f32, 0.04, 0.005), Color::new(0.3, 0.7, 0.35, 1.));
         r.alpha = 0.35; draw_project(r, p.kind, p.x, p.z, 0., true); r.alpha = 1.;
@@ -450,6 +492,11 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         Ui::Gift(j, sel) => { panel(sw / 2. - 260., 100., 520., 440.); txt(&format!("Give {} a gift", g.res(*j).name), sw / 2. - 240., 135., 28., Color::new(0.45, 0.3, 0.2, 1.));
             let items: Vec<String> = g.w.p.inv.iter().map(slot_name).collect(); list(&items, Some(*sel), sw / 2. - 230., 175.);
             txt(if g.me.pad { "Up/Down select  A give  B cancel" } else { "W/S select  Enter give  Esc cancel" }, sw / 2. - 240., 525., 19., DARKGRAY) }
+        Ui::Travel(out) => { panel(sw / 2. - 270., sh / 2. - 80., 540., 150.); txt(if *out { "Sail to Gullrock Islet?" } else { "Sail back to Hollowbrook?" }, sw / 2. - 245., sh / 2. - 35., 26., BLACK);
+            txt(&if *out { format!("Fare: {FARE} coins (you have {}).", g.w.p.money) } else { "The trip home is free.".into() }, sw / 2. - 245., sh / 2. - 2., 22., DARKGRAY); txt(if g.me.pad { "[A] Sail     [B] Stay" } else { "[Enter] Sail     [Esc] Stay" }, sw / 2. - 245., sh / 2. + 40., 22., Color::new(0.45, 0.3, 0.2, 1.)) }
+        Ui::IStall(sel) => { panel(sw / 2. - 260., 120., 520., 260.); txt("Sea Glass stall", sw / 2. - 240., 155., 28., Color::new(0.2, 0.5, 0.5, 1.));
+            let items: Vec<String> = ISTALL_ITEMS.iter().map(|&(d, c)| format!("{}  -  {} Sea Glass", def(d).name, c)).collect(); list(&items, Some(*sel), sw / 2. - 230., 195.);
+            txt(&format!("You have {} Sea Glass.", g.w.p.inv.iter().filter(|s| s.def == 85).map(|s| s.qty).sum::<u16>()), sw / 2. - 240., 320., 20., DARKGRAY); txt(if g.me.pad { "Up/Down select  A trade  B close" } else { "W/S select  Enter trade  Esc close" }, sw / 2. - 240., 350., 19., DARKGRAY) }
         Ui::Tint(sel) => { panel(sw / 2. - 270., 100., 540., 440.); txt("Customize", sw / 2. - 250., 135., 28., Color::new(0.45, 0.3, 0.2, 1.));
             let mut items: Vec<String> = g.tint_targets().iter().map(|&i| { let s = g.w.p.inv[i]; format!("{} ({})  -  {}c", def(s.def).name, TINT_NAMES[Game::tint_of(&g.w.p, s.uid) as usize], TINT_FEE) }).collect();
             items.push(format!("Wallpaper (style {})  -  {}c", g.w.p.wall + 1, DECOR_FEE)); items.push(format!("Flooring (style {})  -  {}c", g.w.p.floor + 1, DECOR_FEE));

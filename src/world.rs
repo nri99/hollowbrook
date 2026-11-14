@@ -57,10 +57,12 @@ pub struct Profile {
     /// year in which this player last claimed the Harvest Fair prize
     #[serde(default)] pub fair_year: i32,
     /// furniture tint per item uid; home wallpaper/flooring palette index
+    /// last gameplay day this player completed the islet activity
+    #[serde(default)] pub islet_done: i64,
     #[serde(default)] pub tints: Vec<(u32, u8)>, #[serde(default)] pub wall: u8, #[serde(default)] pub floor: u8,
 }
 impl Profile {
-    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false, visited: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, hat: None, hair: 0, mail: vec![], catalog: vec![], fair_year: 0, tints: vec![], wall: 0, floor: 0 } }
+    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false, visited: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, hat: None, hair: 0, mail: vec![], catalog: vec![], fair_year: 0, islet_done: 0, tints: vec![], wall: 0, floor: 0 } }
 }
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct World {
@@ -77,6 +79,8 @@ pub struct World {
     #[serde(default)] pub project: Option<Project>, #[serde(default)] pub built: Vec<Built>,
     /// trees already yielding a branch / rocks already yielding a stone today
     #[serde(default)] pub branches: Vec<(i32, i32)>, #[serde(default)] pub rocks_hit: Vec<(i32, i32)>,
+    /// islet collectibles (islet coordinates), refreshed daily
+    #[serde(default)] pub iground: Vec<GItem>,
     /// profile of the player currently being processed (swapped in by `Game::activate`)
     pub p: Profile,
     #[serde(default)] pub others: Vec<Profile>,
@@ -85,18 +89,18 @@ pub fn roster0() -> Vec<usize> { vec![0, 1, 2, 3] }
 impl World {
     pub fn fresh(name: String, day: i64, map: &[u8]) -> World {
         let trees = (0..W * H).filter(|&i| map[i] == TREE).map(|i| Tree { x: (i % W) as i32, z: (i / W) as i32, fruit: true, shaken: i64::MIN / 2 }).collect();
-        World { version: SAVE_VERSION, day, native: FRUITS[gen_range(0usize, 4)], trees, ground: vec![], weeds: vec![], holes: vec![], digs: vec![], stock: vec![], stock_day: i64::MIN, uid: 1, trampled: vec![], donated: vec![], roster: roster0(), arrived: vec![day; 4], moving: vec![0; 4], project: None, built: vec![], branches: vec![], rocks_hit: vec![], p: Profile::new(0, name, door_stand(HOME)), others: vec![] }
+        World { version: SAVE_VERSION, day, native: FRUITS[gen_range(0usize, 4)], trees, ground: vec![], weeds: vec![], holes: vec![], digs: vec![], stock: vec![], stock_day: i64::MIN, uid: 1, trampled: vec![], donated: vec![], roster: roster0(), arrived: vec![day; 4], moving: vec![0; 4], project: None, built: vec![], branches: vec![], rocks_hit: vec![], iground: vec![], p: Profile::new(0, name, door_stand(HOME)), others: vec![] }
     }
 }
 
 // ---- runtime ----
-#[derive(Clone, Copy, PartialEq, Debug)] pub enum Scene { Town, Room(usize) }
+#[derive(Clone, Copy, PartialEq, Debug)] pub enum Scene { Town, Room(usize), Islet }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Pose { Stand, Sit(u32), Lie(u32) }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Loc { Out, Home, Asleep }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Snd { Step, Blip, Splash, Coin, Dig, Rustle, Door }
-#[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize), Stall, Site, Board, Built(usize) }
+#[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize), Stall, Site, Board, Built(usize), Dock, Pell, IItem(usize), IStall }
 #[derive(Clone, PartialEq, Debug)]
-pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize), Tint(usize) }
+pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize), Tint(usize), Travel(bool), IStall(usize) }
 pub struct Placing { pub f: Furn, pub orig: Option<Furn>, pub slot_uid: Option<u32> }
 pub struct Fishing { pub bob: Vec2, pub fish: Option<usize>, pub t: f32, pub nib: u8, pub need: u8, pub bite: bool, pub dip: f32 }
 pub struct Shadow { pub pos: Vec2, pub def: u16, pub vel: Vec2 }
@@ -116,6 +120,7 @@ pub fn tile_of(p: Vec2) -> (i32, i32) { (p.x.floor() as i32, p.y.floor() as i32)
 pub fn tc(t: (i32, i32)) -> Vec2 { vec2(t.0 as f32 + 0.5, t.1 as f32 + 0.5) }
 pub fn dir(rot: u8) -> Vec2 { [vec2(0., 1.), vec2(1., 0.), vec2(0., -1.), vec2(-1., 0.)][rot as usize % 4] }
 pub fn yaw_of(v: Vec2) -> f32 { v.x.atan2(v.y) }
+pub fn tile_at_i(map: &[u8], x: i32, z: i32) -> u8 { if x < 0 || z < 0 || x >= IW as i32 || z >= IH as i32 { SEA } else { map[z as usize * IW + x as usize] } }
 pub fn tile_at(map: &[u8], x: i32, z: i32) -> u8 { if x < 0 || z < 0 || x >= W as i32 || z >= H as i32 { PINE } else { map[z as usize * W + x as usize] } }
 pub fn fcenter(f: &Furn) -> Vec2 { if def(f.def).wall { return vec2(f.x as f32 + 0.5, 0.15) } let t = foot(f.def, f.x, f.z, f.rot); let (a, b) = (t[0], t[t.len() - 1]); vec2((a.0 + b.0 + 1) as f32 / 2., (a.1 + b.1 + 1) as f32 / 2.) }
 
@@ -139,6 +144,7 @@ pub struct Game {
     pub fx: Vec<(Vec3, f32, u8)>,
     /// shared bubble spots in the sea marking a sea creature below
     pub bubbles: Vec<(Vec2, u16)>,
+    pub imap: Vec<u8>, pub ibubbles: Vec<(Vec2, u16)>, pub pell_talked: bool,
     /// resident currently visiting a player's home: (resident, home building, seconds left)
     pub visit: Option<(usize, usize, f32)>,
 }
@@ -152,11 +158,12 @@ impl Game {
     pub fn from_world(w: World, map: Vec<u8>) -> Game {
         let pos = vec2(w.p.pos[0], w.p.pos[1]);
         let npcs = (0..4).map(|i| NpcRt { pos: door_stand(HOUSES[i]), path: vec![], wait: gen_range(0., 2.), yaw: 0., inside: true, happy: 0., moving: false, last_chat: 9, anim: 0. }).collect();
-        let mut g = Game { me: Player::new(w.p.id, pos), w, map, others: vec![], npcs, t: 0., log: vec![], rolled: false, shadows: vec![], bugs: vec![], shake: vec![], hearts: vec![], snd: vec![], hr: 12, mo: 6, curve: 0.01, dom: 1, yr: 2026, bubbles: vec![], visit: None, fx: vec![] };
+        let mut g = Game { me: Player::new(w.p.id, pos), w, map, others: vec![], npcs, t: 0., log: vec![], rolled: false, shadows: vec![], bugs: vec![], shake: vec![], hearts: vec![], snd: vec![], hr: 12, mo: 6, curve: 0.01, dom: 1, yr: 2026, bubbles: vec![], visit: None, imap: islet(), ibubbles: vec![], pell_talked: false, fx: vec![] };
         if !g.free(g.me.pos) { g.me.pos = door_stand(HOME); g.me.cam = g.me.pos }
         let map = &g.map; let open = |t: &(i32, i32)| tile_at(map, t.0, t.1) != BLD && *t != mailbox_tile(0) && *t != mailbox_tile(1); // objects saved before a building existed there
         g.w.weeds.retain(open); g.w.digs.retain(open); g.w.holes.retain(open); g.w.ground.retain(|i| open(&tile_of(vec2(i.x, i.z))));
         for p in std::iter::once(&mut g.w.p).chain(g.w.others.iter_mut()) { let owned: Vec<u16> = p.room.iter().map(|f| f.def).chain(p.inv.iter().chain(p.storage.iter()).map(|s| s.def)).filter(|&d| matches!(def(d).k, K::Furn | K::Cloth)).chain(p.shirt).collect(); for d in owned { if !p.catalog.contains(&d) { p.catalog.push(d) } } }
+        if g.w.iground.is_empty() { g.refresh_islet() }
         if g.w.project.is_none() { g.propose() } // first project for new and older saves
         if g.w.arrived.len() != 4 { g.w.arrived = vec![g.w.day; 4] } if g.w.moving.len() != 4 { g.w.moving = vec![0; 4] } // older saves start the 14-day clock now
         if g.w.stock.is_empty() { g.refresh_world() } // migrated saves get shop stock, shells and dig sites
@@ -182,7 +189,7 @@ impl Game {
     pub fn leave(&mut self, id: usize) {
         if id == 0 || !self.ids().contains(&id) { return }
         self.activate(id); self.place_cancel(); self.me.ui = Ui::Play; self.me.fish = None;
-        let pos = match self.me.scene { Scene::Town => self.me.pos, Scene::Room(b) => door_stand(b) }; self.w.p.pos = [pos.x, pos.y];
+        let pos = match self.me.scene { Scene::Town => self.me.pos, Scene::Room(b) => door_stand(b), Scene::Islet => dock_stand() }; self.w.p.pos = [pos.x, pos.y];
         self.activate(0); self.others.retain(|p| p.id != id);
     }
     fn free_town(&self, p: Vec2) -> bool { [(-PR, -PR), (PR, -PR), (-PR, PR), (PR, PR)].iter().all(|&(dx, dz)| { let (x, z) = tile_of(p + vec2(dx, dz)); self.walk_tile(x, z) }) }
@@ -198,7 +205,7 @@ impl Game {
         for pl in std::iter::once(&self.me).chain(self.others.iter()) {
             let pr = if w.p.id == pl.id { &mut w.p } else { w.others.iter_mut().find(|p| p.id == pl.id).unwrap() };
             if let Some(o) = pl.placing.as_ref().and_then(|p| p.orig) { pr.room.push(o) }
-            let p = match pl.scene { Scene::Town => pl.pos, Scene::Room(b) => door_stand(b) }; pr.pos = [p.x, p.y];
+            let p = match pl.scene { Scene::Town => pl.pos, Scene::Room(b) => door_stand(b), Scene::Islet => dock_stand() }; pr.pos = [p.x, p.y];
         }
         if w.p.id != 0 { if let Some(k) = w.others.iter().position(|p| p.id == 0) { std::mem::swap(&mut w.p, &mut w.others[k]) } }
         w.others.sort_by_key(|p| p.id); w
@@ -251,7 +258,7 @@ impl Game {
         }
     }
     pub fn refresh_world(&mut self) {
-        let day = self.w.day; self.w.trampled.clear(); self.w.branches.clear(); self.w.rocks_hit.clear(); if self.w.project.is_none() { self.propose() } // flattened flowers recover each morning
+        let day = self.w.day; self.w.trampled.clear(); self.w.branches.clear(); self.w.rocks_hit.clear(); self.refresh_islet(); if self.w.project.is_none() { self.propose() } // flattened flowers recover each morning
         for t in &mut self.w.trees { if !t.fruit && day - t.shaken >= 3 { t.fruit = true } } // persisted elapsed-time regrowth rule
         for _ in 0..2 { if self.w.weeds.len() < 12 { if let Some(t) = self.rand_tile(GRASS) { self.w.weeds.push(t) } } }
         while self.w.ground.iter().filter(|g| def(g.def).k == K::Shell).count() < 4 { let Some(t) = self.rand_tile(SAND) else { break }; self.drop_item([40, 42, 40, 42, 41][gen_range(0, 5)], t.0, t.1) }
@@ -274,6 +281,7 @@ impl Game {
     /// Character living in house slot `slot`.
     pub fn res(&self, slot: usize) -> &'static Res { &CHARS[self.w.roster[slot]] }
     pub fn walk_tile(&self, x: i32, z: i32) -> bool {
+        if (x, z) == DOCK { return false }
         if self.fair() && (x, z) == STALL { return false }
         if (x, z) == BOARD { return false }
         if let Some(b) = self.w.built.iter().find(|b| ptiles(b.kind, b.x, b.z).contains(&(x, z))) { return b.kind == PK_BRIDGE }
@@ -288,7 +296,7 @@ impl Game {
         self.room_furn(b).iter().filter(|f| !def(f.def).wall && !(skip != 0 && f.uid == skip)).any(|f| foot(f.def, f.x, f.z, f.rot).contains(&(x, z)))
     }
     pub fn free(&self, p: Vec2) -> bool {
-        [(-PR, -PR), (PR, -PR), (-PR, PR), (PR, PR)].iter().all(|&(dx, dz)| { let (x, z) = tile_of(p + vec2(dx, dz)); match self.me.scene { Scene::Town => self.walk_tile(x, z) || self.tile(x, z) == SEA, Scene::Room(b) => !self.room_block(b, x, z, 0) } })
+        [(-PR, -PR), (PR, -PR), (-PR, PR), (PR, PR)].iter().all(|&(dx, dz)| { let (x, z) = tile_of(p + vec2(dx, dz)); match self.me.scene { Scene::Town => self.walk_tile(x, z) || self.tile(x, z) == SEA, Scene::Room(b) => !self.room_block(b, x, z, 0), Scene::Islet => matches!(tile_at_i(&self.imap, x, z), GRASS | SAND | BRIDGE | SEA) && (x, z) != ISTALL } })
     }
     pub fn step_move(&mut self, d: Vec2, run: bool, dt: f32) {
         self.me.spd = 0.;
@@ -308,7 +316,8 @@ impl Game {
     pub fn go(&mut self, to: Scene) { if self.me.trans.is_none() { self.me.trans = Some((0., to, false)); self.snd.push(Snd::Door) } }
     pub fn swap(&mut self, to: Scene) {
         self.place_cancel();
-        match to { Scene::Town => { if let Scene::Room(b) = self.me.scene { self.me.pos = door_stand(b) } self.me.face = vec2(0., 1.); self.me.cam = self.me.pos }
+        match to { Scene::Islet => { self.me.ipos = vec2(ISLET_SPAWN.0, ISLET_SPAWN.1); self.me.face = vec2(0., -1.); self.me.cam = self.me.ipos }
+            Scene::Town => { if let Scene::Room(b) = self.me.scene { self.me.pos = door_stand(b) } if self.me.scene == Scene::Islet { self.me.pos = dock_stand() } self.me.face = vec2(0., 1.); self.me.cam = self.me.pos }
             Scene::Room(b) => { let (w, d) = self.rdims(b); self.me.ipos = vec2((w / 2) as f32 + 0.5, d as f32 - 0.5); self.me.face = vec2(0., -1.); self.me.cam = self.me.ipos } }
         eprintln!("[scene] {:?} -> {:?}", self.me.scene, to); self.me.scene = to; self.me.pose = Pose::Stand; self.me.fish = None;
     }
@@ -332,8 +341,13 @@ impl Game {
                 for o in 0..2 { cand(tc(mailbox_tile(o)), 1.4, 0.9, Tg::Mailbox(o), Some(mailbox_tile(o))) }
                 if let Some(p) = &self.w.project { let c = if p.kind == PK_BRIDGE { vec2(p.x as f32 + 1., p.z as f32 + 1.2) } else { tc((p.x, p.z)) }; cand(c, 1.5, 0.8, Tg::Site, Some((p.x, p.z))) }
                 cand(tc(BOARD), 1.5, 0.8, Tg::Board, Some(BOARD));
+                cand(vec2(DOCK.0 as f32 + 0.5, DOCK.1 as f32 + 0.3), 1.4, 0.7, Tg::Dock, None);
                 for (i, b) in self.w.built.iter().enumerate() { if b.kind == 0 { cand(tc((b.x, b.z)), 1.4, 0.9, Tg::Built(i), Some((b.x, b.z))) } }
                 if self.fair() { cand(tc(STALL), 1.5, 0.8, Tg::Stall, Some(STALL)) }
+            }
+            Scene::Islet => {
+                cand(vec2(PELL_I.0, PELL_I.1), 1.6, 0.8, Tg::Pell, None); cand(tc(ISTALL), 1.5, 0.9, Tg::IStall, None);
+                for (i, g) in self.w.iground.iter().enumerate() { cand(vec2(g.x, g.z), 1.2, 0.8, Tg::IItem(i), None) }
             }
             Scene::Room(b) => {
                 for fu in self.room_furn(b) { cand(fcenter(&fu), 1.5, 1., Tg::Furn(fu.uid, fu.def), None) }
@@ -352,7 +366,7 @@ impl Game {
         match tg {
             Tg::Npc(i) => v(match self.me.scene { Scene::Town => self.npcs[i].pos, Scene::Room(b) if self.visit.is_some_and(|x| x.0 == i && x.1 == b) => self.visit_spot(b), _ => res_spot() }, 1.5), Tg::Door(b) => v(door_face(b), 1.3),
             Tg::Tree(i) => v(tc((self.w.trees[i].x, self.w.trees[i].z)), 2.15), Tg::Item(i) => vec3(self.w.ground[i].x, 0.45, self.w.ground[i].z),
-            Tg::Weed(i) => v(tc(self.w.weeds[i]), 0.55), Tg::Rack => vec3(1.5, 1.8, 1.5), Tg::Mailbox(o) => v(tc(mailbox_tile(o)), 1.4), Tg::Stall => v(tc(STALL), 1.9), Tg::Board => v(tc(BOARD), 1.9), Tg::Built(i) => v(tc((self.w.built[i].x, self.w.built[i].z)), 1.2), Tg::Site => self.w.project.as_ref().map_or(Vec3::ZERO, |p| v(tc((p.x, p.z)), 1.6)), Tg::Curator => vec3(3.5, 1.3, 1.5), Tg::Exhibit(k) => match k { 0 => vec3(0.5, 1.5, 2.5), 1 => vec3(6.5, 1.5, 2.5), _ => { let p = tc(MUSEUM_PED[k - 2].0); vec3(p.x, 1.2, p.y) } }, Tg::Counter => vec3(3.5, 1.3, 1.5), Tg::Keeper => vec3(3.5, 1.7, 0.5), Tg::Display(i) => v(tc(DISPLAYS[i]), 1.3),
+            Tg::Weed(i) => v(tc(self.w.weeds[i]), 0.55), Tg::Rack => vec3(1.5, 1.8, 1.5), Tg::Mailbox(o) => v(tc(mailbox_tile(o)), 1.4), Tg::Stall => v(tc(STALL), 1.9), Tg::Board => v(tc(BOARD), 1.9), Tg::Dock => vec3(DOCK.0 as f32 + 0.5, 1.6, DOCK.1 as f32 + 0.3), Tg::Pell => vec3(PELL_I.0, 1.6, PELL_I.1), Tg::IStall => v(tc(ISTALL), 1.5), Tg::IItem(i) => vec3(self.w.iground[i].x, 0.45, self.w.iground[i].z), Tg::Built(i) => v(tc((self.w.built[i].x, self.w.built[i].z)), 1.2), Tg::Site => self.w.project.as_ref().map_or(Vec3::ZERO, |p| v(tc((p.x, p.z)), 1.6)), Tg::Curator => vec3(3.5, 1.3, 1.5), Tg::Exhibit(k) => match k { 0 => vec3(0.5, 1.5, 2.5), 1 => vec3(6.5, 1.5, 2.5), _ => { let p = tc(MUSEUM_PED[k - 2].0); vec3(p.x, 1.2, p.y) } }, Tg::Counter => vec3(3.5, 1.3, 1.5), Tg::Keeper => vec3(3.5, 1.7, 0.5), Tg::Display(i) => v(tc(DISPLAYS[i]), 1.3),
             Tg::Furn(uid, d) => { let c = self.room_furn(match self.me.scene { Scene::Room(b) => b, _ => HOME }).into_iter().find(|f| f.uid == uid && f.def == d).map(|f| fcenter(&f)).unwrap_or_default(); v(c, if def(d).wall { 1.9 } else { 1.2 }) }
         }
     }
@@ -363,7 +377,7 @@ impl Game {
             Tg::Item(i) => format!("Pick up {}", def(self.w.ground[i].def).name), Tg::Weed(_) => "Pull weed".into(),
             Tg::Furn(uid, d) => { let a = match def(d).act { Act::Sit => "Sit on", Act::Bed => "Lie on", Act::Lamp => "Toggle", Act::Storage => "Open", Act::None => "Look at" };
                 if uid != 0 && self.me.scene == Scene::Room(self.home()) { format!("{a} {}   [F] Move  [G] Pick up", def(d).name) } else { format!("{a} {}", def(d).name) } }
-            Tg::Counter => "Sell items".into(), Tg::Keeper => "Talk to Mr. Tumble".into(), Tg::Curator => "Donate / identify fossils".into(), Tg::Rack => "Browse clothes".into(), Tg::Site => self.w.project.as_ref().map_or(String::new(), |p| format!("Contribute to the {}", PROJECTS[p.kind as usize].0)), Tg::Board => "Read the town notice board".into(), Tg::Built(_) => "Sit on the bench".into(),
+            Tg::Counter => "Sell items".into(), Tg::Keeper => "Talk to Mr. Tumble".into(), Tg::Curator => "Donate / identify fossils".into(), Tg::Rack => "Browse clothes".into(), Tg::Site => self.w.project.as_ref().map_or(String::new(), |p| format!("Contribute to the {}", PROJECTS[p.kind as usize].0)), Tg::Board => "Read the town notice board".into(), Tg::Dock => format!("Sail to Gullrock Islet ({FARE} coins)"), Tg::Pell => "Talk to Captain Pell".into(), Tg::IStall => "Sea Glass stall".into(), Tg::IItem(i) => format!("Pick up {}", def(self.w.iground[i].def).name), Tg::Built(_) => "Sit on the bench".into(),
             Tg::Stall => if self.w.p.fair_year == self.yr { "Harvest Fair stall (prize claimed)".into() } else { "Claim a Harvest Fair prize".into() }, Tg::Mailbox(o) => if o == self.me.id { let n = self.w.p.mail.iter().filter(|l| !l.read).count(); if n > 0 { format!("Check mailbox ({n} new)") } else { "Check mailbox".into() } } else { format!("Player {}'s mailbox", o + 1) },
             Tg::Exhibit(k) => match k { 0 => "Look at the fish tank".into(), 1 => "Look at the bug case".into(), _ => format!("Look at the {} pedestal", def(MUSEUM_PED[k - 2].1).name) },
             Tg::Display(i) => if i < 5 { let s = self.w.stock[i]; if s.sold { "Sold out".into() } else { format!("Buy {} ({} coins)", def(s.def).name, def(s.def).buy) } } else { let t = TOOL_DISPLAY[i - 5]; format!("Buy {} ({} coins)", def(t).name, def(t).buy) },
@@ -386,6 +400,10 @@ impl Game {
             Tg::Rack => self.me.ui = Ui::Rack(0),
             Tg::Stall => self.fair_prize(),
             Tg::Site => self.contribute(),
+            Tg::Dock => self.me.ui = Ui::Travel(true),
+            Tg::Pell => self.pell(),
+            Tg::IStall => self.me.ui = Ui::IStall(0),
+            Tg::IItem(i) => { let it = self.w.iground[i]; if self.add(it.def) { self.w.iground.retain(|g| g.uid != it.uid) } }
             Tg::Board => { let lines = self.board_lines(); self.me.ui = Ui::Talk { npc: None, who: "Town notice board".into(), lines, i: 0 } }
             Tg::Built(i) => { let b = self.w.built[i]; self.me.stand_from = self.me.pos; self.me.pos = tc((b.x, b.z)); self.me.face = vec2(0., 1.); self.me.pose = Pose::Sit(0); self.note("You sit on the bench. Move to stand up.") }
             Tg::Mailbox(o) => if o == self.me.id { self.me.ui = Ui::Mail(0) } else { self.note(format!("That's Player {}'s mailbox. Better not peek.", o + 1)) },
@@ -553,6 +571,31 @@ impl Game {
         else { self.w.p.floor = (self.w.p.floor + 1) % FLOORS.len() as u8; Ok("New flooring installed at home.".into()) }
     }
 
+    // ---- Gullrock Islet ----
+    pub fn refresh_islet(&mut self) {
+        self.w.iground.clear();
+        let mut free: Vec<(i32, i32)> = (0..IW * IH).filter(|&i| self.imap[i] == SAND).map(|i| ((i % IW) as i32, (i / IW) as i32)).filter(|&t| t != ISTALL && t != (7, 11) && t != (6, 11) && t != (7, 10)).collect();
+        for (d, n) in [(82, 7), (84, 4), (75, 2)] { for _ in 0..n { if free.is_empty() { break } let t = free.remove(gen_range(0, free.len())); let uid = self.uid(); self.w.iground.push(GItem { uid, def: d, x: t.0 as f32 + 0.5, z: t.1 as f32 + 0.5 }) } }
+    }
+    /// Captain Pell: offers the return trip, explains today's activity, and pays 3 Sea Glass once per player per day.
+    pub fn pell(&mut self) {
+        let (d, n, label) = islet_task(self.w.day); let have: u16 = self.w.p.inv.iter().filter(|s| s.def == d).map(|s| s.qty).sum();
+        let mut lines = vec![format!("Ahoy! Today's islet task: {label}.")];
+        if self.w.p.islet_done == self.w.day { lines.push("You've already done today's task. Come back tomorrow!".into()) }
+        else if have >= n { for _ in 0..n { self.remove_one(d); } for _ in 0..3 { self.add(85); } self.w.p.islet_done = self.w.day; self.snd.push(Snd::Coin); lines.push("Splendid work! Here are 3 pieces of Sea Glass.".into()) }
+        else { lines.push(format!("You have {have} of {n} so far.")) }
+        lines.push("Talk to me again after this to sail home (free).".into());
+        self.me.ui = Ui::Talk { npc: None, who: "Captain Pell the pelican".into(), lines, i: 0 };
+        self.pell_talked = true;
+    }
+    pub fn istall_buy(&mut self, k: usize) -> Result<(), &'static str> {
+        let (d, cost) = ISTALL_ITEMS[k]; let have: u16 = self.w.p.inv.iter().filter(|s| s.def == 85).map(|s| s.qty).sum();
+        if have < cost { return Err("Not enough Sea Glass.") }
+        let frees_slot = self.w.p.inv.iter().filter(|s| s.def == 85).count() == 1 && have == cost;
+        if self.w.p.inv.len() >= INV_CAP && !frees_slot { return Err("Your pockets are full.") }
+        for _ in 0..cost { self.remove_one(85); } self.add_furn(d); Ok(())
+    }
+
     // ---- community projects ----
     pub fn remaining(p: &Project) -> String { let r: Vec<String> = p.need.iter().filter(|n| n.2 < n.1).map(|n| format!("{} {}", n.1 - n.2, MAT_NAMES[n.0 as usize])).collect(); if r.is_empty() { "It's ready!".into() } else { format!("Still needed: {}.", r.join(", ")) } }
     pub fn liveliness(&self) -> i32 { let flowers = self.map.iter().filter(|&&c| c == FLOWER).count() as i32 - self.w.trampled.len() as i32; (10 * self.w.built.len() as i32 + 2 * self.w.donated.len() as i32 + flowers / 2 - 3 * self.w.weeds.len() as i32).clamp(0, 100) }
@@ -632,7 +675,7 @@ impl Game {
     // ---- shop ----
     pub fn sell_slot(&mut self, i: usize) { if i >= self.w.p.inv.len() { return } let s = self.w.p.inv.remove(i); let v = def(s.def).sell * s.qty as u32; self.w.p.money += v; self.snd.push(Snd::Coin); self.note(format!("Sold {} x{} for {v} coins.", def(s.def).name, s.qty)) }
     pub fn sell_all(&mut self) {
-        let (keep, sell): (Vec<Slot>, Vec<Slot>) = self.w.p.inv.iter().copied().partition(|s| def(s.def).k == K::Furn);
+        let (keep, sell): (Vec<Slot>, Vec<Slot>) = self.w.p.inv.iter().copied().partition(|s| def(s.def).k == K::Furn || def(s.def).sell == 0);
         let v: u32 = sell.iter().map(|s| def(s.def).sell * s.qty as u32).sum(); self.w.p.inv = keep; self.w.p.money += v;
         if v > 0 { self.snd.push(Snd::Coin) } self.note(format!("Sold all your finds for {v} coins."));
     }
@@ -713,15 +756,17 @@ impl Game {
         self.note(match self.w.p.equip { Some(t) => format!("Equipped: {}", def(t).name), None => "Tools put away.".into() });
     }
     /// Player is in the sea (outdoors). Swimming is entered by walking off the beach (provisional rule).
-    pub fn swimming(&self) -> bool { self.me.scene == Scene::Town && { let t = tile_of(self.me.pos); self.tile(t.0, t.1) == SEA } }
+    pub fn swimming(&self) -> bool { match self.me.scene { Scene::Town => { let t = tile_of(self.me.pos); self.tile(t.0, t.1) == SEA } Scene::Islet => { let t = tile_of(self.me.ipos); tile_at_i(&self.imap, t.0, t.1) == SEA } _ => false } }
     /// Dive under the nearest bubble spot within reach and collect the sea creature there.
     pub fn dive(&mut self) {
-        let p = self.me.pos; self.fx.push((vec3(p.x, -0.17, p.y), 0., 0)); self.snd.push(Snd::Splash);
-        let Some(i) = self.bubbles.iter().position(|b| b.0.distance(p) < 1.3) else { return self.note("You dive... nothing down here.") };
-        let d = self.bubbles[i].1; if self.add(d) { self.bubbles.remove(i); self.note(format!("You found a {} while diving!", def(d).name)) }
+        let p = self.ppos(); self.fx.push((vec3(p.x, -0.17, p.y), 0., 0)); self.snd.push(Snd::Splash);
+        let islet = self.me.scene == Scene::Islet; let list = if islet { &self.ibubbles } else { &self.bubbles };
+        let Some(i) = list.iter().position(|b| b.0.distance(p) < 1.3) else { return self.note("You dive... nothing down here.") };
+        let d = list[i].1; if self.add(d) { if islet { self.ibubbles.remove(i); } else { self.bubbles.remove(i); } self.note(format!("You found a {} while diving!", def(d).name)) }
     }
     pub fn use_tool(&mut self) {
         if self.swimming() { return self.dive() }
+        if self.me.scene == Scene::Islet && self.swimming() { return self.dive() }
         if self.me.scene != Scene::Town { return }
         if self.me.fish.is_some() { return self.reel() }
         let (p, f) = (self.me.pos, self.me.face);
@@ -768,6 +813,7 @@ impl Game {
         if keep { self.me.fish = Some(f) }
     }
     fn sim_life(&mut self, dt: f32) {
+        if self.ibubbles.len() < 2 && std::iter::once(&self.me).chain(self.others.iter()).any(|p| p.scene == Scene::Islet) && gen_range(0, 50) == 0 { let t = (gen_range(0, IW as i32), gen_range(0, IH as i32)); if tile_at_i(&self.imap, t.0, t.1) == SEA && (t.0 - 7).abs() + (t.1 - 6).abs() < 10 { self.ibubbles.push((tc(t), [74, 74, 30, 72][gen_range(0, 4)])) } }
         let anchors: Vec<Vec2> = std::iter::once(&self.me).chain(self.others.iter()).filter(|p| p.scene == Scene::Town).map(|p| p.pos).collect();
         if anchors.is_empty() { return }
         let fishing = std::iter::once(&self.me).chain(self.others.iter()).any(|p| p.fish.is_some());
@@ -829,7 +875,7 @@ impl Game {
     /// 4-neighbour BFS. `town` = outdoor walkability, else the current scene's passability.
     pub fn bfs(&self, a: (i32, i32), b: (i32, i32), town: bool) -> Option<Vec<(i32, i32)>> {
         if a == b { return Some(vec![]) }
-        let pass = |t: (i32, i32)| match (town, self.me.scene) { (false, Scene::Room(r)) => !self.room_block(r, t.0, t.1, 0), _ => self.walk_tile(t.0, t.1) };
+        let pass = |t: (i32, i32)| match (town, self.me.scene) { (false, Scene::Room(r)) => !self.room_block(r, t.0, t.1, 0), (false, Scene::Islet) => matches!(tile_at_i(&self.imap, t.0, t.1), GRASS | SAND | BRIDGE) && t != ISTALL, _ => self.walk_tile(t.0, t.1) };
         if !pass(b) { return None }
         let mut prev = HashMap::from([(a, a)]); let mut q = VecDeque::from([a]);
         while let Some(c) = q.pop_front() { if c == b { break } if prev.len() > 2500 { return None }
@@ -885,7 +931,7 @@ impl Game {
         if let Ui::Talk { npc: Some(j), .. } = self.me.ui { if inp.p(X) && self.w.moving[j] != 0 { self.w.moving[j] = 0; self.w.arrived[j] = self.w.day; self.w.p.npcs[j].friend += 1; let r = self.res(j);
             self.me.ui = Ui::Talk { npc: Some(j), who: format!("{} the {}", r.name, r.species), lines: vec!["You really want me to stay? ...Okay. I'll stay!".into()], i: 0 }; return true } }
         if let Ui::Talk { npc: Some(j), .. } = self.me.ui { if inp.p(G) { if self.w.p.inv.is_empty() { self.note("You have nothing to give.") } else { self.me.ui = Ui::Gift(j, 0) } return true } }
-        if let Ui::Talk { lines, i, .. } = &mut self.me.ui { if ok || inp.p(Space) { *i += 1; if *i >= lines.len() { self.me.ui = Ui::Play } } else if esc { self.me.ui = Ui::Play } return true }
+        if let Ui::Talk { lines, i, .. } = &mut self.me.ui { if ok || inp.p(Space) { *i += 1; if *i >= lines.len() { self.me.ui = if self.pell_talked && self.me.scene == Scene::Islet { Ui::Travel(false) } else { Ui::Play }; self.pell_talked = false } } else if esc { self.me.ui = Ui::Play } return true }
         let n = self.w.p.inv.len();
         let mv = |s: usize, len: usize| if up && s > 0 { s - 1 } else if down && s + 1 < len { s + 1 } else { s.min(len.saturating_sub(1)) };
         match self.me.ui {
@@ -901,6 +947,8 @@ impl Game {
                 if esc { self.me.ui = Ui::Play } else if ok && s < len { self.transfer(c, s) } }
             Ui::Journal => if esc || inp.p(J) { self.me.ui = Ui::Play },
             Ui::Gift(j, s) => { let s = mv(s, n); self.me.ui = Ui::Gift(j, s); if esc { self.me.ui = Ui::Play } else if ok && s < n { self.give_gift(j, s) } }
+            Ui::Travel(go_out) => { if ok || inp.p(Y) { self.me.ui = Ui::Play; if go_out { if self.w.p.money < FARE { self.note("Not enough coins for the fare.") } else { self.w.p.money -= FARE; self.go(Scene::Islet) } } else { self.go(Scene::Town) } } else if esc || inp.p(N) { self.me.ui = Ui::Play } }
+            Ui::IStall(s) => { let s = mv(s, ISTALL_ITEMS.len()); self.me.ui = Ui::IStall(s); if esc { self.me.ui = Ui::Play } else if ok { match self.istall_buy(s) { Ok(()) => { self.snd.push(Snd::Coin); self.note(format!("Traded for a {}!", def(ISTALL_ITEMS[s].0).name)) } Err(e) => self.note(e) } } }
             Ui::Tint(s) => { let len = self.tint_targets().len() + 2; let s = mv(s, len); self.me.ui = Ui::Tint(s); if esc { self.me.ui = Ui::Play } else if ok { match self.customize(s) { Ok(m) => { self.snd.push(Snd::Coin); self.note(m) } Err(e) => self.note(e) } } }
             Ui::Catalog(s) => { let s = mv(s, self.w.p.catalog.len()); self.me.ui = Ui::Catalog(s); if esc { self.me.ui = Ui::Play } else if ok && s < self.w.p.catalog.len() { let d = self.w.p.catalog[s]; match self.order(d) { Ok(()) => { self.snd.push(Snd::Coin); self.note(format!("Ordered a {}.", def(d).name)) } Err(e) => self.note(e) } } }
             Ui::Mail(s) => { let s = mv(s, self.w.p.mail.len()); self.me.ui = Ui::Mail(s); if esc { self.me.ui = Ui::Play } else if ok { self.open_letter(s) } }

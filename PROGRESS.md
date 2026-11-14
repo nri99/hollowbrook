@@ -1,8 +1,8 @@
 # Progress log
 
 ## Current
-- Current task: X-03 islet getaway
-- Last completed: X-01/X-02 community projects + liveliness
+- Current task: X-05 social depth (resident-to-resident chats, birthdays, varied requests)
+- Last completed: X-03 Gullrock Islet
 - Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
 - Next action: add a dock on the beach (tile + boat model), Ui confirm with fare, Scene::Islet (own small map rendered outdoors without town), islet critters + Sea Glass from a daily activity, islet stall, return trip; tests for per-player travel and item safety.
 
@@ -136,3 +136,8 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - X: phase 19 bought shovel, shook trees -> 5 Branch, hit rocks -> 2 Stone, contributed at the sign -> bench built, sat on it.
 - S (inspected): x01_site_before (ghost bench, sign "bench 0/7", notice board), x01_bench_built (player seated on the bench, hearts).
 - Next: X-03 islet getaway.
+
+### X-03 done (Gullrock Islet)
+- Scene::Islet with own map/terrain/palms/tide pool/dock, Captain Pell (town dock + islet), travel confirm + fare, daily alternating task, Sea Glass reward once per player per day, islet stall, islet-only Palm Crab and Glass Shrimp, per-player travel (the other player stays in town), save resumes at the dock.
+- H: 51/51 (new: islet_travel_task_stall_and_safety). X: phase 20 two players: P1 sailed (1000->800), gathered 5 Driftwood, Pell paid 3 Sea Glass, sailed home; P2 stayed in town. S (inspected): x03_split_islet_town.
+- Remaining: X-04 collections, X-05 social depth, X-06 atmosphere.
