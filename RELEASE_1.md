@@ -5,14 +5,14 @@ Release 1 = the current game plus the items below. Anything not listed is post-r
 ## 1. Required implementation work
 | ID | Item | Acceptance criteria | Status |
 |---|---|---|---|
-| R1 | Campground | One campground at tiles 31-34 x 19-22 (free meadow, east). Tent, campfire, goods crate, schedule sign. 4 original visitors rotate one per day (day id mod 4); present 8:00-22:00. Each visitor: distinct dialogue, 3 goods for coins (one unit each per day, shared stock), one favor (items in, unique reward out) saved per player. Survives reload; both players independent. Unit tests + rendered screenshot. | in progress |
-| R2 | Initiatives + coupons | 3 personal daily tasks per player (reset 06:00), 1 shared weekly town task (reset Monday 06:00). ≥12 templates from existing activities, only assigned when attainable (tool owned, resource present). Progress, deadline, reward shown in journal page and at the kiosk. Per-player coupon balance. Explicit claim (one time) at the Town Hall kiosk. Kiosk sells ≥8 original rewards for coupons. Saved; no duplication via reload/simultaneous input. Tests (both players). | in progress |
-| R3 | Title / start flow | Title screen: game name, version/build, Continue (or Start a new town when no save exists), Controls/help, Quit. No option deletes a save. | open |
-| R4 | Help and guide | Controls page (keyboard + gamepad from src/pad.rs mapping) and a short guide to housing balance, projects, policies, travel, activities, campground, initiatives. Reachable from title and in-game journal (page switch). | open |
-| R5 | Version identifier | Version + git short hash compiled in; shown on title and journal. | open |
-| R6 | Content audit | Every obtainable item has an acquisition path; collectibles donate; menu options work; quests attainable; destinations enter/exit. Findings fixed or listed below. | open |
-| R7 | Balance pass | No dead ends, unaffordable mandatory steps, repeat-reward exploits, rewards lost to full pockets, or tasks broken by sold-out stock. Documented in DESIGN_SPEC. | open |
-| R8 | Release docs | RELEASE_NOTES.md, HUMAN_VERIFICATION.md (remaining checks only), final commit recorded. | open |
+| R1 | Campground | One campground at tiles 31-34 x 19-22 (free meadow, east). Tent, campfire, goods crate, schedule sign. 4 original visitors rotate one per day (day id mod 4); present 8:00-22:00. Each visitor: distinct dialogue, 3 goods for coins (one unit each per day, shared stock), one favor (items in, unique reward out) saved per player. Survives reload; both players independent. Unit tests + rendered screenshot. | done |
+| R2 | Initiatives + coupons | 3 personal daily tasks per player (reset 06:00), 1 shared weekly town task (reset Monday 06:00). ≥12 templates from existing activities, only assigned when attainable (tool owned, resource present). Progress, deadline, reward shown in journal page and at the kiosk. Per-player coupon balance. Explicit claim (one time) at the Town Hall kiosk. Kiosk sells ≥8 original rewards for coupons. Saved; no duplication via reload/simultaneous input. Tests (both players). | done |
+| R3 | Title / start flow | Title screen: game name, version/build, Continue (or Start a new town when no save exists), Controls/help, Quit. No option deletes a save. | done |
+| R4 | Help and guide | Controls page (keyboard + gamepad from src/pad.rs mapping) and a short guide to housing balance, projects, policies, travel, activities, campground, initiatives. Reachable from title and in-game journal (page switch). | done |
+| R5 | Version identifier | Version + git short hash compiled in; shown on title and journal. | done |
+| R6 | Content audit | Every obtainable item has an acquisition path; collectibles donate; menu options work; quests attainable; destinations enter/exit. Findings fixed or listed below. | done |
+| R7 | Balance pass | No dead ends, unaffordable mandatory steps, repeat-reward exploits, rewards lost to full pockets, or tasks broken by sold-out stock. Documented in DESIGN_SPEC. | done |
+| R8 | Release docs | RELEASE_NOTES.md, HUMAN_VERIFICATION.md (remaining checks only), final commit recorded. | done |
 
 ## 2. Already delivered (regression-protected by 67 tests + autotest phases)
 Daily clock/rollover, seasons, weather; bugs/fish/diving/digging/fossils; museum with art wing; shop with rotating stock,
@@ -40,3 +40,7 @@ Physical gamepads (two), keyboard feel, audio listening on the user's devices, a
 ## Progress log
 - R1 campground, R2 initiatives/coupons/kiosk, R3 title flow, R4 help/guide (journal pages + title), R5 version (build.rs git hash): implemented 2026-11-14; tests campground_visitors_stock_favor_two_players, initiatives_tasks_claims_kiosk_two_players, task_events_from_normal_actions, version_and_help_present; autotest phase 30 screenshots inspected (title, help, camp menu, both players at camp, kiosk, journal pages incl. split collection).
 - Remaining: R6 content audit, R7 balance pass, R8 release docs.
+- R6 audit: test release_content_acquisition_audit (every DEFS entry has a source). Fixed: non-native fruit had no source (now on Gullrock daily); Pell's Sea Glass lost with full pockets (now mailed); existing saves got no tasks until 06:00 (now assigned on first update).
+- R7 balance: documented in DESIGN_SPEC (Release 1 balance). Coupon rewards resell at 1/4 value; claims and favors are one-time and saved; purchases deduct only after the item fits.
+- R8: RELEASE_NOTES.md written; HUMAN_VERIFICATION.md trimmed to remaining human checks. Real save copy migrated in an ignored test (money/home/profiles unchanged, tasks assigned).
+- Implementation complete for Release 1. Human verification pending (HUMAN_VERIFICATION.md).

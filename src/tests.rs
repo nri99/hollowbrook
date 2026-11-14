@@ -493,3 +493,22 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     g.bubbles = vec![(vec2(5.5, 5.5), 70)]; g.me.pos = vec2(5.5, 5.5); g.dive(); assert_eq!(g.w.p.tasks[2].prog, 1);
 }
 #[test] fn version_and_help_present() { assert!(VERSION.starts_with("v1.0.0")); assert!(HELP_KEYS.len() >= 8 && HELP_PAD.len() >= 8 && GUIDE.len() >= 8); }
+#[test] fn release_content_acquisition_audit() {
+    let g = g0(at(11, 12, 0, 0)); let mut src: Vec<u16> = vec![];
+    for m in 1..=12 { for h in 0..24 { for rain in [false, true] { src.extend(Game::bug_pool(rain, m, h)) } src.extend(Game::islet_bug_pool(m, h)); for hab in [1, 2] { for mouth in [false, true] { src.extend(Game::fish_pool(hab, mouth, m, h)) } } } }
+    src.extend(FRUITS); src.extend([40, 41, 42, 84, 82, 75, 85, 86, 80, 81, 45, 46, 47, 70, 71, 72, 73, 74]); src.extend(FOSSILS); src.extend(FURN_IDS); src.extend(ISTALL_ITEMS.iter().map(|x| x.0)); src.extend(CLOTHES); src.extend(ARTS);
+    for v in &VISITORS { src.extend(v.goods); src.push(v.reward) } src.extend(KIOSK_ITEMS.iter().map(|x| x.0)); src.extend([60, 61, 62]);
+    let missing: Vec<&str> = DEFS.iter().filter(|d| !src.contains(&d.id)).map(|d| d.name).collect(); assert!(missing.is_empty(), "no acquisition path: {missing:?}");
+    // the islet offers every non-native fruit over consecutive days
+    let mut g = g; let mut seen = vec![]; for k in 0..3 { g.w.day += 1; g.refresh_islet(); let _ = k; seen.extend(g.w.iground.iter().map(|i| i.def).filter(|d| FRUITS.contains(d))) } for f in FRUITS { if f != g.w.native { assert!(seen.contains(&f), "fruit {f} never on Gullrock") } }
+}
+#[test] fn pell_reward_not_lost_with_full_pockets() {
+    let mut g = g0(at(11, 12, 0, 0)); g.me.scene = Scene::Islet; let (d, n, _) = islet_task(g.w.day);
+    g.w.p.inv = vec![Slot { def: d, qty: n, uid: 0 }]; g.w.p.inv.extend((1..INV_CAP).map(|_| Slot { def: 20, qty: STACK, uid: 0 })); let m0 = g.w.p.mail.len();
+    g.pell(); let glass: u16 = g.w.p.inv.iter().filter(|s| s.def == 85).map(|s| s.qty).sum(); assert_eq!(glass as usize + g.w.p.mail.len() - m0, 3);
+}
+#[test] #[ignore] fn migrate_real_save_copy() {
+    let p = std::env::var("HB_SAVE_COPY").unwrap(); let w = save::load(&p).expect("loads"); let (money, home, n) = (w.p.money, w.p.home, w.others.len());
+    let mut g = Game::from_world(w, town()); assert_eq!((g.w.p.money, g.w.p.home, g.w.others.len()), (money, home, n));
+    g.update_player(&Inp::none(), 0.016); assert_eq!(g.w.p.tasks.len(), 3); println!("migrated: money {money} home {home} others {n} tasks {:?} visitor {}", g.w.p.tasks.iter().map(|t| TASKS[t.t].2).collect::<Vec<_>>(), VISITORS[g.visitor()].name);
+}

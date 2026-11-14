@@ -791,14 +791,15 @@ impl Game {
     pub fn refresh_islet(&mut self) {
         self.w.iground.clear();
         let mut free: Vec<(i32, i32)> = (0..IW * IH).filter(|&i| self.imap[i] == SAND).map(|i| ((i % IW) as i32, (i / IW) as i32)).filter(|&t| t != ISTALL && t != (7, 11) && t != (6, 11) && t != (7, 10)).collect();
-        for (d, n) in [(82, 7), (84, 4), (75, 2)] { for _ in 0..n { if free.is_empty() { break } let t = free.remove(gen_range(0, free.len())); let uid = self.uid(); self.w.iground.push(GItem { uid, def: d, x: t.0 as f32 + 0.5, z: t.1 as f32 + 0.5 }) } }
+        let foreign: Vec<u16> = FRUITS.iter().copied().filter(|&f| f != self.w.native).collect(); let ff = foreign[self.w.day.rem_euclid(foreign.len() as i64) as usize]; // one non-native fruit washes ashore daily
+        for (d, n) in [(82, 7), (84, 4), (75, 2), (ff, 2)] { for _ in 0..n { if free.is_empty() { break } let t = free.remove(gen_range(0, free.len())); let uid = self.uid(); self.w.iground.push(GItem { uid, def: d, x: t.0 as f32 + 0.5, z: t.1 as f32 + 0.5 }) } }
     }
     /// Captain Pell: offers the return trip, explains today's activity, and pays 3 Sea Glass once per player per day.
     pub fn pell(&mut self) {
         let (d, n, label) = islet_task(self.w.day); let have: u16 = self.w.p.inv.iter().filter(|s| s.def == d).map(|s| s.qty).sum();
         let mut lines = vec![format!("Ahoy! Today's islet task: {label}.")];
         if self.w.p.islet_done == self.w.day { lines.push("You've already done today's task. Come back tomorrow!".into()) }
-        else if have >= n { for _ in 0..n { self.remove_one(d); } for _ in 0..3 { self.add(85); } self.w.p.islet_done = self.w.day; self.snd.push(Snd::Coin); lines.push("Splendid work! Here are 3 pieces of Sea Glass.".into()) }
+        else if have >= n { for _ in 0..n { self.remove_one(d); } let mut got = 0; for _ in 0..3 { if self.add(85) { got += 1 } } for _ in got..3 { self.w.p.mail.push(Letter { from: "Captain Pell".into(), text: "Your pockets were full, so here is the Sea Glass you earned.".into(), coins: 0, item: Some(85), read: false, claimed: false }) } self.w.p.islet_done = self.w.day; self.snd.push(Snd::Coin); lines.push("Splendid work! Here are 3 pieces of Sea Glass.".into()) }
         else { lines.push(format!("You have {have} of {n} so far.")) }
         lines.push("Talk to me again after this to sail home (free).".into());
         self.me.ui = Ui::Talk { npc: None, who: "Captain Pell the pelican".into(), lines, i: 0 };
@@ -1172,7 +1173,7 @@ impl Game {
     }
     /// Per-player update for the active player (`activate` first): its own input, camera, UI, movement, actions.
     pub fn update_player(&mut self, inp: &Inp, dt: f32) {
-        self.me.swing = (self.me.swing - dt).max(0.); self.act_step();
+        self.me.swing = (self.me.swing - dt).max(0.); self.act_step(); if self.w.p.task_day != self.w.day { self.assign_tasks() } if self.w.wtask.is_none() { self.assign_weekly() }
         if self.me.spd > 0.1 { self.me.anim += dt * self.me.spd * 3.2 }
         self.sim_fish(dt);
         let pp = self.ppos(); self.me.cam = self.me.cam.lerp(pp, 1. - (-12. * dt).exp());

@@ -209,3 +209,5 @@ schedules, resume-outdoors policy, clock-rollback pause).
 ## Release 1 (RELEASE_1.md) — 2026-11-14
 - Done: R1-R5 (see RELEASE_1.md progress log). Suite 71 pass + 1 ignored helper.
 - Next action: R6 content audit (acquisition paths, menu options, quests), R7 balance pass, then R8 docs (RELEASE_NOTES.md, HUMAN_VERIFICATION.md trim), final commit.
+- R6-R8 done. Full suite 73 pass (+2 ignored helpers: camp-site finder, real-save migration). Release 1 implementation complete; human checks pending.
+- Next action: none until user playtest feedback. Launch: `cargo run --release`.
