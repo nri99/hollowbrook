@@ -293,3 +293,12 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     let w = g.persist(); assert_eq!(w.p.pos, [dock_stand().x, dock_stand().y]); let inv = w.p.inv.clone(); let g2 = reload(&g, "islet"); assert_eq!(g2.w.p.inv, inv); assert_eq!(g2.me.scene, Scene::Town);
     assert!(!g.walk_tile(DOCK.0, DOCK.1));
 }
+#[test] fn parcels_birthdays_and_chats() {
+    let mut g = g0(at(16, 12, 0, 0)); g.update(&Inp::none(), 0.016, at(16, 12, 0, 0)); for s in &mut g.w.p.npcs { s.req = None } g.w.p.npcs[0].req = Some(86);
+    g.talk(0); let (from, to) = g.w.p.parcel.expect("parcel"); assert_eq!(from, 0); assert!(g.w.p.inv.iter().any(|s| s.def == 86)); g.me.ui = Ui::Play; let m = g.w.p.money;
+    g.talk(to); assert!(g.w.p.parcel.is_none()); assert_eq!(g.w.p.money, m + 300); assert!(!g.w.p.inv.iter().any(|s| s.def == 86)); g.me.ui = Ui::Play;
+    // Otto (character 3) has a birthday on 16 Nov in BDAYS
+    let f = g.w.p.npcs[3].friend; g.add(40); let slot = g.w.p.inv.iter().position(|s| s.def == 40).unwrap(); g.give_gift(3, slot); assert!(g.w.p.npcs[3].friend >= f + 5);
+    g.talk(3); if let Ui::Talk { lines, .. } = &g.me.ui { assert!(lines.iter().any(|l| l.contains("birthday"))) } g.me.ui = Ui::Play;
+    for k in 0..4 { g.npcs[k].inside = false; g.npcs[k].pos = vec2(30.5 + k as f32 * 0.8, 9.5) } let mut n = 0; while g.chats.is_empty() && n < 20000 { g.sim_chats(0.016); n += 1 } assert!(!g.chats.is_empty());
+}

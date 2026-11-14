@@ -1,10 +1,10 @@
 # Progress log
 
 ## Current
-- Current task: X-05 social depth (resident-to-resident chats, birthdays, varied requests)
-- Last completed: X-03 Gullrock Islet
+- Current task: X-06 atmosphere, then X-04 collections
+- Last completed: X-05 social depth
 - Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
-- Next action: add a dock on the beach (tile + boat model), Ui confirm with fare, Scene::Islet (own small map rendered outdoors without town), islet critters + Sea Glass from a daily activity, islet stall, return trip; tests for per-player travel and item safety.
+- Next action: X-06: procedural looping music (day/evening/night variants generated as WAV, played looped at low volume), surface-dependent footstep sounds (grass/path/sand/wood/indoor), seasonal particles (spring petals, autumn leaves, summer-night fireflies) per view; then X-04.
 
 ## Baseline verification (before this run)
 - 19 headless tests pass. Executable bot run (2 launches) completed the full loop; screenshots inspected:
@@ -141,3 +141,8 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - Scene::Islet with own map/terrain/palms/tide pool/dock, Captain Pell (town dock + islet), travel confirm + fare, daily alternating task, Sea Glass reward once per player per day, islet stall, islet-only Palm Crab and Glass Shrimp, per-player travel (the other player stays in town), save resumes at the dock.
 - H: 51/51 (new: islet_travel_task_stall_and_safety). X: phase 20 two players: P1 sailed (1000->800), gathered 5 Driftwood, Pell paid 3 Sea Glass, sailed home; P2 stayed in town. S (inspected): x03_split_islet_town.
 - Remaining: X-04 collections, X-05 social depth, X-06 atmosphere.
+
+### X-05 done (social depth)
+- Resident-to-resident chats with speech bubbles (residents sometimes walk toward a neighbour); birthdays (letters, dialogue, gift bonus); parcel-delivery requests between residents.
+- H: 52/52 (new: parcels_birthdays_and_chats). X: phase 21 — first run no chat in 2 min (residents too spread out) -> residents now sometimes stroll toward a neighbour; rerun: chat started within ~13 s. S (inspected): x05_resident_chat (Juniper bubble beside Otto).
+- Remaining: X-04 collections (themed furniture sets, more critters with habitat/season, art wing, museum labels), X-06 atmosphere (music, surface footsteps, seasonal particles, animation polish).

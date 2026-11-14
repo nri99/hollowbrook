@@ -30,7 +30,7 @@ const fn fu(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32), fp: (i3
 const fn cl(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32)) -> D { D { buy, ..b(id, name, K::Cloth, buy / 4, col) } }
 const fn tl(id: u16, name: &'static str, buy: u32) -> D { D { buy, ..b(id, name, K::Tool, 0, (0.6, 0.45, 0.3)) } }
 
-pub static DEFS: [D; 64] = [
+pub static DEFS: [D; 65] = [
     cr(0, "Cabbage White", K::Bug, 90, (1., 1., 0.95), 0.2, 0, 3, 10, 6, 17), cr(1, "Honeybee", K::Bug, 160, (1., 0.85, 0.2), 0.2, 0, 3, 7, 8, 17),
     cr(2, "Ladybug", K::Bug, 120, (0.9, 0.15, 0.1), 0.2, 0, 3, 6, 8, 17), cr(3, "Dragonfly", K::Bug, 230, (0.3, 0.8, 0.9), 0.2, 0, 5, 10, 8, 19),
     cr(4, "Cicada", K::Bug, 300, (0.4, 0.6, 0.3), 0.2, 0, 7, 8, 8, 17), cr(5, "Firefly", K::Bug, 450, (0.8, 1., 0.3), 0.2, 0, 6, 7, 19, 4),
@@ -54,6 +54,7 @@ pub static DEFS: [D; 64] = [
     b(82, "Driftwood", K::Material, 10, (0.75, 0.68, 0.55)), b(84, "Moon Shell", K::Shell, 60, (0.93, 0.93, 0.98)), b(85, "Sea Glass", K::Material, 0, (0.45, 0.85, 0.75)),
     b(74, "Glass Shrimp", K::Sea, 700, (0.8, 0.95, 0.95)), b(75, "Palm Crab", K::Sea, 450, (0.85, 0.3, 0.2)),
     fu(58, "Driftwood Stool", 1200, (0.72, 0.62, 0.47), (1, 1), false, false, Act::Sit), fu(59, "Glass Float", 1500, (0.4, 0.78, 0.82), (1, 1), false, false, Act::None),
+    b(86, "Parcel", K::Material, 0, (0.75, 0.55, 0.35)),
     b(80, "Branch", K::Material, 20, (0.55, 0.4, 0.25)), b(81, "Stone", K::Material, 30, (0.6, 0.6, 0.62)),
     cl(67, "Straw Hat", 350, (0.9, 0.8, 0.45)), cl(68, "Beanie", 350, (0.3, 0.42, 0.8)), cl(69, "Flower Crown", 350, (0.95, 0.6, 0.72)),
     cl(63, "Sky Tee", 400, (0.45, 0.7, 0.95)), cl(64, "Sunflower Tee", 400, (0.98, 0.82, 0.3)), cl(65, "Forest Hoodie", 650, (0.25, 0.5, 0.32)), cl(66, "Berry Sweater", 650, (0.75, 0.25, 0.45)),
@@ -218,6 +219,10 @@ pub const CHAT: [[&str; 4]; 4] = [
 ];
 /// Gift preference per resident (provisional): liked kinds give more friendship.
 pub const LIKES: [K; 4] = [K::Fruit, K::Fossil, K::Fish, K::Bug];
+/// Birthdays per character (CHARS index), initial content choice: (month, day).
+pub const BDAYS: [(u32, u32); 6] = [(4, 12), (9, 3), (6, 21), (11, 16), (3, 2), (12, 8)];
+/// Short lines residents say to each other (speech bubbles), per personality.
+pub const CHATTER: [[&str; 3]; 4] = [["Isn't today lovely?", "I love your scarf!", "Let's picnic soon!"], ["Hmph. Nice weather. I suppose.", "Don't step on my flowers.", "...Fine. Hello."], ["The clouds look like fish today.", "Do pebbles dream?", "Shh... listen to the wind."], ["Race you to the bridge!", "Stretch break!", "I did fifty laps today!"]];
 pub const AGAIN: [&str; 4] = ["We already chatted today, but I don't mind more!", "Still here? Hmph.", "Oh... you're back. Like a tide.", "Round two? Let's go!"];
 pub const SNOW: [&str; 4] = ["Snow! Let's build a snow-fox!", "Snow. Cold paws. Marvelous.", "Every snowflake is a tiny cloud that gave up.", "Snow sprints are the best sprints!"];
 pub const RAIN: [&str; 4] = ["Rain means puddles! Puddles mean jumping!", "Rain. Wet fur. Wonderful. Truly.", "The rain is singing to the frogs. I'm a frog.", "Running in the rain builds character!"];

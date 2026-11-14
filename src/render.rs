@@ -363,7 +363,9 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
     for (i, n) in g.npcs.iter().enumerate() { if n.inside || !near(n.pos.x, n.pos.y) { continue }
         let talking = matches!(g.me.ui, Ui::Talk { npc: Some(j), .. } if j == i);
         resident_u(r, g.w.roster[i], vec3(n.pos.x, 0., n.pos.y), n.yaw, n.anim, n.moving, t, talking, n.happy, weather(g.w.day, now.month()) == Wx::Rain);
-        if n.pos.distance(g.me.pos) < 4. { labels.push((vec3(n.pos.x, 1.75, n.pos.y), g.res(i).name.into(), Color::new(1., 0.95, 0.7, 1.))) } }
+        if let Some(&(a, b, left)) = g.chats.iter().find(|c| c.0 == i || c.1 == i) { let first = a == i; let speak = ((5. - left) as i32 % 2 == 0) == first; let pers = g.res(i).pers;
+            if speak && n.pos.distance(g.me.pos) < 7. { labels.push((vec3(n.pos.x, 1.95, n.pos.y), format!("\"{}\"", CHATTER[pers][(i + b) % 3]), WHITE)) } }
+        else if n.pos.distance(g.me.pos) < 4. { labels.push((vec3(n.pos.x, 1.75, n.pos.y), g.res(i).name.into(), Color::new(1., 0.95, 0.7, 1.))) } }
     let sy = if g.swimming() { for k in 0..10 { let a = k as f32 * 0.63 + t; r.sphere(vec3(g.me.pos.x + a.cos() * 0.38, -0.17, g.me.pos.y + a.sin() * 0.3), vec3(0.05, 0.015, 0.05), Color::new(0.9, 0.97, 1., 1.)) } -0.55 } else { 0. };
     let opose = match g.me.pose { Pose::Stand => 0, Pose::Sit(_) => 1, Pose::Lie(_) => 2 };
     human(r, g.me.id, (g.w.p.shirt, g.w.p.hat, g.w.p.hair), vec3(g.me.pos.x, sy + if opose == 1 { 0.02 } else { 0. }, g.me.pos.y), yaw_of(g.me.face), g.me.anim, g.me.spd, opose, g.w.p.equip, t, g.me.swing);

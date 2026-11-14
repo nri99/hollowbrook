@@ -65,5 +65,5 @@ Status: `[ ]` open · `[x]` done · `[B]` blocked (reason given)
 - [x] **X-02 Liveliness + reactions.** Town liveliness score (notice board, journal), residents react to completed projects (dialogue + happy). *AC:* H + S.
 - [x] **X-03 Islet getaway.** Dock + boat (confirm, fare), Scene::Islet with own scenery/wildlife, rotating daily activity, Sea Glass reward + islet stall with original items; per-player travel; no item loss. *AC:* H + X + S (split-screen with one player away).
 - [ ] **X-04 Collections.** Themed furniture sets, more critters with habitat/season rules, art wing with procedural original paintings, museum labels. *AC:* H + S; counts updated.
-- [ ] **X-05 Social depth.** Birthdays, resident-to-resident chats (speech bubbles), varied requests (deliver furniture / catch at location / weather-specific), more dialogue variety. *AC:* H + S.
+- [x] **X-05 Social depth.** Birthdays, resident-to-resident chats (speech bubbles), varied requests (deliver furniture / catch at location / weather-specific), more dialogue variety. *AC:* H + S.
 - [ ] **X-06 Atmosphere.** Procedural music by hour/weather, surface-dependent footsteps, seasonal particles (leaves, fireflies, petals), animation/face polish, dialogue framing in split-screen. *AC:* S (+ audio by code inspection only).

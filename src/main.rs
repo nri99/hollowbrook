@@ -314,6 +314,11 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         log!("pockets={:?}", g.w.p.inv); for _ in 0..10 { step2(g, c, Inp::none(), Inp::none()).await } shot!("x03_split_islet_town");
         approach(g, c, vec2(PELL_I.0, PELL_I.1)).await; press(g, c, KeyCode::E).await; log!("pell: {:?}", g.me.ui); for _ in 0..4 { if !matches!(g.me.ui, Ui::Talk { .. }) { break } press(g, c, KeyCode::E).await }
         log!("sea glass={} ui={:?}", g.w.p.inv.iter().filter(|s| s.def == 85).map(|s| s.qty).sum::<u16>(), g.me.ui); press(g, c, KeyCode::Enter).await; wait(g, c, 40).await; log!("back: scene={:?} pos={:?}", g.me.scene, g.me.pos);
+    } else if phase == "21" {
+        // X-05: wait for residents to start chatting on their own, walk over, capture the speech bubbles
+        for _ in 0..7200 { if !g.chats.is_empty() { break } step(g, c, &[], &[]).await } log!("chats={:?}", g.chats);
+        if let Some(&(a, _, _)) = g.chats.first() { for _ in 0..600 { let np = g.npcs[a].pos; if g.me.pos.distance(np) < 2.5 || g.chats.is_empty() { break } let path = g.bfs(tile_of(g.me.pos), tile_of(np), false).unwrap_or_default(); let wp = if path.len() > 1 { tc(path[0]) } else { np }; step(g, c, &keys_toward(wp - g.me.pos), &[]).await } }
+        log!("still chatting={:?}", g.chats); shot!("x05_resident_chat");
     } else if phase == "0" {
         log!("load-only check");
     } else if phase == "3" && c.now().hour() < 18 {
