@@ -304,3 +304,16 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     for k in 0..4 { g.npcs[k].inside = false; g.npcs[k].pos = vec2(30.5 + k as f32 * 0.8, 9.5) } let mut n = 0; while g.chats.is_empty() && n < 20000 { g.sim_chats(0.016); n += 1 } assert!(!g.chats.is_empty());
 }
 #[test] fn footstep_surfaces() { let mut g = g0(at(16, 12, 0, 0)); g.me.pos = vec2(13.5, 17.5); assert_eq!(g.step_sound(), Snd::StepPath); g.me.pos = vec2(14.5, 24.5); assert_eq!(g.step_sound(), Snd::StepSand); g.me.pos = vec2(24.5, 9.5); assert_eq!(g.step_sound(), Snd::StepWood); g.swap(Scene::Room(HOME)); assert_eq!(g.step_sound(), Snd::StepFloor); }
+
+#[test] fn money_projects_leader_funding_rollover() {
+    let mut g = two(at(11, 12, 0, 0)); let cost = MPROJECTS[3].1;
+    g.activate(1); g.me.pos = vec2(16.5, 20.5); g.me.face = vec2(1., 0.); assert_eq!(g.mp_start(3), Err("Only the town leader can start public projects."));
+    g.activate(0); g.me.pos = vec2(13.5, 18.5); g.me.face = vec2(0., 1.); assert!(g.mp_start(3).is_err()); // path tile rejected
+    g.me.pos = vec2(16.5, 20.5); g.me.face = vec2(1., 0.); g.mp_start(3).unwrap(); let m = g.w.mproject.clone().unwrap(); assert!(!g.walk_tile(m.x, m.z));
+    for b in 0..BLDS.len() { assert!(g.bfs(door_tile(SHOP), door_tile(b), true).is_some()) }
+    g.w.p.money = 30000; g.activate(1); g.w.p.money = 25000; g.activate(0);
+    assert_eq!(g.mp_fund(30000), Ok(30000)); g.activate(1); assert_eq!(g.mp_fund(25000), Ok(cost - 30000)); assert_eq!(g.w.p.money, 25000 - (cost - 30000)); assert!(g.mp_fund(1).is_err());
+    g.w.p.money = 0; g.activate(0); assert_eq!(g.w.p.money, 0);
+    let g2 = reload(&g, "mproj"); assert_eq!(g2.w.mproject, g.w.mproject);
+    assert!(g.w.built.iter().all(|b| b.kind != 4)); assert!(g.catch_up(at(12, 6, 0, 1))); assert!(g.w.built.iter().any(|b| b.kind == 4 && (b.x, b.z) == (m.x, m.z))); assert!(g.w.mproject.is_none());
+}

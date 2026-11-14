@@ -161,3 +161,9 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - H: 57/57 (new: hourly_melodies_are_distinct, loops_are_long_clean_and_unclipped, nights_quieter_and_indoor_muffled, settings_roundtrip_and_volume_math). Release build includes quad-snd (cargo tree).
 - X: phase 23: 16:59:55 -> hour 16 loaded (37.3 s), 17:00 crossfade to hour 17 (44.7 s) over ~3 s, entering home -> Indoor arrangement crossfade, journal X mute -> applied 0.00, unmute + volume steps applied.
 - NOT verified: how it sounds (agent cannot listen).
+
+## Items 2/3/4/7 (user request, 2026-11-14)
+- 2 Housing balance: DONE (7da590e).
+- 3 Money-funded public construction: DONE. MPROJECTS table (data.rs), LEADER=player 0 picks at notice board, ghost preview green/red with route validation (mp_site_ok), donations per player in 1000c steps at the site sign (log saved), built at next 06:00 (finish_mproject). Material projects unchanged. Test money_projects_leader_funding_rollover.
+- 4 Policies: PENDING (civic desk administrator, one active, data table, no stacking on reload).
+- 7 Gullrock timed activities: PENDING (3 distinct, solo/co-op, HUD objective/time/score/thresholds).

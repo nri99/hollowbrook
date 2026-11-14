@@ -155,6 +155,12 @@ pub const PK_BRIDGE: u8 = 3;
 /// Candidate sites per project kind (validated at proposal time; bridge = two river tiles from x).
 pub const SITES: [&[(i32, i32)]; 4] = [&[(10, 8), (16, 16), (22, 8), (5, 18), (28, 18)], &[(8, 10), (19, 16), (27, 10), (14, 18), (10, 16)], &[(12, 11), (18, 10), (29, 8), (7, 16), (34, 18)], &[(25, 21)]];
 pub const BOARD: (i32, i32) = (14, 8);
+/// Money-funded public projects (original, extensible table): name, coin cost, model id for draw_project.
+pub const MPROJECTS: [(&str, u32, u8); 5] = [("bench", 8000, 0), ("lamp post", 12000, 1), ("planter", 10000, 2), ("fountain", 40000, 4), ("flower arch", 25000, 5)];
+/// Player id of the town leader (initiates and places money-funded projects).
+pub const LEADER: usize = 0;
+pub const DOCK_APPROACH: (i32, i32) = (20, 24);
+pub const DONATE_STEP: u32 = 1000;
 /// Gullrock Islet (original getaway; initial balance): fare 200 coins one way, return free; daily activity alternates
 /// between gathering 5 Driftwood and finding 3 Moon Shells; completing it once per player per day pays 3 Sea Glass;
 /// the islet stall trades Sea Glass for exclusive furniture.
