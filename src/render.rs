@@ -280,7 +280,7 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
     let tree_at = |r: &mut R, i: usize| { let tr = &g.w.trees[i]; let sk = g.shake.iter().find(|s| s.0 == i).map_or(0., |s| s.1); tree(r, tc((tr.x, tr.z)), tr.fruit.then(|| rgb(def(g.w.native).col)), sk, t, fol) };
     for (i, tr) in g.w.trees.iter().enumerate() { let p = tc((tr.x, tr.z)); if near(p.x, p.y) && !fade_t.contains(&i) { let sk = g.shake.iter().find(|s| s.0 == i).map_or(0., |s| s.1); tree(r, p, tr.fruit.then(|| rgb(def(g.w.native).col)), sk, t, fol) } }
     for bi in 0..BLDS.len() { let b = &BLDS[bi]; if near(b.x as f32 + b.w as f32 / 2., b.z as f32 + b.d as f32 / 2.) && !fade_b.contains(&bi) { building(r, bi, lt.night) }
-        if g.me.pos.distance(door_stand(bi)) < 3.5 { let p = door_face(bi); labels.push((vec3(p.x, 2.7, p.y), BLDS[bi].name.into(), WHITE)) } }
+        if g.me.pos.distance(door_stand(bi)) < 3.5 { let p = door_face(bi); labels.push((vec3(p.x, 2.7, p.y), g.bname(bi), WHITE)) } }
     if fair_active(now.month(), now.day()) { let c = tc(STALL);
         r.cube(vec3(c.x, 0.45, c.y), vec3(0.48, 0.45, 0.4), WOOD); for k in 0..5 { r.cube(vec3(c.x - 0.4 + k as f32 * 0.2, 1.25, c.y + 0.25), vec3(0.1, 0.03, 0.35), if k % 2 == 0 { Color::new(0.95, 0.55, 0.2, 1.) } else { WHITE }) }
         for x in [-0.45, 0.45] { r.cube(vec3(c.x + x, 0.62, c.y + 0.3), vec3(0.03, 0.62, 0.03), WOOD) } for (k, f) in [20u16, 21, 22, 23].iter().enumerate() { r.sphere(vec3(c.x - 0.3 + k as f32 * 0.2, 0.98, c.y + 0.1), Vec3::splat(0.08), rgb(def(*f).col)) }
@@ -407,7 +407,7 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
     txt(hint, 12., sh - 14., 19., WHITE);
     match &g.me.ui {
         Ui::Play => {}
-        Ui::Talk { who, lines, i, .. } => { panel(sw / 2. - 430., sh - 200., 860., 140.); txt(who, sw / 2. - 410., sh - 168., 26., Color::new(0.55, 0.3, 0.15, 1.)); txt(lines.get(*i).map_or("", |s| s.as_str()), sw / 2. - 410., sh - 128., 24., BLACK); if matches!(g.me.ui, Ui::Talk { npc: Some(_), .. }) { txt(if g.me.pad { "[LB] give gift" } else { "[G] give gift" }, sw / 2. - 410., sh - 75., 20., GRAY) }
+        Ui::Talk { who, lines, i, .. } => { panel(sw / 2. - 430., sh - 200., 860., 140.); txt(who, sw / 2. - 410., sh - 168., 26., Color::new(0.55, 0.3, 0.15, 1.)); txt(lines.get(*i).map_or("", |s| s.as_str()), sw / 2. - 410., sh - 128., 24., BLACK); if let Ui::Talk { npc: Some(j), .. } = g.me.ui { let mv = g.w.moving.get(j).is_some_and(|&m| m != 0); txt(&format!("{}{}", if g.me.pad { "[LB] give gift" } else { "[G] give gift" }, if mv { if g.me.pad { "   [Y] ask to stay" } else { "   [X] ask to stay" } } else { "" }), sw / 2. - 410., sh - 75., 20., GRAY) }
             txt(if g.me.pad { "[A] next" } else { "[E] next" }, sw / 2. + 330., sh - 75., 20., GRAY) }
         Ui::Inv(s) | Ui::Sell(s) => { let sell = matches!(g.me.ui, Ui::Sell(_)); panel(sw / 2. - 260., 90., 520., 520.);
             txt(if sell { "Sell to Mr. Tumble" } else { "Pockets" }, sw / 2. - 240., 125., 30., Color::new(0.45, 0.3, 0.2, 1.));

@@ -1,10 +1,10 @@
 # Progress log
 
 ## Current
-- Current task: C-03b resident move-out/move-in rules (provisional)
-- Last completed: C-03a roster indirection (no behaviour change)
+- Current task: C-04 furniture customization (re-colour) + wallpaper/flooring
+- Last completed: C-03b resident moving out/in
 - Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
-- Next action: per-slot `moving: Option<i64>` (day the resident leaves) in World; at daily refresh: if max friendship over all profiles < 3 for a resident present >= 14 days (track `arrived: Vec<i64>`), announce (letters to all profiles + dialogue line), leave 2 days later unless any player chose "Please stay" (talk option, key S? use dialogue line + G-style key H/pad Y) -> cancel. On leaving: roster slot gets a reserve character not in roster (Clover/Basil), friendship entries for that slot reset in every profile, house label uses roster name. Render heads for sheep/hedgehog need a screenshot.
+- Next action: Furn gets `tint: u8` (serde default 0) applied as colour variant in furniture(); counter menu "Customize" re-colours a furniture item from pockets for a fee; wallpaper/flooring as K::Furn wall-less items applied to the room (Profile.wall/floor colours) from pockets via Inv Enter at home; tests; screenshot.
 
 ## Baseline verification (before this run)
 - 19 headless tests pass. Executable bot run (2 launches) completed the full loop; screenshots inspected:
@@ -111,3 +111,8 @@ schedules, resume-outdoors policy, clock-rollback pause).
 ### 04:30 — C-03a done (roster indirection)
 - `CHARS` (6 characters: 4 current + Clover the sheep, Basil the hedgehog, not yet in town), `HOUSES` slot -> building, `World.roster` slot -> character (serde default [0,1,2,3]), `Game::res(slot)`; `where_` takes a `&Res`; shopkeeper/curator draw ids moved to 10/11; head models for sheep (4) and hedgehog (5) added (not yet rendered in a screenshot).
 - H: 44/44 (new: roster_defaults_and_mapping). X/S: phase 9 rerun -> p7rain/p7_weather.png unchanged (Juniper fox with umbrella).
+
+### 04:50 — C-03b done (moving)
+- [PROV] `World.arrived/moving` per slot (serde default; older saves start the 14-day clock at load). Daily: resident present >= 14 days, friendship < 3 with every player, no open request -> letter to every profile + dialogue line; X (pad Y) in conversation asks them to stay (cancels, restarts clock, +1 friendship). After 2 days a reserve character (Clover, Basil) takes the slot; friendship for that slot resets in every profile; house labels/door prompts follow the roster (`Game::bname`). Post letter announces the change.
+- H: 47/47 (new: residents_move_out_and_in_with_stay_option, plurals). X: phase 16 (roster set as logged FIXTURE) talked to Clover and Basil. S (inspected): c03_Clover.png (sheep head + "Clover's House" label); c03_Basil.png (hedgehog mostly behind the dialogue box: spikes visible only -> partial).
+- Fixed plural helper (cherry -> cherries) seen in the Clover screenshot.

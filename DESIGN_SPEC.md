@@ -113,7 +113,7 @@ original sample, not a claim of full coverage.
 | Clothing / appearance | 4 shirts; no hair/face changes | PARTIAL | trousers, shoes, hats, accessories, hairstyles, designs |
 | Shops | general store (5 daily stock, 2 tools, rack, counter, catalog) | PARTIAL | additional shops, upgrades, seasonal stock |
 | Housing | 3 sizes (paid up front), storage 40 | PARTIAL | extra rooms, exterior customization; loans BLOCKED |
-| Residents | 4 + shopkeeper + curator; schedules, requests, gifts, letters, home visits | PARTIAL | moving in/out, more personalities, birthdays |
+| Residents | 4 + shopkeeper + curator; schedules, requests, gifts, letters, home visits | PARTIAL | more personalities, birthdays (moving in/out: provisional rules implemented) |
 | Weather | clear / rain / snow (deterministic, provisional) | PARTIAL | storms, fog, seasonal particles beyond snow |
 | Events | Harvest Fair (provisional window 13–16 Nov) | PARTIAL | full annual calendar (not specified -> fidelity gap) |
 | Visiting characters / entertainment | — | NOT IMPLEMENTED | spec gives no roster or rules |

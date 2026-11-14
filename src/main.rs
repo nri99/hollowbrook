@@ -258,6 +258,11 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         step(g, c, &[KeyCode::Space], &[KeyCode::Space]).await; log!("fx after net: {:?}", g.fx); shot!("fx_net_swish");
         for _ in 0..4 { if g.w.p.equip == Some(61) { break } press(g, c, KeyCode::Tab).await } go(g, c, vec2(23.5, 5.5), 0.12).await; face(g, c, vec2(25., 5.5)).await;
         step(g, c, &[KeyCode::Space], &[KeyCode::Space]).await; log!("fx after cast: {:?} fishing={}", g.fx, g.me.fish.is_some()); shot!("fx_cast_splash");
+    } else if phase == "16" {
+        // C-03b render check: reserve characters placed by a logged FIXTURE (the move workflow itself is covered headlessly)
+        g.w.roster[0] = 4; g.w.roster[2] = 5; for k in [0, 2] { g.npcs[k].inside = true } log!("FIXTURE: roster {:?}", g.w.roster);
+        wait(g, c, 90).await; for k in [0usize, 2] { for _ in 0..1500 { let np = g.npcs[k].pos; if !g.npcs[k].inside && g.me.pos.distance(np) < 1.6 { break } let path = g.bfs(tile_of(g.me.pos), tile_of(np), false).unwrap_or_default(); let wp = if path.len() > 1 { tc(path[0]) } else { np }; step(g, c, &keys_toward(wp - g.me.pos), &[]).await }
+            face(g, c, g.npcs[k].pos).await; press(g, c, KeyCode::E).await; log!("talk {}: {:?}", g.res(k).name, g.me.ui); shot!(format!("c03_{}", g.res(k).name)); for _ in 0..5 { if g.me.ui == Ui::Play { break } press(g, c, KeyCode::E).await } }
     } else if phase == "0" {
         log!("load-only check");
     } else if phase == "3" && c.now().hour() < 18 {

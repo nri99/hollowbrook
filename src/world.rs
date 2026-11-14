@@ -59,6 +59,9 @@ pub struct World {
     #[serde(default)] pub donated: Vec<(u16, usize)>,
     /// house slot -> character index in CHARS (residents can move)
     #[serde(default = "roster0")] pub roster: Vec<usize>,
+    /// per house slot: gameplay day the current resident arrived, and the day they leave (0 = not moving)
+    #[serde(default)] pub arrived: Vec<i64>,
+    #[serde(default)] pub moving: Vec<i64>,
     /// profile of the player currently being processed (swapped in by `Game::activate`)
     pub p: Profile,
     #[serde(default)] pub others: Vec<Profile>,
@@ -67,7 +70,7 @@ pub fn roster0() -> Vec<usize> { vec![0, 1, 2, 3] }
 impl World {
     pub fn fresh(name: String, day: i64, map: &[u8]) -> World {
         let trees = (0..W * H).filter(|&i| map[i] == TREE).map(|i| Tree { x: (i % W) as i32, z: (i / W) as i32, fruit: true, shaken: i64::MIN / 2 }).collect();
-        World { version: SAVE_VERSION, day, native: FRUITS[gen_range(0usize, 4)], trees, ground: vec![], weeds: vec![], holes: vec![], digs: vec![], stock: vec![], stock_day: i64::MIN, uid: 1, trampled: vec![], donated: vec![], roster: roster0(), p: Profile::new(0, name, door_stand(HOME)), others: vec![] }
+        World { version: SAVE_VERSION, day, native: FRUITS[gen_range(0usize, 4)], trees, ground: vec![], weeds: vec![], holes: vec![], digs: vec![], stock: vec![], stock_day: i64::MIN, uid: 1, trampled: vec![], donated: vec![], roster: roster0(), arrived: vec![day; 4], moving: vec![0; 4], p: Profile::new(0, name, door_stand(HOME)), others: vec![] }
     }
 }
 
@@ -92,6 +95,8 @@ impl Inp {
     pub fn p(&self, k: KeyCode) -> bool { self.pressed.contains(&k) }
 }
 pub fn where_(r: &Res, hr: u32) -> Loc { if !(hr >= r.wake && hr < r.sleep) { Loc::Asleep } else if r.home_h.iter().any(|&(a, b)| hr >= a && hr < b) { Loc::Home } else { Loc::Out } }
+/// English plural for item names (peach -> peaches, cherry -> cherries).
+pub fn plural(w: &str) -> String { if w.ends_with("ch") { format!("{w}es") } else if let Some(b) = w.strip_suffix('y') { format!("{b}ies") } else { format!("{w}s") } }
 pub fn tile_of(p: Vec2) -> (i32, i32) { (p.x.floor() as i32, p.y.floor() as i32) }
 pub fn tc(t: (i32, i32)) -> Vec2 { vec2(t.0 as f32 + 0.5, t.1 as f32 + 0.5) }
 pub fn dir(rot: u8) -> Vec2 { [vec2(0., 1.), vec2(1., 0.), vec2(0., -1.), vec2(-1., 0.)][rot as usize % 4] }
@@ -137,6 +142,7 @@ impl Game {
         let map = &g.map; let open = |t: &(i32, i32)| tile_at(map, t.0, t.1) != BLD && *t != mailbox_tile(0) && *t != mailbox_tile(1); // objects saved before a building existed there
         g.w.weeds.retain(open); g.w.digs.retain(open); g.w.holes.retain(open); g.w.ground.retain(|i| open(&tile_of(vec2(i.x, i.z))));
         for p in std::iter::once(&mut g.w.p).chain(g.w.others.iter_mut()) { let owned: Vec<u16> = p.room.iter().map(|f| f.def).chain(p.inv.iter().chain(p.storage.iter()).map(|s| s.def)).filter(|&d| matches!(def(d).k, K::Furn | K::Cloth)).chain(p.shirt).collect(); for d in owned { if !p.catalog.contains(&d) { p.catalog.push(d) } } }
+        if g.w.arrived.len() != 4 { g.w.arrived = vec![g.w.day; 4] } if g.w.moving.len() != 4 { g.w.moving = vec![0; 4] } // older saves start the 14-day clock now
         if g.w.stock.is_empty() { g.refresh_world() } // migrated saves get shop stock, shells and dig sites
         g
     }
@@ -194,7 +200,7 @@ impl Game {
     pub fn refresh(&mut self, letters: bool) {
         let n = self.w.others.len(); self.refresh_profile(letters);
         for k in 0..n { std::mem::swap(&mut self.w.p, &mut self.w.others[k]); self.refresh_profile(letters); std::mem::swap(&mut self.w.p, &mut self.w.others[k]) }
-        self.refresh_world();
+        self.refresh_world(); self.refresh_moves();
     }
     fn refresh_profile(&mut self, letters: bool) {
         let mine = self.w.p.id == self.me.id;
@@ -205,6 +211,28 @@ impl Game {
                 self.w.p.mail.push(Letter { from: self.res(i).name.into(), text: NOTES[self.res(i).pers].into(), coins: m, item: None, read: false, claimed: false });
                 if mine { self.me.msgs.push((format!("You have a letter from {} in your mailbox.", self.res(i).name), self.t)) } } }
         while self.w.p.mail.len() > 20 { let Some(k) = self.w.p.mail.iter().position(|l| l.read && (l.claimed || (l.coins == 0 && l.item.is_none()))) else { break }; self.w.p.mail.remove(k); }
+    }
+    fn mail_all(&mut self, from: &str, text: &str) {
+        for p in std::iter::once(&mut self.w.p).chain(self.w.others.iter_mut()) { p.mail.push(Letter { from: from.into(), text: text.into(), coins: 0, item: None, read: false, claimed: false }) }
+    }
+    /// Moving (provisional): a resident present >= 14 days whose friendship with every player is < 3 and who has no open
+    /// request announces a move; two days later a reserve character takes the house unless someone asked them to stay.
+    pub fn refresh_moves(&mut self) {
+        let day = self.w.day;
+        for k in 0..4 {
+            if self.w.moving[k] != 0 && day >= self.w.moving[k] {
+                let old = self.res(k).name; let Some(new) = (0..CHARS.len()).find(|c| !self.w.roster.contains(c)) else { continue };
+                self.w.roster[k] = new; self.w.arrived[k] = day; self.w.moving[k] = 0; let nn = CHARS[new].name;
+                for p in std::iter::once(&mut self.w.p).chain(self.w.others.iter_mut()) { p.npcs[k] = NpcS { friend: 0, req: None, talked: false, gifted: false, visited: false } }
+                let n = &mut self.npcs[k]; n.inside = true; n.path.clear();
+                self.mail_all("Hollowbrook Post", &format!("{old} has moved away. {nn} the {} has moved into the house!", CHARS[new].species));
+                self.log.push(format!("day {day}: slot {k} {old} -> {nn}"));
+            } else if self.w.moving[k] == 0 && day - self.w.arrived[k] >= 14 {
+                let maxf = std::iter::once(&self.w.p).chain(self.w.others.iter()).map(|p| p.npcs[k].friend).max().unwrap_or(0);
+                let req = std::iter::once(&self.w.p).chain(self.w.others.iter()).any(|p| p.npcs[k].req.is_some());
+                if maxf < 3 && !req { self.w.moving[k] = day + 2; let r = self.res(k); self.mail_all(r.name, "I've been thinking... I might move away in a couple of days. Come talk to me if you'd like me to stay."); }
+            }
+        }
     }
     pub fn refresh_world(&mut self) {
         let day = self.w.day; self.w.trampled.clear(); // flattened flowers recover each morning
@@ -225,6 +253,8 @@ impl Game {
     // ---- collision ----
     pub fn tile(&self, x: i32, z: i32) -> u8 { tile_at(&self.map, x, z) }
     pub fn fair(&self) -> bool { fair_active(self.mo, self.dom) }
+    /// Display name of a building (resident houses follow their current resident).
+    pub fn bname(&self, b: usize) -> String { match BLDS[b].kind { BK::Res(k) => format!("{}'s House", self.res(k).name), _ => BLDS[b].name.into() } }
     /// Character living in house slot `slot`.
     pub fn res(&self, slot: usize) -> &'static Res { &CHARS[self.w.roster[slot]] }
     pub fn walk_tile(&self, x: i32, z: i32) -> bool {
@@ -306,7 +336,7 @@ impl Game {
     }
     pub fn tg_label(&self, tg: Tg) -> String {
         match tg {
-            Tg::Npc(i) => format!("Talk to {}", self.res(i).name), Tg::Door(b) => format!("Enter {}", BLDS[b].name),
+            Tg::Npc(i) => format!("Talk to {}", self.res(i).name), Tg::Door(b) => format!("Enter {}", self.bname(b)),
             Tg::Tree(i) => if self.w.trees[i].fruit { "Shake tree".into() } else { "Shake tree (no fruit)".into() },
             Tg::Item(i) => format!("Pick up {}", def(self.w.ground[i].def).name), Tg::Weed(_) => "Pull weed".into(),
             Tg::Furn(uid, d) => { let a = match def(d).act { Act::Sit => "Sit on", Act::Bed => "Lie on", Act::Lamp => "Toggle", Act::Storage => "Open", Act::None => "Look at" };
@@ -355,11 +385,12 @@ impl Game {
     pub fn talk(&mut self, i: usize) {
         let r = &self.res(i); let pers = r.pers; let hr = self.hr;
         let slot = if !(5..21).contains(&hr) { 3 } else if hr < 12 { 0 } else if hr < 17 { 1 } else { 2 };
-        let fruit = def(self.w.native).name.to_lowercase(); let fruits = if fruit.ends_with("ch") { format!("{fruit}es") } else { format!("{fruit}s") }; let name = self.w.p.name.clone();
+        let fruit = def(self.w.native).name.to_lowercase(); let fruits = plural(&fruit); let name = self.w.p.name.clone();
         let fill = |s: &str, item: &str| s.replace("{p}", &name).replace("{fs}", &fruits).replace("{f}", &fruit).replace("{i}", item);
         let indoor = self.me.scene != Scene::Town && !self.visit.is_some_and(|v| v.0 == i);
         let visiting = self.visit.is_some_and(|v| v.0 == i);
         let mut lines = vec![fill(if visiting { VISIT[pers] } else if indoor { HOMEL[pers] } else { GREET[pers][slot] }, "")];
+        if self.w.moving.get(i).is_some_and(|&m| m != 0) && !visiting { lines.push("I'm planning to move away soon... unless someone gives me a reason to stay.".into()) }
         if self.fair() { lines.push("The Harvest Fair is on! There's a prize stall by the plaza.".into()) }
         match weather(self.w.day, self.mo) { Wx::Rain if !indoor => lines.push(fill(RAIN[pers], "")), Wx::Snow if !indoor => lines.push(fill(SNOW[pers], "")), _ => {} }
         if let Some(q) = self.w.p.npcs[i].req {
@@ -386,7 +417,7 @@ impl Game {
             if n == 3 { break } let (x, z) = (tr.x + dx, tr.z + dz);
             if self.walk_tile(x, z) && !self.item_at(x, z) { self.drop_item(self.w.native, x, z); n += 1 }
         }
-        let nm = def(self.w.native).name.to_lowercase(); self.note(format!("{n} {}{} fell from the tree!", nm, if nm.ends_with("ch") { "es" } else { "s" }));
+        let nm = plural(&def(self.w.native).name.to_lowercase()); self.note(format!("{n} {nm} fell from the tree!"));
     }
     pub fn add(&mut self, d: u16) -> bool {
         if let Some(s) = self.w.p.inv.iter_mut().find(|s| s.def == d && s.uid == 0 && s.qty < STACK) { s.qty += 1 }
@@ -759,6 +790,8 @@ impl Game {
         if self.me.ui == Ui::Play { return false }
         let (up, down) = (inp.p(Up) || inp.p(W), inp.p(Down) || inp.p(S)); let (left, right) = (inp.p(Left) || inp.p(A), inp.p(Right) || inp.p(D));
         let ok = inp.p(Enter) || inp.p(KpEnter) || inp.p(E); let esc = inp.p(Escape);
+        if let Ui::Talk { npc: Some(j), .. } = self.me.ui { if inp.p(X) && self.w.moving[j] != 0 { self.w.moving[j] = 0; self.w.arrived[j] = self.w.day; self.w.p.npcs[j].friend += 1; let r = self.res(j);
+            self.me.ui = Ui::Talk { npc: Some(j), who: format!("{} the {}", r.name, r.species), lines: vec!["You really want me to stay? ...Okay. I'll stay!".into()], i: 0 }; return true } }
         if let Ui::Talk { npc: Some(j), .. } = self.me.ui { if inp.p(G) { if self.w.p.inv.is_empty() { self.note("You have nothing to give.") } else { self.me.ui = Ui::Gift(j, 0) } return true } }
         if let Ui::Talk { lines, i, .. } = &mut self.me.ui { if ok || inp.p(Space) { *i += 1; if *i >= lines.len() { self.me.ui = Ui::Play } } else if esc { self.me.ui = Ui::Play } return true }
         let n = self.w.p.inv.len();

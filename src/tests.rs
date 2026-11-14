@@ -239,3 +239,14 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
 }
 #[test] fn roster_defaults_and_mapping() { let g = g0(at(11, 12, 0, 0)); let mut v = serde_json::to_value(g.persist()).unwrap(); v.as_object_mut().unwrap().remove("roster"); let w: World = serde_json::from_value(v).unwrap(); assert_eq!(w.roster, vec![0, 1, 2, 3]);
     let mut g2 = Game::from_world(w, town()); assert_eq!(g2.res(0).name, "Juniper"); g2.w.roster[0] = 4; assert_eq!(g2.res(0).name, "Clover"); assert_eq!(HOUSES[0], 2); }
+#[test] fn residents_move_out_and_in_with_stay_option() {
+    let mut g = g0(at(1, 12, 0, 0)); let d0 = g.w.day; g.w.p.npcs[1].friend = 2; for k in [0, 2, 3] { g.w.p.npcs[k].friend = 9 }
+    let mut day = |g: &mut Game, n: i64| { g.w.day = d0 + n - 1; for p in std::iter::once(&mut g.w.p).chain(g.w.others.iter_mut()) { for s in &mut p.npcs { s.req = None } } g.w.day = d0 + n; g.refresh_moves(); };
+    for n in 1..14 { day(&mut g, n); assert_eq!(g.w.moving[1], 0) } day(&mut g, 14); assert_eq!(g.w.moving[1], d0 + 16); assert!(g.w.p.mail.iter().any(|l| l.from == "Bramble"));
+    assert!(g.w.moving.iter().enumerate().all(|(k, &m)| k == 1 || m == 0)); // friendly residents never announce
+    g.me.ui = Ui::Talk { npc: Some(1), who: "x".into(), lines: vec!["a".into()], i: 0 }; g.update(&Inp::keys(&[KeyCode::X], &[KeyCode::X]), 0.016, at(1, 12, 0, 1)); assert_eq!(g.w.moving[1], 0); // asked to stay
+    g.w.p.npcs[1].friend = 0; for n in 15..29 { day(&mut g, n) } assert_ne!(g.w.moving[1], 0); let leave = g.w.moving[1]; day(&mut g, leave - d0);
+    assert_eq!(g.w.roster[1], 4); assert_eq!(g.res(1).name, "Clover"); assert_eq!(g.w.p.npcs[1].friend, 0); assert_eq!(g.bname(3), "Clover's House"); assert_eq!(g.w.moving[1], 0);
+    let g2 = reload(&g, "move"); assert_eq!(g2.w.roster, g.w.roster);
+}
+#[test] fn plurals() { assert_eq!(plural("peach"), "peaches"); assert_eq!(plural("cherry"), "cherries"); assert_eq!(plural("apple"), "apples"); }
