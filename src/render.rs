@@ -344,7 +344,7 @@ fn vw() -> f32 { VIEW.with(|v| v.get().0) }
 fn vh() -> f32 { VIEW.with(|v| v.get().1) }
 /// Draw every player's view: full screen for one player, side-by-side split-screen for two.
 pub fn draw(g: &mut Game, now: NaiveDateTime, dbg: Option<&str>) {
-    let ids = g.ids(); let act = g.me.id; let n = ids.len() as f32; let (sw, sh) = (screen_width(), screen_height());
+    let ids: Vec<usize> = g.ids().into_iter().filter(|&i| Some(i) != g.remote).collect(); let act = g.me.id; let n = ids.len() as f32; let (sw, sh) = (screen_width(), screen_height());
     if n > 1. { clear_background(BLACK) }
     for (k, &id) in ids.iter().enumerate() { g.activate(id); VIEW.with(|v| v.set((sw / n, sh))); view(g, now, dbg, (n > 1.).then(|| (k as f32 * sw / n, sw / n))) }
     g.activate(act); VIEW.with(|v| v.set((sw, sh)));
@@ -695,7 +695,7 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
             for &(d, c) in &KIOSK_ITEMS { items.push(format!("Reward: {}  -  {c} coupons", def(d).name)) } list(&items, Some(*sel), x0 + 30., 135.);
             txt(if g.me.pad { "[A] Claim / trade   [B] Close" } else { "[Enter] Claim / trade   [Esc] Close" }, x0 + 20., 525., 19., Color::new(0.45, 0.3, 0.2, 1.)) }
         Ui::Title(sel) => { draw_rectangle(0., 0., sw, sh, Color::new(0.12, 0.2, 0.16, 0.92)); txt("Hollowbrook", sw / 2. - 150., sh * 0.28, 64., Color::new(0.95, 0.9, 0.7, 1.)); txt(VERSION, sw / 2. - 150., sh * 0.28 + 34., 18., Color::new(0.8, 0.85, 0.8, 1.));
-            let items = vec![if g.fresh { "Start your town".to_string() } else { "Continue".into() }, "Controls and guide".into(), "Quit".into()]; list(&items, Some(*sel), sw / 2. - 140., sh * 0.42);
+            let items = vec![if g.fresh { "Start your town".to_string() } else { "Continue".into() }, "Host a LAN game".into(), "Join a LAN game".into(), "Controls and guide".into(), "Quit".into()]; list(&items, Some(*sel), sw / 2. - 140., sh * 0.42);
             txt("Your town saves automatically (every 15 s, each new day, and on quit).", sw / 2. - 300., sh * 0.75, 18., Color::new(0.85, 0.9, 0.85, 1.));
             txt(if g.me.pad { "Stick: choose   A: confirm" } else { "W/S: choose   Enter: confirm" }, sw / 2. - 300., sh * 0.75 + 26., 18., Color::new(0.85, 0.9, 0.85, 1.)) }
         Ui::Help => { draw_rectangle(0., 0., sw, sh, Color::new(0.12, 0.2, 0.16, 0.95)); let mut y = 70.; txt("Controls", 60., y, 30., Color::new(0.95, 0.9, 0.7, 1.)); y += 34.; let wcol = Color::new(0.92, 0.95, 0.92, 1.);

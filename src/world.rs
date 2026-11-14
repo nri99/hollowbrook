@@ -61,7 +61,7 @@ pub struct Surprise { pub kind: u8, pub x: i32, pub z: i32, pub owner: usize, pu
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
 pub struct Plant { pub x: i32, pub z: i32, pub kind: u8, pub stage: u8, pub watered: i64 }
 /// A running Gullrock activity (runtime only, not saved): shared by every participant.
-#[derive(Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Activity { pub kind: usize, pub left: f32, pub score: u32, pub mine: Vec<(usize, u32)>, pub players: Vec<usize>, pub ents: Vec<Vec2>, pub next: usize, pub life: f32, pub done: bool, pub paid: Vec<usize> }
 pub fn ptiles(kind: u8, x: i32, z: i32) -> Vec<(i32, i32)> { if kind == PK_BRIDGE { vec![(x, z), (x + 1, z)] } else { vec![(x, z)] } }
 pub fn mat_ok(code: u8, d: u16) -> bool { match code { 0 => d == 80, 1 => d == 81, 2 => def(d).k == K::Fruit, _ => def(d).k == K::Shell } }
@@ -134,16 +134,20 @@ impl World {
 }
 
 // ---- runtime ----
-#[derive(Clone, Copy, PartialEq, Debug)] pub enum Scene { Town, Room(usize), Islet }
-#[derive(Clone, Copy, PartialEq, Debug)] pub enum Pose { Stand, Sit(u32), Lie(u32) }
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)] pub enum Scene { Town, Room(usize), Islet }
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)] pub enum Pose { Stand, Sit(u32), Lie(u32) }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Loc { Out, Home, Asleep }
-#[derive(Clone, Copy, PartialEq, Debug)] pub enum Snd { Step, Blip, Splash, Coin, Dig, Rustle, Door, StepPath, StepSand, StepWood, StepFloor, Swim }
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)] pub enum Snd { Step, Blip, Splash, Coin, Dig, Rustle, Door, StepPath, StepSand, StepWood, StepFloor, Swim }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize), Stall, Site, Board, Built(usize), Dock, Pell, IItem(usize), IStall, MSite, ActBoard, Hazel, ArtStall, Camper, CampSign, Kiosk, Fest, Surprise, Plant(usize), PlantSpot }
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum Ui { Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize), Tint(usize), Travel(bool), IStall(usize), ConfirmExpand, MPick(usize), Fund, Policy(usize), PolicyOk(usize), Act(usize), Civic(usize), Paint(usize), Keeper(usize), Camp(usize), Kiosk(usize), Title(usize), Help }
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Placing { pub f: Furn, pub orig: Option<Furn>, pub slot_uid: Option<u32> }
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Fishing { pub bob: Vec2, pub fish: Option<usize>, pub t: f32, pub nib: u8, pub need: u8, pub bite: bool, pub dip: f32 }
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Shadow { pub pos: Vec2, pub def: u16, pub vel: Vec2 }
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct NpcRt { pub pos: Vec2, pub path: Vec<(i32, i32)>, pub wait: f32, pub yaw: f32, pub inside: bool, pub happy: f32, pub moving: bool, pub last_chat: usize, pub anim: f32 }
 /// Keyboard state for one frame; filled from the OS (macroquad) or injected by the dev autotest bot.
 pub struct Inp { pub down: HashSet<KeyCode>, pub pressed: HashSet<KeyCode> }
@@ -165,6 +169,7 @@ pub fn tile_at(map: &[u8], x: i32, z: i32) -> u8 { if x < 0 || z < 0 || x >= W a
 pub fn fcenter(f: &Furn) -> Vec2 { if def(f.def).wall { return vec2(f.x as f32 + 0.5, 0.15) } let t = foot(f.def, f.x, f.z, f.rot); let (a, b) = (t[0], t[t.len() - 1]); vec2((a.0 + b.0 + 1) as f32 / 2., (a.1 + b.1 + 1) as f32 / 2.) }
 
 /// Runtime state of one local player (persisted only through its Profile).
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Player {
     pub id: usize, pub scene: Scene, pub pos: Vec2, pub ipos: Vec2, pub face: Vec2, pub cam: Vec2, pub anim: f32, pub spd: f32, pub pose: Pose,
     pub stand_from: Vec2, pub step_acc: f32, pub ui: Ui, pub placing: Option<Placing>, pub fish: Option<Fishing>, pub trans: Option<(f32, Scene, bool)>,
@@ -189,6 +194,8 @@ pub struct Game {
     /// shared bubble spots in the sea marking a sea creature below
     pub bubbles: Vec<(Vec2, u16)>,
     pub imap: Vec<u8>, pub ibubbles: Vec<(Vec2, u16)>, pub ibugs: Vec<(u16, Vec2, f32)>, pub pell_talked: bool, pub act: Option<Activity>, pub quit: bool, pub fresh: bool,
+    /// LAN: player id driven over the network (hidden from this screen); title-menu request 1 host / 2 join
+    pub remote: Option<usize>, pub net_req: u8,
     /// residents chatting with each other: (slot a, slot b, seconds left)
     pub chats: Vec<(usize, usize, f32)>,
     /// audio settings (stored in hollowbrook_settings.json, not the world save)
@@ -206,7 +213,7 @@ impl Game {
     pub fn from_world(w: World, map: Vec<u8>) -> Game {
         let pos = vec2(w.p.pos[0], w.p.pos[1]);
         let npcs = (0..4).map(|i| NpcRt { pos: door_stand(HOUSES[i]), path: vec![], wait: gen_range(0., 2.), yaw: 0., inside: true, happy: 0., moving: false, last_chat: 9, anim: 0. }).collect();
-        let mut g = Game { me: Player::new(w.p.id, pos), w, map, others: vec![], npcs, t: 0., log: vec![], rolled: false, shadows: vec![], bugs: vec![], shake: vec![], hearts: vec![], snd: vec![], hr: 12, mo: 6, curve: 0.01, dom: 1, yr: 2026, bubbles: vec![], visit: None, imap: islet(), ibubbles: vec![], pell_talked: false, ibugs: vec![], act: None, quit: false, fresh: false, chats: vec![], music_vol: 0.6, sfx_vol: 0.8, muted: false, settings_dirty: false, fx: vec![] };
+        let mut g = Game { me: Player::new(w.p.id, pos), w, map, others: vec![], npcs, t: 0., log: vec![], rolled: false, shadows: vec![], bugs: vec![], shake: vec![], hearts: vec![], snd: vec![], hr: 12, mo: 6, curve: 0.01, dom: 1, yr: 2026, bubbles: vec![], visit: None, imap: islet(), ibubbles: vec![], pell_talked: false, ibugs: vec![], act: None, quit: false, fresh: false, remote: None, net_req: 0, chats: vec![], music_vol: 0.6, sfx_vol: 0.8, muted: false, settings_dirty: false, fx: vec![] };
         if !g.free(g.me.pos) { g.me.pos = door_stand(HOME); g.me.cam = g.me.pos }
         let map = &g.map; let open = |t: &(i32, i32)| tile_at(map, t.0, t.1) != BLD && *t != mailbox_tile(0) && *t != mailbox_tile(1); // objects saved before a building existed there
         g.w.weeds.retain(open); g.w.digs.retain(open); g.w.holes.retain(open); g.w.ground.retain(|i| open(&tile_of(vec2(i.x, i.z))));
@@ -1405,8 +1412,8 @@ impl Game {
             Ui::Kiosk(s) => { let s = mv(s, 4 + KIOSK_ITEMS.len()); self.me.ui = Ui::Kiosk(s); if esc { self.me.ui = Ui::Play } else if ok {
                 if s < 4 { match self.claim(s) { Ok(c) => { self.snd.push(Snd::Coin); self.note(format!("Claimed {c} coupons!")) } Err(e) => self.note(e) } }
                 else { match self.kiosk_buy(s - 4) { Ok(n) => { self.snd.push(Snd::Coin); self.note(format!("Traded coupons for {n}.")) } Err(e) => self.note(e) } } } }
-            Ui::Title(s) => { let s = mv(s, 3); self.me.ui = Ui::Title(s); if ok { match s { 0 => { self.me.ui = Ui::Play; if self.fresh { self.note("Welcome to Hollowbrook! Press J for the journal: controls and a guide are inside.") } } 1 => self.me.ui = Ui::Help, _ => self.quit = true } } }
-            Ui::Help => if ok || esc { self.me.ui = Ui::Title(1) },
+            Ui::Title(s) => { let s = mv(s, 5); self.me.ui = Ui::Title(s); if ok { match s { 0 => { self.me.ui = Ui::Play; if self.fresh { self.note("Welcome to Hollowbrook! Press J for the journal: controls and a guide are inside.") } } 1 => { self.me.ui = Ui::Play; self.net_req = 1 } 2 => { self.me.ui = Ui::Play; self.net_req = 2 } 3 => self.me.ui = Ui::Help, _ => self.quit = true } } }
+            Ui::Help => if ok || esc { self.me.ui = Ui::Title(3) },
             Ui::Fund => { if esc { self.me.ui = Ui::Play } else if ok { match self.mp_fund(DONATE_STEP) { Ok(a) => { self.snd.push(Snd::Coin); self.note(format!("Donated {a} coins.")) } Err(e) => self.note(e) } } }
             Ui::ConfirmExpand => { if ok || inp.p(Y) { self.me.ui = Ui::Play; match self.expand_home() { Ok(()) => { self.snd.push(Snd::Door); self.note(format!("Your home was expanded! Balance: {} coins, no deadline.", self.w.p.debt)) } Err(e) => self.note(e) } } else if esc || inp.p(N) { self.me.ui = Ui::Play } }
             Ui::Travel(go_out) => { if ok || inp.p(Y) { self.me.ui = Ui::Play; if go_out { if self.w.p.ferry > 0 { self.w.p.ferry -= 1; self.note("Ferry Pass used. Enjoy the trip!"); self.go(Scene::Islet) } else if self.w.p.money < FARE { self.note("Not enough coins for the fare.") } else { self.w.p.money -= FARE; self.go(Scene::Islet) } } else { self.go(Scene::Town) } } else if esc || inp.p(N) { self.me.ui = Ui::Play } }

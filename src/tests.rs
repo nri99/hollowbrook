@@ -607,3 +607,23 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     g.w.p.money = 100; assert!(g.repaint(2).is_err()); g.w.p.money = 5000; g.repaint(2).unwrap(); assert_eq!((g.w.p.paint, g.w.p.money), (Some(2), 5000 - PAINT_FEE)); assert!(g.repaint(2).is_err());
     let g2 = reload(&g, "paint"); assert_eq!(g2.w.p.paint, Some(2)); assert_eq!(g2.w.p.home_best, best);
 }
+
+#[test] fn lan_host_client_loopback() {
+    use crate::net::*;
+    let enc_dec = dec(&enc(&Inp::keys(&[KeyCode::W, KeyCode::LeftShift], &[KeyCode::E]), false)); assert!(enc_dec.down.contains(&KeyCode::W) && enc_dec.pressed.contains(&KeyCode::E));
+    let mut host_g = g0(at(11, 12, 0, 0)); let mut h = Host::start_on("Tester", 0).expect("host"); let port = h.port();
+    let mut c = Client::connect(std::net::SocketAddr::from(([127, 0, 0, 1], port))).expect("connect");
+    let t0 = std::time::Instant::now(); let mut joined = false; while t0.elapsed().as_secs() < 5 && !joined { for e in h.poll() { if let HostEv::Joined = e { joined = true } } std::thread::sleep(std::time::Duration::from_millis(10)) } assert!(joined);
+    host_g.join("Player 2"); host_g.remote = Some(1); h.welcome(1);
+    while c.id.is_none() && t0.elapsed().as_secs() < 5 { c.poll(); std::thread::sleep(std::time::Duration::from_millis(10)) } assert_eq!(c.id, Some(1));
+    // client walks right for a while: the host moves Player 2 only
+    host_g.activate(1); let start = host_g.me.pos; host_g.activate(0); let p1 = host_g.me.pos;
+    for _ in 0..40 { c.send(&Inp::keys(&[KeyCode::S], &[]), false); std::thread::sleep(std::time::Duration::from_millis(5)); h.poll(); host_g.activate(1); let i = h.take_input(); host_g.update_player(&i, 1. / 60.); host_g.activate(0); }
+    host_g.activate(1); let moved = host_g.me.pos; host_g.activate(0); assert!(moved.y > start.y + 0.3, "remote player did not move: {start:?} -> {moved:?}"); assert_eq!(host_g.me.pos, p1);
+    // snapshot reaches the client and shows Player 2 as the viewed player with the host hidden
+    std::thread::sleep(std::time::Duration::from_millis(60)); assert!(h.due()); h.send(snap(&host_g, at(11, 12, 0, 0), vec![Snd::Coin]));
+    let mut got = None; while got.is_none() && t0.elapsed().as_secs() < 8 { c.poll(); got = c.take_snap(); std::thread::sleep(std::time::Duration::from_millis(10)) }
+    let s = got.expect("snapshot"); let mut cg = Game::from_world(s.w.clone(), town()); let (_, snd) = apply(&mut cg, s, 1);
+    assert_eq!(cg.me.id, 1); assert_eq!(cg.remote, Some(0)); assert!((cg.me.pos - moved).length() < 0.01); assert_eq!(snd, vec![Snd::Coin]); assert_eq!(cg.w.p.id, 1);
+    c.bye(); let t1 = std::time::Instant::now(); let mut left = false; while t1.elapsed().as_secs() < 5 && !left { for e in h.poll() { if let HostEv::Left = e { left = true } } std::thread::sleep(std::time::Duration::from_millis(10)) } assert!(left);
+}

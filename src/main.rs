@@ -1,5 +1,6 @@
 mod audio;
 mod clock;
+mod net;
 mod data;
 mod pad;
 mod render;
@@ -40,6 +41,40 @@ impl Sounds {
     fn play(&self, q: &mut Vec<Snd>, vol: f32) { for s in q.drain(..) { if vol <= 0. { continue } if let Some((_, x)) = self.0.iter().find(|e| e.0 == s) { play_sound(x, PlaySoundParams { looped: false, volume: vol * if matches!(s, Snd::Step | Snd::StepPath | Snd::StepSand | Snd::StepWood | Snd::StepFloor | Snd::Swim) { 0.2 } else { 0.45 } }) } } }
 }
 
+/// Join screen + client loop. The local save is never touched while connected. Returns true if the window was closed.
+async fn lan_join(sounds: &Sounds, pads: &mut pad::Pads, vol: (f32, f32, bool)) -> bool {
+    let mut finder = net::Finder::new(); let (mut sel, mut ip, mut msg) = (0usize, String::new(), String::new()); let mut client: Option<net::Client> = None;
+    while client.is_none() {
+        finder.poll(); pads.poll(); let dt = get_frame_time(); let inp = pad::merge(Inp { down: get_keys_down(), pressed: get_keys_pressed() }, pads.inp(0, dt));
+        while let Some(c) = get_char_pressed() { if (c.is_ascii_digit() || c == '.') && ip.len() < 15 { ip.push(c) } } if is_key_pressed(KeyCode::Backspace) { ip.pop(); }
+        let n = finder.hosts.len(); if inp.p(KeyCode::Up) || inp.p(KeyCode::W) { sel = sel.saturating_sub(1) } if inp.p(KeyCode::Down) || inp.p(KeyCode::S) { sel = (sel + 1).min(n.saturating_sub(1)) }
+        if is_quit_requested() { return true } if inp.p(KeyCode::Escape) { return false }
+        if inp.p(KeyCode::Enter) || inp.p(KeyCode::KpEnter) || (inp.p(KeyCode::E) && ip.is_empty()) {
+            let addr: Option<std::net::SocketAddr> = if !ip.is_empty() { format!("{ip}:{}", net::PORT).parse().ok() } else { finder.hosts.get(sel).map(|h| h.1) };
+            match addr { Some(a) => match net::Client::connect(a) { Ok(c) => client = Some(c), Err(e) => msg = format!("Could not connect to {a}: {e}") }, None => msg = if ip.is_empty() { "No host found yet. Ask your friend to choose Host a LAN game.".into() } else { "That address doesn't look right.".into() } } }
+        clear_background(Color::new(0.12, 0.2, 0.16, 1.)); let (sw, sh) = (screen_width(), screen_height()); let wcol = Color::new(0.92, 0.95, 0.92, 1.);
+        draw_text("Join a LAN game", 60., 90., 48., Color::new(0.95, 0.9, 0.7, 1.)); draw_text("Hosts on your network:", 60., 150., 26., wcol);
+        if !finder.ok() { draw_text("(Can't listen for hosts on this computer; type the host's address instead.)", 70., 185., 20., Color::new(1., 0.7, 0.6, 1.)); }
+        for (k, h) in finder.hosts.iter().enumerate() { let y = 190. + k as f32 * 34.; if k == sel && ip.is_empty() { draw_rectangle(60., y - 24., 520., 32., Color::new(0.75, 0.6, 0.25, 1.)) } draw_text(&format!("{}'s town  ({})", h.0, h.1.ip()), 70., y, 26., wcol); }
+        if finder.hosts.is_empty() { draw_text("Looking for hosts...", 70., 190., 24., Color::new(0.75, 0.8, 0.75, 1.)); }
+        draw_text(&format!("Or type the host's IP address: {}_", ip), 60., sh - 170., 24., GOLD); draw_text(&msg, 60., sh - 130., 20., Color::new(1., 0.7, 0.6, 1.));
+        draw_text("Up/Down choose   Enter/A join   Esc/B back   Backspace delete", 60., sh - 80., 20., wcol); draw_text("You play as the host town's Player 2; progress is saved on the host.", 60., sh - 50., 18., Color::new(0.75, 0.8, 0.75, 1.)); let _ = sw;
+        next_frame().await
+    }
+    let mut c = client.unwrap(); let mut g: Option<Game> = None; let mut music = audio::Music::new(); let t0 = std::time::Instant::now(); let mut now = chrono::Local::now().naive_local();
+    loop {
+        c.poll(); let dt = get_frame_time().min(0.05);
+        if c.closed || (g.is_none() && t0.elapsed().as_secs() > 8) { let why = c.refused.clone().unwrap_or_else(|| if g.is_none() { "The host didn't answer.".into() } else { "The connection to the host was lost.".into() });
+            for _ in 0..180 { clear_background(Color::new(0.12, 0.2, 0.16, 1.)); draw_text(&why, 60., 200., 30., WHITE); draw_text("Returning to the title screen...", 60., 250., 22., LIGHTGRAY); if is_quit_requested() { return true } next_frame().await } return false }
+        pads.poll(); let pin = pads.inp(0, dt); let used = !pin.down.is_empty(); let inp = pad::merge(Inp { down: get_keys_down(), pressed: get_keys_pressed() }, pin);
+        if c.id.is_some() { c.send(&inp, used) }
+        if let (Some(id), Some(s)) = (c.id, c.take_snap()) { let gg = g.get_or_insert_with(|| Game::from_world(s.w.clone(), town())); let (n, snd) = net::apply(gg, s, id); now = n; gg.snd.extend(snd) }
+        match &mut g { Some(gg) => { render::draw(gg, now, None); set_default_camera(); draw_text("LAN", screen_width() - 60., screen_height() - 12., 18., Color::new(0.7, 1., 0.8, 1.)); sounds.play(&mut gg.snd, vol.1); music.tick((now.hour(), audio::variant(gg)), dt, vol.0, vol.2).await; }
+            None => { clear_background(Color::new(0.12, 0.2, 0.16, 1.)); draw_text("Connecting to the host...", 60., 200., 30., WHITE); } }
+        if is_quit_requested() { c.bye(); return true }
+        next_frame().await
+    }
+}
 fn load_game() -> Option<Game> {
     match save::load_checked(SAVE) {
         save::Loaded::Ok(w) => { save::backup(SAVE, save::BACKUPS); return Some(Game::from_world(w, town())) }
@@ -82,6 +117,7 @@ async fn main() {
     eprintln!("[hollowbrook] {VERSION}");
     if let Some(dir) = auto { autotest(&mut g, &clock, &dir).await; save::save(&g.persist(), SAVE); return }
     let mut music = audio::Music::new();
+    let mut host: Option<net::Host> = None; let mut remote_snd: Vec<Snd> = vec![];
     let (mut st, mut shots) = (0., 0); let mut pads = pad::Pads::new(); eprintln!("[pad] {} gamepad(s) detected", pads.count());
     loop {
         let dt = get_frame_time().min(0.05); let now = clock.now(); let kb = Inp { down: get_keys_down(), pressed: get_keys_pressed() };
@@ -91,11 +127,20 @@ async fn main() {
             if p2 && !joined { g.join("Player 2"); g.note("Controller switched: Player 2 joined.") } else if !p2 && joined { g.leave(1); g.note("Controller switched to Player 1. Player 2 left; their progress is saved.") } else { g.note("Controllers switched players.") }
             eprintln!("[pad] switched: slots {:?}", pads.slots.ids); save::save(&g.persist(), SAVE) }
         for slot in std::mem::take(&mut pads.claimed) { eprintln!("[pad] controller assigned to player {}", slot + 1); if slot == 1 && !g.ids().contains(&1) { g.join("Player 2"); g.note("Player 2 joined with a controller."); save::save(&g.persist(), SAVE) } }
-        for id in g.ids() { g.activate(id); let p = pads.inp(id.min(1), dt); let used = !p.down.is_empty();
+        if g.net_req == 1 { g.net_req = 0; if host.is_none() { match net::Host::start(&g.w.p.name) { Ok(h) => { g.note(format!("Hosting a LAN game at {}. On the other computer choose Join a LAN game.", net::Host::lan_ip())); eprintln!("[lan] hosting on port {}", h.port()); host = Some(h) } Err(e) => g.note(format!("Couldn't start hosting: {e}")) } } else { g.note("Already hosting.") } }
+        if g.net_req == 2 { g.net_req = 0; save::save(&g.persist(), SAVE); if lan_join(&sounds, &mut pads, (g.music_vol, g.sfx_vol, g.muted)).await { break } g.me.ui = Ui::Title(0) }
+        if let Some(h) = &mut host { for ev in h.poll() { match ev {
+            net::HostEv::Joined => if g.ids().contains(&1) && g.remote != Some(1) { h.refuse("Player 2 is already playing on the host computer."); g.note("A LAN player tried to join, but Player 2 is playing here.") }
+                else { if !g.ids().contains(&1) { g.join("Player 2"); } g.remote = Some(1); h.welcome(1); g.note("A friend joined over LAN as Player 2!"); eprintln!("[lan] friend joined"); save::save(&g.persist(), SAVE) },
+            net::HostEv::Left => if g.remote == Some(1) { g.remote = None; g.activate(0); g.leave(1); g.note("Your LAN friend left. Their progress is saved."); eprintln!("[lan] friend left"); save::save(&g.persist(), SAVE) } } } }
+        for id in g.ids() { g.activate(id);
+            if g.remote == Some(id) { let inp = host.as_mut().map_or(Inp::none(), |h| h.take_input()); g.me.pad = host.as_ref().is_some_and(|h| h.pad); let before = g.snd.len(); g.update_player(&inp, dt); remote_snd.extend(g.snd.drain(before..)); continue }
+            let p = pads.inp(id.min(1), dt); let used = !p.down.is_empty();
             let inp = if id == 0 { if !kb.down.is_empty() { g.me.pad = false } pad::merge(Inp { down: kb.down.clone(), pressed: kb.pressed.clone() }, p) } else { p };
             if used { g.me.pad = true } g.me.pad_lost = pads.slots.lost(id.min(1)); g.update_player(&inp, dt) }
         g.activate(0);
-        if kb.p(KeyCode::F2) { if g.ids().len() == 1 { g.join("Player 2"); g.note("Player 2 joined (split-screen).") } else { g.leave(1); g.note("Player 2 left; their progress is saved.") } save::save(&g.persist(), SAVE) }
+        if let Some(h) = &mut host { if g.remote.is_some() && h.due() { let snap = net::snap(&g, now, std::mem::take(&mut remote_snd)); h.send(snap) } else if g.remote.is_none() { remote_snd.clear() } }
+        if kb.p(KeyCode::F2) && g.remote.is_some() { g.note("Player 2 is connected over LAN.") } else if kb.p(KeyCode::F2) { if g.ids().len() == 1 { g.join("Player 2"); g.note("Player 2 joined (split-screen).") } else { g.leave(1); g.note("Player 2 left; their progress is saved.") } save::save(&g.persist(), SAVE) }
         render::draw(&mut g, now, dbg.then(|| clock.source()));
         sounds.play(&mut g.snd, g.sfx_vol);
         music.tick((now.hour(), audio::variant(&g)), dt, g.music_vol, g.muted).await; for l in music.log.drain(..) { eprintln!("[audio] {l}") }
@@ -316,6 +361,23 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         log!("stones={}", have(g, 81));
         if let Some(p) = g.w.project.clone() { approach(g, c, tc((p.x, p.z))).await; shot!("x01_site_before"); press(g, c, KeyCode::E).await; log!("after contribute: project={:?} built={:?} ui={:?}", g.w.project, g.w.built, g.me.ui); for _ in 0..4 { if g.me.ui == Ui::Play { break } press(g, c, KeyCode::E).await } }
         if let Some(b) = g.w.built.first().copied() { approach(g, c, tc((b.x, b.z))).await; press(g, c, KeyCode::E).await; log!("pose={:?}", g.me.pose); wait(g, c, 30).await; shot!("x01_bench_built") }
+    } else if phase == "37" {
+        // LAN host: wait for a client process, drive Player 2 from its input, stream snapshots, screenshot the host view.
+        let mut h = net::Host::start_on(&g.w.p.name, 47790).expect("host"); let t0 = std::time::Instant::now(); let mut remote_snd = vec![];
+        while t0.elapsed().as_secs() < 30 { let evs = h.poll(); for e in evs { if let net::HostEv::Joined = e { if !g.ids().contains(&1) { g.join("Player 2"); } g.remote = Some(1); h.welcome(1); log!("client joined") } }
+            if g.remote.is_some() { let ids = g.ids(); for id in ids { g.activate(id); if g.remote == Some(id) { let i = h.take_input(); let b = g.snd.len(); g.update_player(&i, 1. / 60.); remote_snd.extend(g.snd.drain(b..)) } } g.activate(0);
+                if h.due() { let s = net::snap(&g, c.now(), std::mem::take(&mut remote_snd)); h.send(s) } }
+            step(g, c, &[], &[]).await; if g.remote.is_some() && t0.elapsed().as_secs() > 14 { break } }
+        g.activate(1); log!("remote P2 pos={:?} scene={:?}", g.me.pos, g.me.scene); g.activate(0); log!("host P1 pos={:?}", g.me.pos); shot!("lan_host_view");
+    } else if phase == "38" {
+        // LAN client: connect, walk Player 2 south via input messages, render from snapshots.
+        let mut cl = None; for _ in 0..100 { if let Ok(x) = net::Client::connect("127.0.0.1:47790".parse().unwrap()) { cl = Some(x); break } wait(g, c, 6).await } let mut cl = cl.expect("connect");
+        let mut cg: Option<Game> = None; let mut now = c.now(); let t0 = std::time::Instant::now();
+        while t0.elapsed().as_secs() < 10 { cl.poll(); if let Some(_id) = cl.id { let keys = if t0.elapsed().as_millis() > 1500 && t0.elapsed().as_millis() < 4000 { vec![KeyCode::S] } else { vec![] }; cl.send(&Inp::keys(&keys, &[]), false) }
+            if let (Some(id), Some(s)) = (cl.id, cl.take_snap()) { let gg = cg.get_or_insert_with(|| Game::from_world(s.w.clone(), town())); now = net::apply(gg, s, id).0 }
+            if let Some(gg) = &mut cg { render::draw(gg, now, None) } next_frame().await }
+        let gg = cg.as_mut().expect("snapshots"); log!("client view: me id={} pos={:?} remote={:?} coins={}", gg.me.id, gg.me.pos, gg.remote, gg.w.p.money);
+        render::draw(gg, now, None); screenshot(&format!("{dir}/lan_client_view.png")); next_frame().await; cl.bye();
     } else if phase == "36" {
         // M2-3: repaint through Hazel's menu, see the house outside; home score on the Friends page. Fixture: coins.
         g.w.p.money = 3000; let th = BLDS.iter().position(|b| b.kind == BK::Civic).unwrap(); go(g, c, door_stand(th), 0.12).await; face(g, c, door_face(th)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
@@ -368,7 +430,7 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         // Release 1: title, campground (both players), kiosk, journal pages. Fixture: coins and coupons set directly; dev clock 12:00.
         let c2 = Clock { dev: Some((chrono::NaiveDate::from_ymd_opt(2026, 11, 20).unwrap().and_hms_opt(12, 0, 0).unwrap(), std::time::Instant::now())) }; let c = &c2;
         macro_rules! shotc { ($n:expr) => {{ wait(g, c, 2).await; render::draw(g, c.now(), None); screenshot(&format!("{dir}/{}.png", $n)); next_frame().await; log!("shot {}", $n); }} }
-        wait(g, c, 5).await; g.me.ui = Ui::Title(0); shotc!("r1_title"); press(g, c, KeyCode::Down).await; press(g, c, KeyCode::Enter).await; log!("ui={:?}", g.me.ui); shotc!("r1_help"); press(g, c, KeyCode::Escape).await; press(g, c, KeyCode::Up).await; press(g, c, KeyCode::Enter).await; log!("ui={:?}", g.me.ui);
+        wait(g, c, 5).await; g.me.ui = Ui::Title(0); shotc!("r1_title"); for _ in 0..3 { press(g, c, KeyCode::Down).await } press(g, c, KeyCode::Enter).await; log!("ui={:?}", g.me.ui); shotc!("r1_help"); press(g, c, KeyCode::Escape).await; for _ in 0..3 { press(g, c, KeyCode::Up).await } press(g, c, KeyCode::Enter).await; log!("ui={:?}", g.me.ui);
         g.join("Player 2"); g.w.p.money = 5000; log!("visitor={} tasks={:?}", VISITORS[g.visitor()].name, g.w.p.tasks.iter().map(|t| TASKS[t.t].2).collect::<Vec<_>>());
         approach(g, c, vec2(CAMP_SPOT.0, CAMP_SPOT.1)).await; log!("target={:?}", g.target()); press(g, c, KeyCode::E).await; shotc!("r1_camp_menu"); press(g, c, KeyCode::Enter).await; log!("camp_sold={:?} money={}", g.w.camp_sold, g.w.p.money); press(g, c, KeyCode::Escape).await;
         g.activate(1); g.w.p.money = 5000; go(g, c, vec2(30.5, 22.5), 0.2).await; face(g, c, vec2(CAMP_SPOT.0, CAMP_SPOT.1)).await; approach(g, c, vec2(CAMP_SPOT.0, CAMP_SPOT.1)).await; press(g, c, KeyCode::E).await; press(g, c, KeyCode::Enter).await; log!("P2 try sold item: msgs={:?}", g.me.msgs.last().map(|m| m.0.clone())); press(g, c, KeyCode::Escape).await; g.activate(0);

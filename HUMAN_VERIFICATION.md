@@ -53,3 +53,9 @@ Record results (pass/fail + notes) below.
 - Daily surprise: find it (residents hint east/west), return a lost scarf to its owner.
 - General Store renovation letters and the weekly special after enough spending.
 - M2: buy seeds/can from the counter menu entry, plant and water over several real days, cross two colours; upgrade a tool and feel the difference; repaint your house; read a Monday Home Society letter.
+
+## H7 LAN multiplayer (two computers on the same network)
+1. Both computers run the same build. Computer A: title screen -> Host a LAN game. Windows Firewall may ask: allow on Private networks.
+2. Computer B: title screen -> Join a LAN game. A's town should appear in the list (or type A's IP shown in A's message). Press Enter/A.
+3. B plays Player 2 full-screen with its own keyboard/controller; A keeps Player 1. Check movement smoothness, menus, buying, talking, fishing, and that both see each other.
+4. Close B's window: A shows "Your LAN friend left" and Player 2's progress is kept in A's save.
