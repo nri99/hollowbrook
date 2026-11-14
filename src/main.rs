@@ -316,6 +316,12 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         log!("stones={}", have(g, 81));
         if let Some(p) = g.w.project.clone() { approach(g, c, tc((p.x, p.z))).await; shot!("x01_site_before"); press(g, c, KeyCode::E).await; log!("after contribute: project={:?} built={:?} ui={:?}", g.w.project, g.w.built, g.me.ui); for _ in 0..4 { if g.me.ui == Ui::Play { break } press(g, c, KeyCode::E).await } }
         if let Some(b) = g.w.built.first().copied() { approach(g, c, tc((b.x, b.z))).await; press(g, c, KeyCode::E).await; log!("pose={:?}", g.me.pose); wait(g, c, 30).await; shot!("x01_bench_built") }
+    } else if phase == "32" {
+        // D-03 surprises (fixture placement near the player) and D-04 emotes (fixed times).
+        let here = tile_of(g.me.pos); for (k, kind) in [0u8, 1, 2].into_iter().enumerate() { let t = (here.0 + 1, here.1 + 1);
+            g.w.surprise = Some(Surprise { kind, x: t.0, z: t.1, owner: 1, day: g.w.day }); wait(g, c, 3).await; render::draw(g, c.now(), None); screenshot(&format!("{dir}/d03_surprise_{k}.png")); next_frame().await; log!("surprise {kind} at {:?}", t) }
+        g.w.surprise = None; let j = (0..4).find(|&j| !g.npcs[j].inside).unwrap_or(0); let np = g.npcs[j].pos; go(g, c, np + vec2(1.6, 0.8), 0.3).await;
+        for (k, tt) in [(0, 0.5f32), (1, 3.0)] { g.t = tt; render::draw(g, c.now(), None); screenshot(&format!("{dir}/d04_emote_{k}.png")); next_frame().await; log!("emote frame {k}: npc {j} emote={:?} moving={}", render::emote(g, j, tt), g.npcs[j].moving) }
     } else if phase == "31" {
         // Depth pass: festival decorations on each date (dev clock), Friends journal page.
         let dates = [(2026, 4, 11, 14), (2026, 7, 25, 21), (2026, 12, 22, 18), (2027, 1, 1, 11)];

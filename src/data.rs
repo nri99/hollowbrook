@@ -30,7 +30,7 @@ const fn fu(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32), fp: (i3
 const fn cl(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32)) -> D { D { buy, ..b(id, name, K::Cloth, buy / 4, col) } }
 const fn tl(id: u16, name: &'static str, buy: u32) -> D { D { buy, ..b(id, name, K::Tool, 0, (0.6, 0.45, 0.3)) } }
 
-pub static DEFS: [D; 115] = [
+pub static DEFS: [D; 116] = [
     cr(0, "Cabbage White", K::Bug, 90, (1., 1., 0.95), 0.2, 0, 3, 10, 6, 17), cr(1, "Honeybee", K::Bug, 160, (1., 0.85, 0.2), 0.2, 0, 3, 7, 8, 17),
     cr(2, "Ladybug", K::Bug, 120, (0.9, 0.15, 0.1), 0.2, 0, 3, 6, 8, 17), cr(3, "Dragonfly", K::Bug, 230, (0.3, 0.8, 0.9), 0.2, 0, 5, 10, 8, 19),
     cr(4, "Cicada", K::Bug, 300, (0.4, 0.6, 0.3), 0.2, 0, 7, 8, 8, 17), cr(5, "Firefly", K::Bug, 450, (0.8, 1., 0.3), 0.2, 0, 6, 7, 19, 4),
@@ -68,6 +68,7 @@ pub static DEFS: [D; 115] = [
     // festival keepsakes (original)
     fu(146, "Blossom Lantern", 1500, (1., 0.7, 0.8), (1, 1), false, false, Act::Lamp), fu(147, "Paper Boat Model", 1500, (0.95, 0.95, 0.9), (1, 1), false, false, Act::None),
     fu(148, "Frost Lantern", 1500, (0.7, 0.85, 1.), (1, 1), false, false, Act::Lamp), fu(149, "Sunrise Banner", 1500, (1., 0.6, 0.3), (1, 1), false, true, Act::None),
+    b(150, "Lost Scarf", K::Material, 0, (0.85, 0.35, 0.45)),
     b(106, "Bramble's Garden", K::Art, 600, (0.55, 0.45, 0.6)), b(107, "Harbor Fog", K::Art, 600, (0.7, 0.75, 0.78)),
     b(103, "Lantern Night", K::Art, 600, (0.2, 0.22, 0.45)), b(104, "Pond in Summer", K::Art, 600, (0.4, 0.7, 0.4)), b(105, "First Snow", K::Art, 600, (0.85, 0.9, 0.98)),
     b(20, "Apple", K::Fruit, 100, (0.85, 0.15, 0.15)), b(21, "Pear", K::Fruit, 100, (0.8, 0.85, 0.25)), b(22, "Cherry", K::Fruit, 100, (0.7, 0.05, 0.2)), b(23, "Peach", K::Fruit, 100, (1., 0.65, 0.5)),
@@ -396,3 +397,16 @@ pub const FESTS: [Fest; 4] = [
     Fest { name: "First Light", m: 1, d0: 1, d1: 2, task: FTask::TalkAll, ask: "Wish all four residents a happy new year today.", reward: 149, about: "The town greets the first sunrise of the year with banners and good wishes.", chat: "Happy First Light! I hope this year is your best one yet!" },
 ];
 pub fn fest_of(m: u32, d: u32) -> Option<usize> { FESTS.iter().position(|f| f.m == m && (f.d0..=f.d1).contains(&d)) }
+
+// ---- Daily surprises (original): one shared surprise appears in town each day ----
+pub const SURPRISES: [&str; 3] = ["message bottle", "lost scarf", "drifting gift"];
+pub const BOTTLE_NOTES: [&str; 6] = [
+    "\"To whoever finds this: the river is wider than it looks, and so are you. - a traveller\"",
+    "\"Day 40 at sea. Still no land. Still plenty of snacks. Morale: excellent.\"",
+    "\"If you shake a tree and nothing falls, try again in three days. Trees need naps too.\"",
+    "\"I buried a wish under the old oak. You can have it. I have more.\"",
+    "\"Note to self: the fish bite best when you stop staring at the float.\"",
+    "\"Hello from the other side of the sea! It's mostly the same over here, but saltier.\"",
+];
+pub const BOTTLE_COINS: u32 = 250;
+pub const RETURN_COINS: u32 = 400;

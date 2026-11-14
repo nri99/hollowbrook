@@ -125,6 +125,23 @@ pub fn human(r: &mut R, id: usize, look: (Option<u16>, Option<u16>, u8), pos: Ve
                 r.cube(vec3(0., -0.12, 0.255), vec3(0.035, 0.01, 0.01), Color::new(0.6, 0.25, 0.25, 1.)); }) }) });
 }
 /// Residents 0-3 and the shopkeeper (4): distinct heads, ears, muzzles, tails, clothes; talk mouth + happy eyes.
+/// Mood emote over a resident's head (0 note, 1 sleepy, 2 thinking, 3 excited, 4 greeting), shown in short idle bursts.
+pub fn emote(g: &Game, i: usize, t: f32) -> Option<u8> {
+    let n = &g.npcs[i]; if n.happy > 0. || g.chats.iter().any(|c| c.0 == i || c.1 == i) { return None }
+    let r = g.res(i); if n.pos.distance(g.me.pos) < 2.2 && !n.moving && !g.w.p.npcs[i].talked { return Some(4) }
+    if (t * 0.25 + i as f32 * 1.7) % 5. > 1.4 { return None }
+    if g.hr + 1 >= r.sleep || g.hr < r.wake + 1 { return Some(1) }
+    Some([0, 2, 2, 3][r.pers])
+}
+pub fn draw_emote(r: &mut R, e: u8, p: Vec3, t: f32, labels: &mut Vec<(Vec3, String, Color)>) {
+    match e {
+        0 => { let c = Color::new(0.35, 0.3, 0.8, 1.); r.sphere(p, vec3(0.06, 0.045, 0.04), c); r.seg(p + vec3(0.05, 0., 0.), p + vec3(0.05, 0.2, 0.), 0.012, c); r.seg(p + vec3(0.05, 0.2, 0.), p + vec3(0.12, 0.15, 0.), 0.012, c) }
+        1 => labels.push((p, if (t * 1.5) as i32 % 2 == 0 { "z".into() } else { "z Z".into() }, Color::new(0.8, 0.85, 1., 1.))),
+        2 => labels.push((p, "...".into(), Color::new(0.95, 0.95, 0.95, 1.))),
+        3 => labels.push((p, "!".into(), Color::new(1., 0.85, 0.3, 1.))),
+        _ => { r.sphere(p, Vec3::splat(0.07), Color::new(1., 0.6, 0.65, 1.)); r.sphere(p + vec3(0.07, 0.04, 0.), Vec3::splat(0.07), Color::new(1., 0.6, 0.65, 1.)); r.cone(p + vec3(0.035, -0.02, 0.), 0.1, -0.12, Color::new(1., 0.6, 0.65, 1.)) }
+    }
+}
 pub fn resident(r: &mut R, i: usize, pos: Vec3, yaw: f32, anim: f32, moving: bool, t: f32, talk: bool, happy: f32) { resident_u(r, i, pos, yaw, anim, moving, t, talk, happy, false) }
 /// `umbrella`: held over the head (outdoors in rain).
 pub fn resident_u(r: &mut R, i: usize, pos: Vec3, yaw: f32, anim: f32, moving: bool, t: f32, talk: bool, happy: f32, umbrella: bool) {
@@ -409,6 +426,12 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
     if g.art_open() { let c = tc(STALL); r.cube(vec3(c.x, 0.4, c.y), vec3(0.5, 0.4, 0.35), Color::new(0.35, 0.3, 0.45, 1.)); r.cube(vec3(c.x, 1.3, c.y), vec3(0.6, 0.04, 0.45), Color::new(0.85, 0.3, 0.4, 1.));
         for x in [-0.55f32, 0.55] { r.cube(vec3(c.x + x, 0.65, c.y + 0.4), vec3(0.03, 0.65, 0.03), WOOD) } painting(r, art_of_week(g.w.day), vec3(c.x, 1.0, c.y + 0.37), 0.5, 0.36);
         if g.me.pos.distance(c) < 4. { labels.push((vec3(c.x, 1.7, c.y), "Saturday art stall".into(), Color::new(1., 0.85, 0.9, 1.))) } }
+    if let Some(sp) = &g.w.surprise { let p = tc((sp.x, sp.z)); let t = g.t;
+        match sp.kind { 0 => { r.with(Mat4::from_translation(vec3(p.x, 0.08, p.y)) * Mat4::from_rotation_z(FRAC_PI_2) * Mat4::from_rotation_x(0.3), |r| { r.cyl(Vec3::ZERO, 0.07, 0.22, Color::new(0.45, 0.75, 0.6, 0.85)); r.cyl(vec3(0., 0.22, 0.), 0.03, 0.08, Color::new(0.45, 0.75, 0.6, 0.85)); r.cube(vec3(0., 0.31, 0.), Vec3::splat(0.025), WOOD) }) }
+            1 => { r.cube(vec3(p.x, 0.05, p.y), vec3(0.2, 0.04, 0.08), rgb(def(150).col)); r.cube(vec3(p.x + 0.12, 0.05, p.y + 0.1), vec3(0.06, 0.03, 0.12), sh(rgb(def(150).col), 0.85)) }
+            _ => { r.cube(vec3(p.x, 0.16, p.y), Vec3::splat(0.16), Color::new(0.4, 0.6, 0.95, 1.)); r.cube(vec3(p.x, 0.16, p.y), vec3(0.17, 0.17, 0.04), YELLOW); r.cube(vec3(p.x, 0.16, p.y), vec3(0.04, 0.17, 0.17), YELLOW);
+                let by = 1.3 + (t * 1.2).sin() * 0.05; r.seg(vec3(p.x, 0.33, p.y), vec3(p.x + 0.05, by - 0.15, p.y), 0.008, WHITE); r.sphere(vec3(p.x + 0.05, by, p.y), vec3(0.15, 0.18, 0.15), Color::new(0.95, 0.35, 0.4, 1.)) } }
+        let u = r.unlit; r.unlit = true; for k in 0..3 { let a = t * 2. + k as f32 * 2.1; let y = 0.35 + ((t * 1.5 + k as f32) % 1.) * 0.5; r.sphere(vec3(p.x + a.cos() * 0.25, y, p.y + a.sin() * 0.25), Vec3::splat(0.025), Color::new(1., 0.95, 0.6, 1.)) } r.unlit = u }
     if let Some(f) = g.fest() { let c = tc(STALL); let t = g.t; let night = lt.night > 0.4;
         let (main, acc) = [(Color::new(1., 0.72, 0.82, 1.), Color::new(1., 1., 1., 1.)), (Color::new(0.25, 0.35, 0.7, 1.), Color::new(1., 0.85, 0.4, 1.)), (Color::new(0.75, 0.88, 1., 1.), Color::new(0.4, 0.6, 1., 1.)), (Color::new(1., 0.55, 0.25, 1.), Color::new(1., 0.9, 0.3, 1.))][f];
         r.cube(vec3(c.x, 0.4, c.y), vec3(0.5, 0.4, 0.35), WOOD); r.cube(vec3(c.x, 0.82, c.y), vec3(0.55, 0.03, 0.4), main);
@@ -456,7 +479,9 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
     for it in &g.w.ground { let c = rgb(def(it.def).col); match def(it.def).k { K::Shell => { r.sphere(vec3(it.x, 0.05, it.z), vec3(0.14, 0.06, 0.12), c); r.cone(vec3(it.x, 0.05, it.z), 0.08, 0.1, sh(c, 0.9)) } _ => r.sphere(vec3(it.x, 0.11, it.z), Vec3::splat(0.11), c) } }
     for (i, n) in g.npcs.iter().enumerate() { if n.inside || !near(n.pos.x, n.pos.y) { continue }
         let talking = matches!(g.me.ui, Ui::Talk { npc: Some(j), .. } if j == i);
-        resident_u(r, g.w.roster[i], vec3(n.pos.x, 0., n.pos.y), n.yaw, n.anim, n.moving, t, talking, n.happy, weather(g.w.day, now.month()) == Wx::Rain);
+        let near_me = !n.moving && n.pos.distance(g.me.pos) < 3. && g.me.scene == Scene::Town; let yaw = if near_me || talking { yaw_of(g.me.pos - n.pos) } else { n.yaw }; // idle residents look at a nearby player
+        resident_u(r, g.w.roster[i], vec3(n.pos.x, 0., n.pos.y), yaw, n.anim, n.moving, t, talking, n.happy, weather(g.w.day, now.month()) == Wx::Rain);
+        if let Some(e) = emote(g, i, t) { let hp = vec3(n.pos.x + 0.25, 1.55 + (t * 2.).sin() * 0.03, n.pos.y); draw_emote(r, e, hp, t, labels) }
         if let Some(&(a, b, left)) = g.chats.iter().find(|c| c.0 == i || c.1 == i) { let first = a == i; let speak = ((5. - left) as i32 % 2 == 0) == first; let pers = g.res(i).pers;
             if speak && n.pos.distance(g.me.pos) < 7. { labels.push((vec3(n.pos.x, 1.95, n.pos.y), format!("\"{}\"", CHATTER[pers][(i + b) % 3]), WHITE)) } }
         else if n.pos.distance(g.me.pos) < 4. { labels.push((vec3(n.pos.x, 1.75, n.pos.y), g.res(i).name.into(), Color::new(1., 0.95, 0.7, 1.))) } }

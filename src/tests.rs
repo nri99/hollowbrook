@@ -497,7 +497,7 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     let g = g0(at(11, 12, 0, 0)); let mut src: Vec<u16> = vec![];
     for m in 1..=12 { for h in 0..24 { for rain in [false, true] { src.extend(Game::bug_pool(rain, m, h)) } src.extend(Game::islet_bug_pool(m, h)); for hab in [1, 2] { for mouth in [false, true] { src.extend(Game::fish_pool(hab, mouth, m, h)) } } } }
     src.extend(FRUITS); src.extend([40, 41, 42, 84, 82, 75, 85, 86, 80, 81, 45, 46, 47, 70, 71, 72, 73, 74]); src.extend(FOSSILS); src.extend(FURN_IDS); src.extend(ISTALL_ITEMS.iter().map(|x| x.0)); src.extend(CLOTHES); src.extend(ARTS);
-    for v in &VISITORS { src.extend(v.goods); src.push(v.reward) } src.extend(KEEPSAKES); src.extend(FESTS.iter().map(|f| f.reward)); src.extend(KIOSK_ITEMS.iter().map(|x| x.0)); src.extend([60, 61, 62]);
+    for v in &VISITORS { src.extend(v.goods); src.push(v.reward) } src.extend(KEEPSAKES); src.push(150); src.extend(FESTS.iter().map(|f| f.reward)); src.extend(KIOSK_ITEMS.iter().map(|x| x.0)); src.extend([60, 61, 62]);
     let missing: Vec<&str> = DEFS.iter().filter(|d| !src.contains(&d.id)).map(|d| d.name).collect(); assert!(missing.is_empty(), "no acquisition path: {missing:?}");
     // the islet offers every non-native fruit over consecutive days
     let mut g = g; let mut seen = vec![]; for k in 0..3 { g.w.day += 1; g.refresh_islet(); let _ = k; seen.extend(g.w.iground.iter().map(|i| i.def).filter(|d| FRUITS.contains(d))) } for f in FRUITS { if f != g.w.native { assert!(seen.contains(&f), "fruit {f} never on Gullrock") } }
@@ -532,4 +532,19 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     g.mo = 1; g.dom = 1; assert!(g.fest_claim().is_err()); for n in &mut g.w.p.npcs { n.talked = true } assert_eq!(g.fest_claim(), Ok("Sunrise Banner"));
     g.mo = 7; g.dom = 24; g.w.p.inv.clear(); g.add(10); g.w.p.inv.extend((1..INV_CAP).map(|_| Slot { def: 20, qty: STACK, uid: 0 })); assert_eq!(g.fest_claim(), Ok("Paper Boat Model")); assert!(!g.w.p.inv.iter().any(|s| s.def == 10)); // the fish frees the slot for the keepsake
     let g2 = reload(&g, "fest"); assert_eq!(g2.w.p.fest_years.len(), 3); g.yr += 1; g.mo = 4; g.dom = 10; g.w.p.inv.clear(); for _ in 0..2 { g.add(g.w.native); } assert!(g.fest_claim().is_ok()); // next year again
+}
+
+#[test] fn daily_surprises_shared_and_saved() {
+    let mut g = two(at(11, 12, 0, 0)); assert!(g.catch_up(at(12, 6, 0, 1))); assert!(g.w.surprise.is_some());
+    // bottle -> mailbox letter with coins, gone for the other player
+    g.w.surprise = Some(Surprise { kind: 0, x: 5, z: 25, owner: 0, day: g.w.day }); let m = g.w.p.mail.len(); g.take_surprise(); assert_eq!(g.w.p.mail.len(), m + 1); assert_eq!(g.w.p.mail.last().unwrap().coins, BOTTLE_COINS); assert!(g.w.surprise.is_none());
+    g.activate(1); let m1 = g.w.p.mail.len(); g.take_surprise(); assert_eq!(g.w.p.mail.len(), m1); g.activate(0);
+    // lost scarf -> return to its owner for friendship + coins, once
+    g.w.surprise = Some(Surprise { kind: 1, x: 6, z: 20, owner: 2, day: g.w.day }); g.take_surprise(); assert_eq!(g.w.p.lost_owner, Some(2)); assert!(g.w.p.inv.iter().any(|s| s.def == 150));
+    let g2 = reload(&g, "surp"); assert_eq!(g2.w.p.lost_owner, Some(2));
+    let (f0, c0) = (g.w.p.npcs[2].friend, g.w.p.money); g.w.p.npcs[1].req = None; g.talk(1); assert!(g.w.p.inv.iter().any(|s| s.def == 150)); // wrong resident keeps it
+    g.w.p.npcs[2].req = None; g.talk(2); assert!(!g.w.p.inv.iter().any(|s| s.def == 150)); assert_eq!(g.w.p.money, c0 + RETURN_COINS); assert!(g.w.p.npcs[2].friend >= f0 + 4); assert_eq!(g.w.p.lost_owner, None);
+    // drifting gift -> furniture; full pockets leave it in place
+    g.w.surprise = Some(Surprise { kind: 2, x: 6, z: 20, owner: 0, day: g.w.day }); g.w.p.inv = (0..INV_CAP).map(|_| Slot { def: 20, qty: STACK, uid: 0 }).collect(); g.take_surprise(); assert!(g.w.surprise.is_some());
+    g.w.p.inv.clear(); g.take_surprise(); assert!(g.w.surprise.is_none() && g.w.p.inv.iter().any(|s| def(s.def).k == K::Furn));
 }

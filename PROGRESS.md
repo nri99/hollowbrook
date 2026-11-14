@@ -218,3 +218,6 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - D-02 DONE: Blossom Picnic, Starlit Regatta, Frost Lantern Festival, First Light (FESTS in data.rs), host Hazel at the plaza, yearly keepsake per player per festival (146-149), decorations, resident lines, calendar in guide. Test festivals_tasks_rewards_yearly; phase 31 screenshots of all four (Regatta boats are on river tiles out of that camera view: unverified visually).
 - Fixed two flaky tests (random weeds/items on the test site).
 - Next action: D-03 daily surprises.
+- D-03 DONE: daily shared surprise (message bottle -> mailbox letter + 250c; lost scarf -> return to owner +4 friendship +400c; drifting gift -> furniture), residents hint at it; test daily_surprises_shared_and_saved; phase 32 screenshots.
+- D-04 DONE (partial scope): mood emotes (note, z, ..., !, greeting heart) and idle residents facing a nearby player; phase 32 frames. Idle prop actions (watering etc.) not implemented.
+- Next action: D-05 evolving shop.
