@@ -1,10 +1,10 @@
 # Progress log
 
 ## Current
-- Current task: C-05 hats + hairstyle choice
+- Current task: none (run stopped; see FINAL_REPORT.md)
 - Last completed: C-04 furniture tint + wallpaper/flooring
 - Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
-- Next action: Profile.hat Option<u16> (serde default) + 3 hats (K::Cloth subtype via id range 67-69) on the rack, worn via pockets like shirts; Profile.hair u8 (0-3 colour/style) changed at the shop rack for a fee; human() draws hat/hair variants; tests; screenshot of both players with different looks.
+- Next action: human verification (HUMAN_VERIFICATION.md) and user decisions on blocked systems.
 
 ## Baseline verification (before this run)
 - 19 headless tests pass. Executable bot run (2 launches) completed the full loop; screenshots inspected:
@@ -124,3 +124,7 @@ schedules, resume-outdoors policy, clock-rollback pause).
 ### 05:30 — C-05 done (hats + hair)
 - [PROV] 3 hats (Straw Hat, Beanie, Flower Crown) on the rack, worn via pockets (swap like shirts); hairstyle cycles 4 looks for 150c at the rack (odd styles add a bun). `Profile.hat/hair` (serde default).
 - H: 48/48 (new: hats_and_hair). X: phase 18: P1 bought + wore Straw Hat, hairstyle x2 (P2 positioned beside P1 for the comparison shot = test positioning). S (inspected): c05_looks (P1 straw hat + blonde hair vs P2 default, both halves).
+
+### 05:50 — Regression pass + stop
+- H 48/48; X phases 1, 2, 4 re-run (single-player loop + relaunch persistence, two-player independence) passed; S regress/12_relaunch_home inspected.
+- Remaining work is blocked (user decisions), unspecified content, or physical verification -> FINAL_REPORT.md written, loop cancelled.

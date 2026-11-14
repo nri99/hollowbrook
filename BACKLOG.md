@@ -28,7 +28,7 @@ Status: `[ ]` open · `[x]` done · `[B]` blocked (reason given)
 
 ## P2 — presentation and readability
 - [x] **P2-01 Occlusion fade.** Buildings/trees between camera and player are drawn translucent/cut so the player stays visible. *AC:* behind-house screenshot shows player.
-- [ ] **P2-02 Tool feedback.** Swing animation + small effect (splash ring, dirt puff) for each tool. *AC:* screenshot during use.
+- [x] **P2-02 Tool feedback.** Swing animation + small effect (splash ring, dirt puff) for each tool. *AC:* screenshot during use.
 - [x] **P2-03 Running tramples flowers.** Running over a flower tile can flatten it (persisted, regrows next day). *AC:* unit test.
 
 ## P3 — collections and museum
