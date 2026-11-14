@@ -212,3 +212,9 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - R6-R8 done. Full suite 73 pass (+2 ignored helpers: camp-site finder, real-save migration). Release 1 implementation complete; human checks pending.
 - Next action: none until user playtest feedback. Launch: `cargo run --release`.
 - 2026-11-14: Controller player switch: hold View + press Menu moves a pad between Player 1 and Player 2 (two pads swap; P2 leaves if no pad remains on P2, progress saved). Corrects the earlier claim that a lone pad drives P1 (it claimed P2). Unit test view_menu_switches_pad_between_players; physical check added to HUMAN_VERIFICATION H2. Suite 74 pass.
+
+## Depth pass (BACKLOG D-01..D-06)
+- D-01 DONE: friendship tiers + tier lines, seasonal/contextual/gossip/hobby lines (6 characters), best-friend keepsake portraits (140-145), Friends journal page. Test resident_depth_tiers_context_keepsake; screenshot d01_friends_page (phase 31).
+- D-02 DONE: Blossom Picnic, Starlit Regatta, Frost Lantern Festival, First Light (FESTS in data.rs), host Hazel at the plaza, yearly keepsake per player per festival (146-149), decorations, resident lines, calendar in guide. Test festivals_tasks_rewards_yearly; phase 31 screenshots of all four (Regatta boats are on river tiles out of that camera view: unverified visually).
+- Fixed two flaky tests (random weeds/items on the test site).
+- Next action: D-03 daily surprises.

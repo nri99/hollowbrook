@@ -30,7 +30,7 @@ const fn fu(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32), fp: (i3
 const fn cl(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32)) -> D { D { buy, ..b(id, name, K::Cloth, buy / 4, col) } }
 const fn tl(id: u16, name: &'static str, buy: u32) -> D { D { buy, ..b(id, name, K::Tool, 0, (0.6, 0.45, 0.3)) } }
 
-pub static DEFS: [D; 105] = [
+pub static DEFS: [D; 115] = [
     cr(0, "Cabbage White", K::Bug, 90, (1., 1., 0.95), 0.2, 0, 3, 10, 6, 17), cr(1, "Honeybee", K::Bug, 160, (1., 0.85, 0.2), 0.2, 0, 3, 7, 8, 17),
     cr(2, "Ladybug", K::Bug, 120, (0.9, 0.15, 0.1), 0.2, 0, 3, 6, 8, 17), cr(3, "Dragonfly", K::Bug, 230, (0.3, 0.8, 0.9), 0.2, 0, 5, 10, 8, 19),
     cr(4, "Cicada", K::Bug, 300, (0.4, 0.6, 0.3), 0.2, 0, 7, 8, 8, 17), cr(5, "Firefly", K::Bug, 450, (0.8, 1., 0.3), 0.2, 0, 6, 7, 19, 4),
@@ -61,6 +61,13 @@ pub static DEFS: [D; 105] = [
     fu(132, "Reading Nook Sofa", 2000, (0.7, 0.45, 0.35), (2, 1), true, false, Act::Sit), fu(133, "Keepsake Chest", 1500, (0.6, 0.35, 0.25), (1, 1), true, false, Act::Storage),
     cl(134, "Initiative Tee", 500, (0.95, 0.75, 0.3)), cl(135, "Harbor Stripe Tee", 500, (0.3, 0.45, 0.75)),
     b(136, "Ferry Pass", K::Material, 0, (0.95, 0.85, 0.55)), b(137, "Sea Glass Pouch", K::Material, 0, (0.45, 0.85, 0.75)),
+    // best-friend keepsake portraits, one per character (CHARS order)
+    fu(140, "Juniper's Portrait", 2000, (0.93, 0.5, 0.2), (1, 1), false, true, Act::None), fu(141, "Bramble's Portrait", 2000, (0.55, 0.55, 0.58), (1, 1), false, true, Act::None),
+    fu(142, "Mossy's Portrait", 2000, (0.45, 0.75, 0.35), (1, 1), false, true, Act::None), fu(143, "Otto's Portrait", 2000, (0.55, 0.38, 0.25), (1, 1), false, true, Act::None),
+    fu(144, "Clover's Portrait", 2000, (0.3, 0.28, 0.3), (1, 1), false, true, Act::None), fu(145, "Basil's Portrait", 2000, (0.62, 0.47, 0.32), (1, 1), false, true, Act::None),
+    // festival keepsakes (original)
+    fu(146, "Blossom Lantern", 1500, (1., 0.7, 0.8), (1, 1), false, false, Act::Lamp), fu(147, "Paper Boat Model", 1500, (0.95, 0.95, 0.9), (1, 1), false, false, Act::None),
+    fu(148, "Frost Lantern", 1500, (0.7, 0.85, 1.), (1, 1), false, false, Act::Lamp), fu(149, "Sunrise Banner", 1500, (1., 0.6, 0.3), (1, 1), false, true, Act::None),
     b(106, "Bramble's Garden", K::Art, 600, (0.55, 0.45, 0.6)), b(107, "Harbor Fog", K::Art, 600, (0.7, 0.75, 0.78)),
     b(103, "Lantern Night", K::Art, 600, (0.2, 0.22, 0.45)), b(104, "Pond in Summer", K::Art, 600, (0.4, 0.7, 0.4)), b(105, "First Snow", K::Art, 600, (0.85, 0.9, 0.98)),
     b(20, "Apple", K::Fruit, 100, (0.85, 0.15, 0.15)), b(21, "Pear", K::Fruit, 100, (0.8, 0.85, 0.25)), b(22, "Cherry", K::Fruit, 100, (0.7, 0.05, 0.2)), b(23, "Peach", K::Fruit, 100, (1., 0.65, 0.5)),
@@ -87,7 +94,7 @@ pub const FURN_IDS: [u16; 20] = [50, 51, 52, 53, 54, 55, 56, 57, 90, 91, 92, 93,
 /// Furniture collections: (name, members). Completing one in your home shows a note.
 pub const SETS: [(&str, [u16; 6]); 2] = [("Meadow collection", [90, 91, 92, 110, 111, 112]), ("Harbor collection", [93, 94, 95, 113, 114, 115])];
 /// Base model drawn for a furniture id (collections reuse a model with their own colors and accents).
-pub fn model(d: u16) -> u16 { match d { 90 => 50, 91 => 52, 92 | 95 => 54, 93 => 51, 94 => 55, 110 | 115 => 53, 111 | 124 => 56, 112 | 120 | 123 | 130 => 57, 113 | 121 => 58, 114 => 59, 122 | 125 | 131 => 54, 126 | 133 => 55, 127 => 52, 132 => 51, _ => d } }
+pub fn model(d: u16) -> u16 { match d { 90 => 50, 91 => 52, 92 | 95 => 54, 93 => 51, 94 => 55, 110 | 115 => 53, 111 | 124 => 56, 112 | 120 | 123 | 130 => 57, 113 | 121 => 58, 114 => 59, 122 | 125 | 131 => 54, 126 | 133 => 55, 127 => 52, 132 => 51, 140..=145 | 149 => 57, 146 | 148 => 54, 147 => 52, _ => d } }
 pub const ARTS: [u16; 8] = [100, 101, 102, 103, 104, 105, 106, 107];
 /// Weekly art stall: open on Saturdays (when the fair isn't on) at STALL; price per painting (provisional).
 pub const ART_PRICE: u32 = 2500;
@@ -328,13 +335,64 @@ pub const HELP_KEYS: [&str; 10] = ["Move: WASD or arrows   Run: hold Shift", "In
 pub const HELP_PAD: [&str; 10] = ["Move: left stick or d-pad   Run: hold LT or RT", "Interact / confirm / next: A   Cancel / close: B", "Use tool / dive: X   Cycle tools: RB",
     "Pockets: Y   Journal: Menu (Start)", "Gift during a chat: LB", "Furniture: View move, LB pick up, RB rotate", "Menu or A on a new pad: join as P2", "Hold View + press Menu: switch pad P1 <-> P2",
     "Journal pages: RB next page", "Xbox names; PlayStation: Cross = A, Circle = B"];
-pub const GUIDE: [&str; 9] = [
+pub const GUIDE: [&str; 10] = [
     "Home: expand at the General Store counter. Each expansion adds an interest-free balance to pay off whenever you like; pay it off before the next one.",
     "Projects: residents propose material projects at the notice board; the town leader (Player 1) starts coin-funded projects at Hazel's desk. Fully funded = built next morning.",
     "Policies: Player 1 can enact one policy at Hazel's desk (fee shown first): earlier store hours, later hours, or fewer weeds.",
     "Gullrock: sail from the dock (200 coins, or a Ferry Pass). Captain Pell has a daily task; the board runs timed activities for Sea Glass.",
     "Campground (east meadow): a different traveller visits each day, 8:00-22:00. Buy their goods (one of each per day) and do their favor once for a keepsake.",
     "Initiatives: 3 personal tasks a day plus a weekly town task. Claim coupons at the kiosk in the Town Hall and trade them for rewards.",
-    "Museum: donate fish, bugs, fossils and paintings. The art stall opens on Saturdays (not during the Harvest Fair).",
+    "Museum: donate fish, bugs, fossils and paintings. The art stall opens on Saturdays (not during festivals).",
+    "Calendar: First Light Jan 1-2, Blossom Picnic Apr 10-12, Starlit Regatta Jul 24-26, Harvest Fair Nov 13-16, Frost Lantern Festival Dec 20-24. Visit the plaza host.",
     "Days change at 6:00 real time. The game saves every 15 seconds, at each new day, and when you close it.",
     "Two players: F2 or a second controller adds Player 2 with their own home, pockets, coins and tasks."];
+
+// ---- Resident depth (original writing) ----
+pub const TIERS: [&str; 5] = ["Acquaintance", "Friend", "Good friend", "Close friend", "Best friend"];
+pub fn tier(f: i32) -> usize { match f { i32::MIN..=4 => 0, 5..=14 => 1, 15..=29 => 2, 30..=49 => 3, _ => 4 } }
+pub const PERS_NAME: [&str; 4] = ["cheerful", "grumpy", "dreamy", "sporty"];
+pub const KEEPSAKES: [u16; 6] = [140, 141, 142, 143, 144, 145];
+/// One line per personality per friendship tier, said on the first chat of the day.
+pub const TIER_LINES: [[&str; 5]; 4] = [
+    ["Oh, you're new-ish! I'm still learning your favorite color.", "I saved you a wave this morning, {p}!", "You're on my list of people who make the day sparkle.", "If I bake anything, the first slice is yours. That's a rule now.", "Best friends forever, {p}. I wrote it in my diary in glitter."],
+    ["Hmph. Do I know you?", "Oh. It's you. ...That's fine.", "I suppose you're one of the tolerable ones, {p}.", "Don't tell anyone, but I look forward to you stopping by.", "You're my best friend, {p}. If you repeat that, I'll deny it."],
+    ["Have we met in a dream? You feel familiar.", "Hello, {p}. The wind said you'd come.", "I named a cloud after you. It's the fluffy one.", "When I count stars, I count you too, {p}.", "You're my favorite person in every version of the world, {p}."],
+    ["New face! Let's see your stretch form.", "Hey {p}! You're getting quicker, I can tell!", "Training buddy! We should race to the beach sometime.", "You're my go-to spotter, {p}. Total trust.", "Best friends, {p}! Like a perfect relay handoff!"],
+];
+/// Seasonal lines per personality (spring, summer, autumn, winter).
+pub const SEASON_LINES: [[&str; 4]; 4] = [
+    ["Spring! Everything is waking up and saying hello!", "Summer means picnics by the river every single day!", "The leaves are turning! It's like the trees are getting dressed up.", "Winter is cozy season. Blankets! Cocoa! More blankets!"],
+    ["Spring. Pollen. My nose is filing a complaint.", "Summer. Too hot. I'm staying in the shade until autumn.", "Autumn is acceptable. Crisp. Quiet. Correct.", "Winter keeps the noisy bugs away. I approve."],
+    ["In spring the ground hums. Can you hear it?", "Summer nights are when the fireflies tell stories.", "Autumn leaves are letters the trees write to the ground.", "Snow makes everything whisper. I like whispering."],
+    ["Spring training season! New goals!", "Summer swim season! The river is my gym!", "Autumn runs are the best runs. Crunchy leaves!", "Winter? Indoor push-ups. Lots of them."],
+];
+/// Gossip about another resident ({o}) per personality.
+pub const GOSSIP: [[&str; 2]; 4] = [
+    ["{o} lent me a book yesterday! I read the first page four times.", "Have you visited {o} lately? They'd love the company!"],
+    ["{o} walked past my garden twice today. Suspicious.", "{o} said hello to me. I said hello back. Don't make it weird."],
+    ["{o} has a very calm shadow. I noticed.", "I think {o} would make a good lighthouse."],
+    ["{o} almost beat me in a race. Almost!", "I'm teaching {o} to stretch properly. Slow progress."],
+];
+/// Hobby and personal lines per character (CHARS order), so residents sharing a personality still differ.
+pub const HOBBY: [&str; 6] = ["baking", "gardening", "stargazing", "swimming", "knitting", "clock repair"];
+pub const CHAR_LINES: [[&str; 3]; 6] = [
+    ["I'm perfecting a {f} tart. Attempt number nine!", "Flour on my nose again? It's my signature look.", "Baking is just science you can eat."],
+    ["My tulips have names. I won't tell you them.", "Weeds are just plants with bad manners.", "Gardening teaches patience. Mostly to the gardener."],
+    ["I found a new star last night. It was a firefly.", "The moon looks lonely on Tuesdays.", "If you look up long enough, you start floating. Inside."],
+    ["I timed my swim to the bridge. New record!", "The river current is my rival.", "Hydration is a lifestyle!"],
+    ["I'm knitting a scarf long enough for the whole town.", "Knit one, purl two, chat three!", "Soft yarn makes soft days."],
+    ["Every clock in my house says a different time. On purpose!", "A gear went missing. I suspect a squirrel.", "Fixing things is my favorite way to listen."],
+];
+
+// ---- Calendar celebrations (original). The Harvest Fair (Nov 13-16) is separate. ----
+/// Festival task: what the host asks for once per player per year.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum FTask { Fruit(u16), Fish(u16), Branch(u16), TalkAll }
+pub struct Fest { pub name: &'static str, pub m: u32, pub d0: u32, pub d1: u32, pub task: FTask, pub ask: &'static str, pub reward: u16, pub about: &'static str, pub chat: &'static str }
+pub const FESTS: [Fest; 4] = [
+    Fest { name: "Blossom Picnic", m: 4, d0: 10, d1: 12, task: FTask::Fruit(2), ask: "Bring 2 of the town's fruit for the shared picnic basket.", reward: 146, about: "Spring's first picnic under the blossoms. Everyone brings something to share.", chat: "The Blossom Picnic is on! Bring some fruit to the plaza!" },
+    Fest { name: "Starlit Regatta", m: 7, d0: 24, d1: 26, task: FTask::Fish(1), ask: "Catch any fish so we can wish it luck before the paper boats sail.", reward: 147, about: "Paper boats with tiny lanterns drift down the river after dark.", chat: "Have you seen the paper boats on the river? The Regatta is so pretty at night!" },
+    Fest { name: "Frost Lantern Festival", m: 12, d0: 20, d1: 24, task: FTask::Branch(2), ask: "Bring 2 Branches to frame the frost lanterns.", reward: 148, about: "Blue lanterns light the long winter nights around the plaza tree.", chat: "The frost lanterns are up! The plaza is glowing!" },
+    Fest { name: "First Light", m: 1, d0: 1, d1: 2, task: FTask::TalkAll, ask: "Wish all four residents a happy new year today.", reward: 149, about: "The town greets the first sunrise of the year with banners and good wishes.", chat: "Happy First Light! I hope this year is your best one yet!" },
+];
+pub fn fest_of(m: u32, d: u32) -> Option<usize> { FESTS.iter().position(|f| f.m == m && (f.d0..=f.d1).contains(&d)) }

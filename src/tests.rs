@@ -309,7 +309,7 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     let mut g = two(at(11, 12, 0, 0)); let cost = MPROJECTS[3].1;
     g.activate(1); g.me.pos = vec2(16.5, 20.5); g.me.face = vec2(1., 0.); assert_eq!(g.mp_start(3), Err("Only the town leader can start public projects."));
     g.activate(0); g.me.pos = vec2(13.5, 18.5); g.me.face = vec2(0., 1.); assert!(g.mp_start(3).is_err()); // path tile rejected
-    g.me.pos = vec2(16.5, 20.5); g.me.face = vec2(1., 0.); g.mp_start(3).unwrap(); let m = g.w.mproject.clone().unwrap(); assert!(!g.walk_tile(m.x, m.z));
+    g.me.pos = vec2(16.5, 20.5); g.me.face = vec2(1., 0.); g.w.weeds.retain(|&t| t != (17, 20)); g.w.digs.retain(|&t| t != (17, 20)); g.w.holes.retain(|&t| t != (17, 20)); g.w.ground.retain(|i| tile_of(vec2(i.x, i.z)) != (17, 20)); g.mp_start(3).unwrap(); let m = g.w.mproject.clone().unwrap(); assert!(!g.walk_tile(m.x, m.z));
     for b in 0..BLDS.len() { assert!(g.bfs(door_tile(SHOP), door_tile(b), true).is_some()) }
     g.w.p.money = 30000; g.activate(1); g.w.p.money = 25000; g.activate(0);
     assert_eq!(g.mp_fund(30000), Ok(30000)); g.activate(1); assert_eq!(g.mp_fund(25000), Ok(cost - 30000)); assert_eq!(g.w.p.money, 25000 - (cost - 30000)); assert!(g.mp_fund(1).is_err());
@@ -379,7 +379,7 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
 }
 #[test] fn funding_and_activity_edge_cases() {
     let mut g = two(at(11, 12, 0, 0)); let cost = MPROJECTS[0].1;
-    g.me.pos = vec2(16.5, 20.5); g.me.face = vec2(1., 0.); g.mp_start(0).unwrap();
+    g.me.pos = vec2(16.5, 20.5); g.me.face = vec2(1., 0.); g.w.weeds.retain(|&t| t != (17, 20)); g.w.digs.retain(|&t| t != (17, 20)); g.w.holes.retain(|&t| t != (17, 20)); g.w.ground.retain(|i| tile_of(vec2(i.x, i.z)) != (17, 20)); g.mp_start(0).unwrap();
     g.w.p.money = cost - 400; assert_eq!(g.mp_fund(cost), Ok(cost - 400)); assert_eq!(g.w.p.money, 0);
     g.activate(1); g.w.p.money = 700; assert_eq!(g.mp_fund(DONATE_STEP), Ok(400)); assert_eq!(g.w.p.money, 300); // remaining < 1000 is capped
     assert!(g.mp_fund(DONATE_STEP).is_err()); assert_eq!(g.w.p.money, 300);
@@ -497,7 +497,7 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     let g = g0(at(11, 12, 0, 0)); let mut src: Vec<u16> = vec![];
     for m in 1..=12 { for h in 0..24 { for rain in [false, true] { src.extend(Game::bug_pool(rain, m, h)) } src.extend(Game::islet_bug_pool(m, h)); for hab in [1, 2] { for mouth in [false, true] { src.extend(Game::fish_pool(hab, mouth, m, h)) } } } }
     src.extend(FRUITS); src.extend([40, 41, 42, 84, 82, 75, 85, 86, 80, 81, 45, 46, 47, 70, 71, 72, 73, 74]); src.extend(FOSSILS); src.extend(FURN_IDS); src.extend(ISTALL_ITEMS.iter().map(|x| x.0)); src.extend(CLOTHES); src.extend(ARTS);
-    for v in &VISITORS { src.extend(v.goods); src.push(v.reward) } src.extend(KIOSK_ITEMS.iter().map(|x| x.0)); src.extend([60, 61, 62]);
+    for v in &VISITORS { src.extend(v.goods); src.push(v.reward) } src.extend(KEEPSAKES); src.extend(FESTS.iter().map(|f| f.reward)); src.extend(KIOSK_ITEMS.iter().map(|x| x.0)); src.extend([60, 61, 62]);
     let missing: Vec<&str> = DEFS.iter().filter(|d| !src.contains(&d.id)).map(|d| d.name).collect(); assert!(missing.is_empty(), "no acquisition path: {missing:?}");
     // the islet offers every non-native fruit over consecutive days
     let mut g = g; let mut seen = vec![]; for k in 0..3 { g.w.day += 1; g.refresh_islet(); let _ = k; seen.extend(g.w.iground.iter().map(|i| i.def).filter(|d| FRUITS.contains(d))) } for f in FRUITS { if f != g.w.native { assert!(seen.contains(&f), "fruit {f} never on Gullrock") } }
@@ -511,4 +511,25 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     let p = std::env::var("HB_SAVE_COPY").unwrap(); let w = save::load(&p).expect("loads"); let (money, home, n) = (w.p.money, w.p.home, w.others.len());
     let mut g = Game::from_world(w, town()); assert_eq!((g.w.p.money, g.w.p.home, g.w.others.len()), (money, home, n));
     g.update_player(&Inp::none(), 0.016); assert_eq!(g.w.p.tasks.len(), 3); println!("migrated: money {money} home {home} others {n} tasks {:?} visitor {}", g.w.p.tasks.iter().map(|t| TASKS[t.t].2).collect::<Vec<_>>(), VISITORS[g.visitor()].name);
+}
+
+#[test] fn resident_depth_tiers_context_keepsake() {
+    let mut g = two(at(11, 12, 0, 0)); assert_eq!((tier(0), tier(5), tier(15), tier(30), tier(50)), (0, 1, 2, 3, 4));
+    let c = g.ctx_lines(0); assert!(c.len() >= 4); assert!(c.iter().any(|l| SEASON_LINES.iter().any(|s| s.contains(&l.as_str()))));
+    g.npcs[0].inside = false; g.w.p.npcs[0].friend = 49; g.w.p.npcs[0].req = None; g.w.p.parcel = None; g.talk(0); assert!(g.w.p.keepsakes.is_empty());
+    let Ui::Talk { lines, .. } = &g.me.ui else { panic!("ui {:?}", g.me.ui) }; assert!(lines.len() >= 3, "{lines:?}");
+    g.w.p.npcs[0].talked = false; g.w.p.npcs[0].friend = 50; g.w.p.npcs[0].req = None; g.talk(0); let ch = g.w.roster[0]; assert!(g.w.p.keepsakes.contains(&(ch as u8))); assert!(g.w.p.inv.iter().any(|s| s.def == KEEPSAKES[ch]));
+    g.w.p.npcs[0].talked = false; g.talk(0); assert_eq!(g.w.p.inv.iter().filter(|s| s.def == KEEPSAKES[ch]).count(), 1); // once
+    g.activate(1); assert!(g.w.p.keepsakes.is_empty()); g.activate(0); let g2 = reload(&g, "keep"); assert_eq!(g2.w.p.keepsakes, vec![ch as u8]);
+}
+
+#[test] fn festivals_tasks_rewards_yearly() {
+    let mut g = two(at(11, 12, 0, 0)); assert_eq!(fest_of(4, 11), Some(0)); assert_eq!(fest_of(7, 25), Some(1)); assert_eq!(fest_of(12, 24), Some(2)); assert_eq!(fest_of(1, 1), Some(3)); assert_eq!(fest_of(6, 1), None);
+    for f in &FESTS { assert!(!fair_active(f.m, f.d0)) }
+    g.mo = 4; g.dom = 11; assert!(g.fest_claim().is_err()); for _ in 0..2 { g.add(g.w.native); } assert_eq!(g.fest_claim(), Ok("Blossom Lantern")); assert!(g.fest_claim().is_err());
+    assert!(!g.walk_tile(STALL.0, STALL.1)); assert!(!g.art_open());
+    g.activate(1); assert!(g.fest_claim().is_err()); g.activate(0); // other player still needs to do it
+    g.mo = 1; g.dom = 1; assert!(g.fest_claim().is_err()); for n in &mut g.w.p.npcs { n.talked = true } assert_eq!(g.fest_claim(), Ok("Sunrise Banner"));
+    g.mo = 7; g.dom = 24; g.w.p.inv.clear(); g.add(10); g.w.p.inv.extend((1..INV_CAP).map(|_| Slot { def: 20, qty: STACK, uid: 0 })); assert_eq!(g.fest_claim(), Ok("Paper Boat Model")); assert!(!g.w.p.inv.iter().any(|s| s.def == 10)); // the fish frees the slot for the keepsake
+    let g2 = reload(&g, "fest"); assert_eq!(g2.w.p.fest_years.len(), 3); g.yr += 1; g.mo = 4; g.dom = 10; g.w.p.inv.clear(); for _ in 0..2 { g.add(g.w.native); } assert!(g.fest_claim().is_ok()); // next year again
 }

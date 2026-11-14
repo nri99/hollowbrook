@@ -409,6 +409,23 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
     if g.art_open() { let c = tc(STALL); r.cube(vec3(c.x, 0.4, c.y), vec3(0.5, 0.4, 0.35), Color::new(0.35, 0.3, 0.45, 1.)); r.cube(vec3(c.x, 1.3, c.y), vec3(0.6, 0.04, 0.45), Color::new(0.85, 0.3, 0.4, 1.));
         for x in [-0.55f32, 0.55] { r.cube(vec3(c.x + x, 0.65, c.y + 0.4), vec3(0.03, 0.65, 0.03), WOOD) } painting(r, art_of_week(g.w.day), vec3(c.x, 1.0, c.y + 0.37), 0.5, 0.36);
         if g.me.pos.distance(c) < 4. { labels.push((vec3(c.x, 1.7, c.y), "Saturday art stall".into(), Color::new(1., 0.85, 0.9, 1.))) } }
+    if let Some(f) = g.fest() { let c = tc(STALL); let t = g.t; let night = lt.night > 0.4;
+        let (main, acc) = [(Color::new(1., 0.72, 0.82, 1.), Color::new(1., 1., 1., 1.)), (Color::new(0.25, 0.35, 0.7, 1.), Color::new(1., 0.85, 0.4, 1.)), (Color::new(0.75, 0.88, 1., 1.), Color::new(0.4, 0.6, 1., 1.)), (Color::new(1., 0.55, 0.25, 1.), Color::new(1., 0.9, 0.3, 1.))][f];
+        r.cube(vec3(c.x, 0.4, c.y), vec3(0.5, 0.4, 0.35), WOOD); r.cube(vec3(c.x, 0.82, c.y), vec3(0.55, 0.03, 0.4), main);
+        let talking = matches!(g.me.ui, Ui::Talk { npc: None, .. }) && g.me.pos.distance(c) < 2.5; resident(r, 13, vec3(c.x, 0., c.y - 0.6), 0., 0., false, t, talking, 0.);
+        let posts = [(-2.5f32, -1.5f32), (2.5, -1.5), (-2.5, 1.5), (2.5, 1.5)];
+        for (px, pz) in posts { let p = vec3(c.x + px, 0., c.y + pz); r.cube(p + vec3(0., 0.8, 0.), vec3(0.04, 0.8, 0.04), WOOD); let u = r.unlit; r.unlit = night; r.sphere(p + vec3(0., 1.62, 0.), Vec3::splat(0.14), if night { acc } else { main }); r.unlit = u }
+        for k in 0..2 { let (a, b) = if k == 0 { (posts[0], posts[1]) } else { (posts[2], posts[3]) }; for j in 0..9 { let s = j as f32 / 8.; let x = c.x + a.0 + (b.0 - a.0) * s; let y = 1.45 - (s * PI).sin() * 0.25; r.cone(vec3(x, y, c.y + a.1), 0.07, -0.16, if j % 2 == 0 { main } else { acc }) } }
+        match f {
+            0 => { for (k, (bx, bz)) in [(-1.5f32, 2.6f32), (1.4, 2.8), (0., 3.4)].into_iter().enumerate() { r.cube(vec3(c.x + bx, 0.02, c.y + bz), vec3(0.55, 0.01, 0.45), [Color::new(0.95, 0.4, 0.45, 1.), Color::new(0.4, 0.6, 0.95, 1.), Color::new(0.95, 0.85, 0.4, 1.)][k]); r.cube(vec3(c.x + bx, 0.12, c.y + bz), vec3(0.15, 0.1, 0.1), WOOD) }
+                for i in 0..30 { let a = i as f32 * 2.4 + t * 0.3; let rr = 1. + (i % 5) as f32 * 0.6; r.sphere(vec3(c.x + a.cos() * rr, 2.2 - ((t * 0.4 + i as f32 * 0.37) % 2.2), c.y + 1. + a.sin() * rr), vec3(0.04, 0.01, 0.03), main) } }
+            1 => { let mut n = 0; for z in 0..H as i32 { for x in 0..W as i32 { if tile_at(&g.map, x, z) == RIVER && (x * 7 + z * 3) % 5 == 0 && n < 16 { n += 1; let bob = (t * 1.5 + x as f32).sin() * 0.02; let p = vec3(x as f32 + 0.5, -0.12 + bob, z as f32 + 0.5);
+                r.cube(p, vec3(0.16, 0.03, 0.08), WHITE); r.cone(p + vec3(0., 0.03, 0.), 0.06, 0.1, Color::new(0.95, 0.95, 0.9, 1.)); let u = r.unlit; r.unlit = night; r.sphere(p + vec3(0., 0.16, 0.), Vec3::splat(0.04), acc); r.unlit = u } } } }
+            2 => { let p = vec3(c.x, 0., c.y + 2.6); r.cyl(p, 0.08, 0.4, WOOD); for k in 0..3 { r.cone(p + vec3(0., 0.35 + k as f32 * 0.45, 0.), 0.7 - k as f32 * 0.18, 0.7, Color::new(0.2, 0.45, 0.35, 1.)) }
+                let u = r.unlit; r.unlit = true; for i in 0..14 { let a = i as f32 * 1.9; let h = 0.5 + (i % 7) as f32 * 0.22; let rr = 0.65 - (h - 0.5) * 0.35; r.sphere(p + vec3(a.cos() * rr, h, a.sin() * rr), Vec3::splat(0.05), if (t * 2. + i as f32).sin() > 0. { acc } else { WHITE }) } r.sphere(p + vec3(0., 1.85, 0.), Vec3::splat(0.1), Color::new(1., 0.95, 0.6, 1.)); r.unlit = u }
+            _ => for k in 0..3 { let x = c.x - 2. + k as f32 * 2.; r.cube(vec3(x, 0.9, c.y + 2.6), vec3(0.03, 0.9, 0.03), WOOD); r.cube(vec3(x + 0.25, 1.55, c.y + 2.6), vec3(0.25, 0.18, 0.01), [main, acc, Color::new(0.95, 0.35, 0.35, 1.)][k]) },
+        }
+        if g.me.pos.distance(c) < 6. { labels.push((vec3(c.x, 2.1, c.y), FESTS[f].name.into(), main)) } }
     if fair_active(now.month(), now.day()) { let c = tc(STALL);
         r.cube(vec3(c.x, 0.45, c.y), vec3(0.48, 0.45, 0.4), WOOD); for k in 0..5 { r.cube(vec3(c.x - 0.4 + k as f32 * 0.2, 1.25, c.y + 0.25), vec3(0.1, 0.03, 0.35), if k % 2 == 0 { Color::new(0.95, 0.55, 0.2, 1.) } else { WHITE }) }
         for x in [-0.45, 0.45] { r.cube(vec3(c.x + x, 0.62, c.y + 0.3), vec3(0.03, 0.62, 0.03), WOOD) } for (k, f) in [20u16, 21, 22, 23].iter().enumerate() { r.sphere(vec3(c.x - 0.3 + k as f32 * 0.2, 0.98, c.y + 0.1), Vec3::splat(0.08), rgb(def(*f).col)) }
@@ -659,8 +676,8 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         Ui::Rack(sel) => { panel(sw / 2. - 260., 120., 520., 380.); txt("Clothing rack", sw / 2. - 240., 155., 28., Color::new(0.45, 0.3, 0.2, 1.));
             let mut items: Vec<String> = CLOTHES.iter().map(|&d| format!("{}  -  {} coins", def(d).name, def(d).buy)).collect(); items.push(format!("Change hairstyle  -  {} coins", HAIR_FEE)); list(&items, Some(*sel), sw / 2. - 230., 195.);
             txt(&format!("You have {} coins.", g.w.p.money), sw / 2. - 240., 440., 20., DARKGRAY); txt(if g.me.pad { "Up/Down select  A buy  B close" } else { "W/S select  Enter buy  Esc close" }, sw / 2. - 240., 470., 19., DARKGRAY) }
-        Ui::Journal => { panel(60., 80., sw - 120., sh - 160.); txt(["Field Journal", "Initiatives", "Settings", "Controls", "Guide"][g.me.jpage as usize % 5], 80., 115., 30., Color::new(0.45, 0.3, 0.2, 1.));
-            txt(&format!("Page {}/5   {}   {}", g.me.jpage + 1, if g.me.pad { "[RB] next page" } else { "[Tab] next page" }, VERSION), 80., 140., 16., DARKGRAY);
+        Ui::Journal => { panel(60., 80., sw - 120., sh - 160.); txt(["Field Journal", "Initiatives", "Settings", "Controls", "Guide", "Friends"][g.me.jpage as usize % 6], 80., 115., 30., Color::new(0.45, 0.3, 0.2, 1.));
+            txt(&format!("Page {}/6   {}   {}", g.me.jpage + 1, if g.me.pad { "[RB] next page" } else { "[Tab] next page" }, VERSION), 80., 140., 16., DARKGRAY);
             if g.me.jpage == 0 {
             for (col, (k, title)) in [(K::Fish, "Fish & sea"), (K::Bug, "Bugs"), (K::Shell, "Shells & finds")].iter().enumerate().filter(|(c, _)| sw >= 1100. || *c == g.me.jcol as usize) { let x = if sw >= 1100. { 80. + col as f32 * 380. } else { 80. }; txt(title, x, 170., 24., BLACK);
                 for (j, dd) in DEFS.iter().filter(|dd| dd.k == *k || (*k == K::Shell && matches!(dd.k, K::Treasure | K::Fruit | K::Fossil)) || (*k == K::Fish && dd.k == K::Sea)).enumerate() { let seen = g.w.p.seen.contains(&dd.id);
@@ -675,6 +692,11 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
                 if g.w.p.tasks.is_empty() { txt("No tasks yet; they arrive at the next new day.", 90., y, 19., GRAY); y += 26. }
                 if let Some(w) = &g.w.wtask { let (_, n, text) = WTASKS[w.t]; y += 10.; txt("Weekly town task (shared, ends Mon 6:00):", 80., y, 22., BLACK); y += 28.;
                     txt(&format!("{}  {}/{}  -  {} coupons each{}", text, w.prog, n, WEEKLY_COUPONS, if w.claimed.contains(&g.w.p.id) { "  [claimed]" } else if w.prog >= n { "  [done!]" } else { "" }), 90., y, 19., BLACK) } }
+            if g.me.jpage == 5 { let mut y = 168.; for k in 0..4 { let r = g.res(k); let ch = g.w.roster[k]; let f = g.w.p.npcs[k].friend; let t = tier(f);
+                    txt(&format!("{} the {} ({})", r.name, r.species, PERS_NAME[r.pers]), 80., y, 21., BLACK); y += 22.;
+                    txt(&format!("{}  {}   Birthday {}/{}   Loves {}   Likes {:?} gifts", TIERS[t], "*".repeat(t + 1), BDAYS[ch].1, BDAYS[ch].0, HOBBY[ch], LIKES[r.pers]), 95., y, 16., Color::new(0.35, 0.3, 0.25, 1.)); y += 18.;
+                    let bw = (sw - 260.).min(360.); draw_rectangle(95., y, bw, 8., Color::new(0.85, 0.82, 0.75, 1.)); draw_rectangle(95., y, bw * (f.clamp(0, 60) as f32 / 60.), 8., Color::new(0.9, 0.45, 0.5, 1.)); y += 24.;
+                    if g.w.p.keepsakes.contains(&(ch as u8)) { txt("Keepsake portrait received", 95., y - 6., 15., Color::new(0.4, 0.55, 0.4, 1.)); y += 12. } } }
             if g.me.jpage == 3 { let mut y = 168.; txt("Keyboard", 80., y, 22., BLACK); y += 26.; for l in HELP_KEYS { txt(l, 90., y, 17., BLACK); y += 21. } y += 8.; txt("Gamepad", 80., y, 22., BLACK); y += 26.; for l in HELP_PAD { txt(l, 90., y, 17., BLACK); y += 21. } }
             if g.me.jpage == 4 { let mut y = 168.; let wch = ((sw - 200.) / 9.5) as usize; for l in GUIDE { for w in wrap(l, wch.max(40)) { txt(&w, 80., y, 17., BLACK); y += 20. } y += 6. } } }
     }

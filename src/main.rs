@@ -316,6 +316,13 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         log!("stones={}", have(g, 81));
         if let Some(p) = g.w.project.clone() { approach(g, c, tc((p.x, p.z))).await; shot!("x01_site_before"); press(g, c, KeyCode::E).await; log!("after contribute: project={:?} built={:?} ui={:?}", g.w.project, g.w.built, g.me.ui); for _ in 0..4 { if g.me.ui == Ui::Play { break } press(g, c, KeyCode::E).await } }
         if let Some(b) = g.w.built.first().copied() { approach(g, c, tc((b.x, b.z))).await; press(g, c, KeyCode::E).await; log!("pose={:?}", g.me.pose); wait(g, c, 30).await; shot!("x01_bench_built") }
+    } else if phase == "31" {
+        // Depth pass: festival decorations on each date (dev clock), Friends journal page.
+        let dates = [(2026, 4, 11, 14), (2026, 7, 25, 21), (2026, 12, 22, 18), (2027, 1, 1, 11)];
+        for (k, (y, m, d, h)) in dates.into_iter().enumerate() { let c2 = Clock { dev: Some((chrono::NaiveDate::from_ymd_opt(y, m, d).unwrap().and_hms_opt(h, 0, 0).unwrap(), std::time::Instant::now())) }; let c = &c2;
+            wait(g, c, 3).await; g.me.ui = Ui::Play; go(g, c, tc(STALL) + vec2(0., 2.2), 0.3).await; face(g, c, tc(STALL)).await; wait(g, c, 3).await; log!("fest={:?} target={:?}", g.fest(), g.target());
+            render::draw(g, c.now(), None); screenshot(&format!("{dir}/d02_fest_{k}.png")); next_frame().await; }
+        for k in 0..4 { g.w.p.npcs[k].friend = [3, 12, 33, 55][k] } press(g, c, KeyCode::J).await; for _ in 0..5 { press(g, c, KeyCode::Tab).await } shot!("d01_friends_page"); press(g, c, KeyCode::Escape).await;
     } else if phase == "30" {
         // Release 1: title, campground (both players), kiosk, journal pages. Fixture: coins and coupons set directly; dev clock 12:00.
         let c2 = Clock { dev: Some((chrono::NaiveDate::from_ymd_opt(2026, 11, 20).unwrap().and_hms_opt(12, 0, 0).unwrap(), std::time::Instant::now())) }; let c = &c2;
