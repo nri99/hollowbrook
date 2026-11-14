@@ -252,6 +252,12 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         go(g, c, door_stand(HOME), 0.12).await; face(g, c, door_face(HOME)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
         for _ in 0..3000 { if g.visit.is_some() { break } step(g, c, &[], &[]).await } log!("visit={:?}", g.visit);
         if let Some((_, b, _)) = g.visit { let s = g.visit_spot(b); approach(g, c, s).await; press(g, c, KeyCode::E).await; log!("talk ui={:?}", g.me.ui); shot!("c02_visit") }
+    } else if phase == "15" {
+        // R15: tool effects captured right after use (net swish, rod cast splash)
+        for _ in 0..4 { if g.w.p.equip == Some(60) { break } press(g, c, KeyCode::Tab).await } go(g, c, vec2(11.5, 16.5), 0.12).await; face(g, c, vec2(11.5, 15.)).await;
+        step(g, c, &[KeyCode::Space], &[KeyCode::Space]).await; log!("fx after net: {:?}", g.fx); shot!("fx_net_swish");
+        for _ in 0..4 { if g.w.p.equip == Some(61) { break } press(g, c, KeyCode::Tab).await } go(g, c, vec2(23.5, 5.5), 0.12).await; face(g, c, vec2(25., 5.5)).await;
+        step(g, c, &[KeyCode::Space], &[KeyCode::Space]).await; log!("fx after cast: {:?} fishing={}", g.fx, g.me.fish.is_some()); shot!("fx_cast_splash");
     } else if phase == "0" {
         log!("load-only check");
     } else if phase == "3" && c.now().hour() < 18 {

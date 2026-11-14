@@ -20,7 +20,7 @@ when every listed evidence type exists and is recorded in PROGRESS.md.
 | R12 | Daily rollover with players in different scenes | H | done (H) |
 | R13 | Museum donations shared + persistent visible exhibits | H X S | done |
 | R14 | Keyboard single-player still works | X P | X done, P open |
-| R15 | Tool feedback, occlusion fade, night lighting rendered | S | occlusion, night, lamp done; tool FX PARTIAL (dig puff not distinguishable from hole mound in screenshot; splash ring not captured) |
+| R15 | Tool feedback, occlusion fade, night lighting rendered | S | occlusion, night, lamp done; tool FX: cast splash ring S verified (fx/fx_cast_splash.png); net swish visible but small; dig puff PARTIAL (indistinct from hole mound) |
 | R16 | Content coverage table kept current (DESIGN_SPEC §Content) | doc | done (table in DESIGN_SPEC, keep updated) |
 
 Physical items (P) cannot be performed by the agent; they go to HUMAN_VERIFICATION.md.

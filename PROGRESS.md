@@ -2,7 +2,7 @@
 
 ## Current
 - Current task: C-03 resident moving out/in (provisional, with safeguards)
-- Last completed: C-02 resident home visits
+- Last completed: R15 FX capture phase 15 (splash ring verified)
 - Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
 - Next action: decide a minimal original rule set: a resident with low friendship across all profiles (max < 3) for 14+ processed days announces a move (letter + dialogue), moves out 2 days later unless a player talks them into staying (dialogue option); a replacement resident from a small reserve (1-2 new original characters reusing the house) moves in. Record as provisional; tests for timing and the "stay" path.
 
@@ -100,3 +100,6 @@ schedules, resume-outdoors policy, clock-rollback pause).
 ### 03:40 — C-02 done (home visits)
 - [PROV] While a player is in their own home, a resident who is Out with friendship >= 5 for that player and not yet visited today may knock (~1 in 600 frames of eligible time); stands by the door for 120 s or until nobody is home; `NpcS.visited` per profile (serde default, reset 06:00). VISIT dialogue lines; gifts/talk work as usual.
 - H: 43/43 (new: resident_visits_player_home). X: phase 14 (friendship 5 set as logged FIXTURE) at home -> Juniper visited, talked. S (inspected): c02_visit. Fixed a "{f}s" plural in Mossy visit line.
+
+### 03:55 — R15 recheck
+- Phase 15 captures FX right after Space. Inspected fx_cast_splash.png: white splash ring around the bobber clearly visible. fx_net_swish.png: swish dots visible but small. Dig puff remains indistinct (PARTIAL).
