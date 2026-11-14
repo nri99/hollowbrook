@@ -92,9 +92,16 @@ async fn press(g: &mut Game, c: &Clock, k: KeyCode) { step(g, c, &[k], &[k]).awa
 async fn wait(g: &mut Game, c: &Clock, n: usize) { for _ in 0..n { step(g, c, &[], &[]).await } }
 fn keys_toward(d: Vec2) -> Vec<KeyCode> { let mut k = vec![]; if d.y < -0.06 { k.push(KeyCode::W) } if d.y > 0.06 { k.push(KeyCode::S) } if d.x < -0.06 { k.push(KeyCode::A) } if d.x > 0.06 { k.push(KeyCode::D) } k }
 async fn go(g: &mut Game, c: &Clock, to: Vec2, tol: f32) -> bool {
-    for _ in 0..2400 { let p = g.ppos(); if p.distance(to) < tol { return true }
-        let path = g.bfs(tile_of(p), tile_of(to), false).unwrap_or_default(); let wp = if path.len() > 1 { tc(path[0]) } else { to };
-        step(g, c, &keys_toward(wp - p), &[]).await }
+    let (mut last, mut still) = (g.ppos(), 0);
+    for f in 0..2400 { let p = g.ppos(); if p.distance(to) < tol { return true }
+        let cur = tile_of(p); let path = g.bfs(cur, tile_of(to), false).unwrap_or_default();
+        let keys = if path.len() > 1 { let nx = path[0]; let cc = tc(cur);
+            // keep the box in the lane before crossing into the next tile (avoids catching corners)
+            if nx.0 != cur.0 && (p.y - cc.y).abs() > 0.1 { keys_toward(vec2(0., cc.y - p.y)) } else if nx.1 != cur.1 && (p.x - cc.x).abs() > 0.1 { keys_toward(vec2(cc.x - p.x, 0.)) } else { keys_toward(tc(nx) - p) }
+        } else { keys_toward(to - p) };
+        let keys = if still > 30 { still = 0; vec![[KeyCode::W, KeyCode::A, KeyCode::S, KeyCode::D][f % 4]] } else { keys };
+        step(g, c, &keys, &[]).await;
+        if g.ppos().distance(last) < 0.001 { still += 1 } else { still = 0 } last = g.ppos(); }
     false
 }
 async fn face(g: &mut Game, c: &Clock, at: Vec2) { let d = at - g.ppos(); let k = if d.x.abs() > d.y.abs() { if d.x > 0. { KeyCode::D } else { KeyCode::A } } else if d.y > 0. { KeyCode::S } else { KeyCode::W }; step(g, c, &[k], &[]).await; step(g, c, &[], &[]).await }

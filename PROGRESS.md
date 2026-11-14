@@ -26,3 +26,7 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - 3B @21:30: night town with lit windows; lamp placed (lamp given as logged FIXTURE, placement via inventory UI), toggled on.
 - Rendered (inspected): p3_fish_bite, p3_dig_site, p3_resident_talk, p3_night_town, p3_lamp_on.
 - Found + fixed: screenshots showed shadow areas pale because framebuffer alpha < 1; `screenshot()` now forces opaque alpha (screen output itself was unaffected). Re-inspected night shot: correct dark shadows.
+### 22:25 — P2-01 done
+- `render.rs`: buildings/trees between camera and player drawn after the player at 32% alpha (`R.alpha`).
+- Regression found during verification: autotest bot got stuck on corners (bot steering, not game state). `main.rs::go` now lane-aligns before crossing tiles and has stuck recovery. Phase 1 loop passes again (chair bought, placed rotated).
+- Rendered (inspected): test_output/p1/02_behind_house_occlusion.png — house translucent, player visible.

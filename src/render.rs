@@ -13,15 +13,15 @@ fn hash(x: i32, z: i32) -> u32 { ((x as u32).wrapping_mul(73856093) ^ (z as u32)
 const DARK: Color = Color::new(0.09, 0.07, 0.07, 1.);
 const WOOD: Color = Color::new(0.58, 0.4, 0.26, 1.);
 
-pub struct R { v: Vec<Vertex>, i: Vec<u16>, pub xf: Mat4, pub curve: f32, pub c0: Vec2, pub sun: Vec3, pub amb: Vec3, pub dif: Vec3, pub sky: Color, pub fog: (f32, f32), pub unlit: bool }
+pub struct R { v: Vec<Vertex>, i: Vec<u16>, pub xf: Mat4, pub curve: f32, pub c0: Vec2, pub sun: Vec3, pub amb: Vec3, pub dif: Vec3, pub sky: Color, pub fog: (f32, f32), pub unlit: bool, pub alpha: f32 }
 impl R {
-    pub fn new(curve: f32, c0: Vec2, lt: &Light, fog: (f32, f32)) -> R { R { v: Vec::with_capacity(60000), i: Vec::with_capacity(90000), xf: Mat4::IDENTITY, curve, c0, sun: lt.sun, amb: lt.amb, dif: lt.dif, sky: lt.sky, fog, unlit: false } }
+    pub fn new(curve: f32, c0: Vec2, lt: &Light, fog: (f32, f32)) -> R { R { v: Vec::with_capacity(60000), i: Vec::with_capacity(90000), xf: Mat4::IDENTITY, curve, c0, sun: lt.sun, amb: lt.amb, dif: lt.dif, sky: lt.sky, fog, unlit: false, alpha: 1. } }
     fn vtx(&mut self, p: Vec3, n: Vec3, c: Color) {
         let w = self.xf.transform_point3(p); let d2 = (w.x - self.c0.x).powi(2) + (w.z - self.c0.y).powi(2);
         let mut col = c;
         if !self.unlit { let n = self.xf.transform_vector3(n).normalize_or_zero(); let l = self.amb + self.dif * n.dot(self.sun).max(0.) + Vec3::splat(0.08 * n.y.max(0.)); col = Color::new(c.r * l.x, c.g * l.y, c.b * l.z, c.a) }
         let f = ((d2.sqrt() - self.fog.0) / (self.fog.1 - self.fog.0)).clamp(0., 1.);
-        col = Color::new(col.r + (self.sky.r - col.r) * f, col.g + (self.sky.g - col.g) * f, col.b + (self.sky.b - col.b) * f, col.a);
+        col = Color::new(col.r + (self.sky.r - col.r) * f, col.g + (self.sky.g - col.g) * f, col.b + (self.sky.b - col.b) * f, col.a * self.alpha);
         // rolling world: same camera-relative drop for every vertex; gameplay coordinates stay flat
         self.v.push(Vertex::new(w.x, w.y - self.curve * d2, w.z, 0., 0., col));
     }
@@ -246,8 +246,13 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
                 for zz in [pz - 0.45, pz + 0.45] { r.cube(vec3(px, 0.38, zz), vec3(0.5, 0.03, 0.03), sh(WOOD, 0.85)); r.cube(vec3(px - 0.4, 0.2, zz), vec3(0.04, 0.2, 0.04), sh(WOOD, 0.8)) } }
             _ => {}
         } } }
-    for (i, tr) in g.w.trees.iter().enumerate() { let p = tc((tr.x, tr.z)); if near(p.x, p.y) { let sk = g.shake.iter().find(|s| s.0 == i).map_or(0., |s| s.1); tree(r, p, tr.fruit.then(|| rgb(def(g.w.native).col)), sk, t, fol) } }
-    for bi in 0..BLDS.len() { let b = &BLDS[bi]; if near(b.x as f32 + b.w as f32 / 2., b.z as f32 + b.d as f32 / 2.) { building(r, bi, lt.night) }
+    // P2-01: buildings/trees between the camera (south) and the player are drawn translucent, after the player
+    let pp = g.pos;
+    let fade_b: Vec<usize> = (0..BLDS.len()).filter(|&i| { let b = &BLDS[i]; pp.x > b.x as f32 - 0.4 && pp.x < (b.x + b.w) as f32 + 0.4 && pp.y > b.z as f32 - 2.6 && pp.y < (b.z + b.d) as f32 - 0.2 }).collect();
+    let fade_t: Vec<usize> = (0..g.w.trees.len()).filter(|&i| { let p = tc((g.w.trees[i].x, g.w.trees[i].z)); (p.x - pp.x).abs() < 1.1 && p.y > pp.y + 0.2 && p.y < pp.y + 2.6 }).collect();
+    let tree_at = |r: &mut R, i: usize| { let tr = &g.w.trees[i]; let sk = g.shake.iter().find(|s| s.0 == i).map_or(0., |s| s.1); tree(r, tc((tr.x, tr.z)), tr.fruit.then(|| rgb(def(g.w.native).col)), sk, t, fol) };
+    for (i, tr) in g.w.trees.iter().enumerate() { let p = tc((tr.x, tr.z)); if near(p.x, p.y) && !fade_t.contains(&i) { let sk = g.shake.iter().find(|s| s.0 == i).map_or(0., |s| s.1); tree(r, p, tr.fruit.then(|| rgb(def(g.w.native).col)), sk, t, fol) } }
+    for bi in 0..BLDS.len() { let b = &BLDS[bi]; if near(b.x as f32 + b.w as f32 / 2., b.z as f32 + b.d as f32 / 2.) && !fade_b.contains(&bi) { building(r, bi, lt.night) }
         if g.pos.distance(door_stand(bi)) < 3.5 { let p = door_face(bi); labels.push((vec3(p.x, 2.7, p.y), BLDS[bi].name.into(), WHITE)) } }
     for &w in &g.w.weeds { let p = tc(w); for (ox, oz) in [(-0.1, 0.), (0.08, 0.06), (0., -0.08)] { r.cone(vec3(p.x + ox, 0., p.y + oz), 0.05, 0.22, Color::new(0.25, 0.5, 0.2, 1.)) } }
     for &h in &g.w.holes { let p = tc(h); for k in 0..5 { let a = k as f32 * 1.26; r.sphere(vec3(p.x + a.cos() * 0.36, 0.03, p.y + a.sin() * 0.32), vec3(0.1, 0.06, 0.1), Color::new(0.5, 0.36, 0.24, 1.)) } }
@@ -262,6 +267,7 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
         for s in [-1f32, 1.] { r.sphere(vec3(b.1.x + s * 0.07, y + fl * 0.04, b.1.y), vec3(0.07, 0.01 + fl * 0.03, 0.05), c) } r.sphere(vec3(b.1.x, y, b.1.y), Vec3::splat(0.03), DARK) }
     if let Some(f) = &g.fish { let y = -0.15 - f.dip * 0.1; r.sphere(vec3(f.bob.x, y, f.bob.y), Vec3::splat(0.06), RED); r.sphere(vec3(f.bob.x, y + 0.05, f.bob.y), Vec3::splat(0.04), WHITE);
         let tip = g.pos + g.face * 0.75; r.seg(vec3(tip.x, 1.05, tip.y), vec3(f.bob.x, y + 0.05, f.bob.y), 0.004, Color::new(0.95, 0.95, 0.95, 1.)) }
+    r.alpha = 0.32; for &i in &fade_t { tree_at(r, i) } for &bi in &fade_b { building(r, bi, lt.night) } r.alpha = 1.;
     for h in &g.hearts { if h.1 > 0. { r.sphere(h.0, Vec3::splat(0.06), Color::new(1., 0.4, 0.55, 1.)) } }
     if g.ui == Ui::Play && g.trans.is_none() { if let Some(tg) = g.target() { indicator(r, g.tg_pos(tg), t) } }
 }

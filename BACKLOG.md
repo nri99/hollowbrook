@@ -15,7 +15,7 @@ Status: `[ ]` open · `[x]` done · `[B]` blocked (reason given)
 - [x] **P1-05 Night + lamp.** Dev clock at night: lit windows outdoors; lamp on/off indoors changes lighting. *AC:* two screenshots inspected.
 
 ## P2 — presentation and readability
-- [ ] **P2-01 Occlusion fade.** Buildings/trees between camera and player are drawn translucent/cut so the player stays visible. *AC:* behind-house screenshot shows player.
+- [x] **P2-01 Occlusion fade.** Buildings/trees between camera and player are drawn translucent/cut so the player stays visible. *AC:* behind-house screenshot shows player.
 - [ ] **P2-02 Tool feedback.** Swing animation + small effect (splash ring, dirt puff) for each tool. *AC:* screenshot during use.
 - [ ] **P2-03 Running tramples flowers.** Running over a flower tile can flatten it (persisted, regrows next day). *AC:* unit test.
 
