@@ -231,3 +231,9 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     g.use_tool(); assert_eq!(g.w.p.inv.len(), 1); g.donate(); assert!(g.w.donated.iter().any(|x| x.0 == 73));
     for _ in 0..60 { g.step_move(vec2(0., -1.), false, 0.05) } assert!(!g.swimming());
 }
+#[test] fn resident_visits_player_home() {
+    let mut g = g0(at(14, 10, 30, 0)); for n in &mut g.w.p.npcs { n.friend = 5 } g.swap(Scene::Room(HOME));
+    let mut tries = 0; while g.visit.is_none() && tries < 20000 { g.tick(1. / 60., at(14, 10, 30, 0)); tries += 1 } let (i, b, _) = g.visit.expect("no visit"); assert_eq!(b, HOME); assert!(g.w.p.npcs[i].visited);
+    g.me.ipos = g.visit_spot(HOME) + vec2(0.8, 0.); g.me.face = vec2(-1., 0.); assert_eq!(g.target(), Some(Tg::Npc(i))); g.interact(); if let Ui::Talk { lines, .. } = &g.me.ui { assert_eq!(lines[0], VISIT[RES[i].pers].replace("{p}", "T").replace("{fs}", &format!("{}s", def(g.w.native).name.to_lowercase())).replace("{f}", "")) }
+    g.me.ui = Ui::Play; g.swap(Scene::Town); g.tick(0.016, at(14, 10, 30, 1)); assert!(g.visit.is_none()); assert!(!g.npcs[i].inside);
+}

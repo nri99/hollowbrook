@@ -24,7 +24,7 @@ pub struct Slot { pub def: u16, pub qty: u16, pub uid: u32 }
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
 pub struct Furn { pub uid: u32, pub def: u16, pub x: i32, pub z: i32, pub rot: u8, pub on: bool }
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub struct NpcS { pub friend: i32, pub req: Option<u16>, pub talked: bool, #[serde(default)] pub gifted: bool }
+pub struct NpcS { pub friend: i32, pub req: Option<u16>, pub talked: bool, #[serde(default)] pub gifted: bool, #[serde(default)] pub visited: bool }
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
 pub struct Tree { pub x: i32, pub z: i32, pub fruit: bool, pub shaken: i64 }
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
@@ -48,7 +48,7 @@ pub struct Profile {
     #[serde(default)] pub fair_year: i32,
 }
 impl Profile {
-    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, mail: vec![], catalog: vec![], fair_year: 0 } }
+    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false, visited: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, mail: vec![], catalog: vec![], fair_year: 0 } }
 }
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct World {
@@ -116,6 +116,8 @@ pub struct Game {
     pub fx: Vec<(Vec3, f32, u8)>,
     /// shared bubble spots in the sea marking a sea creature below
     pub bubbles: Vec<(Vec2, u16)>,
+    /// resident currently visiting a player's home: (resident, home building, seconds left)
+    pub visit: Option<(usize, usize, f32)>,
 }
 
 impl Game {
@@ -127,7 +129,7 @@ impl Game {
     pub fn from_world(w: World, map: Vec<u8>) -> Game {
         let pos = vec2(w.p.pos[0], w.p.pos[1]);
         let npcs = (0..4).map(|i| NpcRt { pos: door_stand(RES[i].bld), path: vec![], wait: gen_range(0., 2.), yaw: 0., inside: true, happy: 0., moving: false, last_chat: 9, anim: 0. }).collect();
-        let mut g = Game { me: Player::new(w.p.id, pos), w, map, others: vec![], npcs, t: 0., log: vec![], rolled: false, shadows: vec![], bugs: vec![], shake: vec![], hearts: vec![], snd: vec![], hr: 12, mo: 6, curve: 0.01, dom: 1, yr: 2026, bubbles: vec![], fx: vec![] };
+        let mut g = Game { me: Player::new(w.p.id, pos), w, map, others: vec![], npcs, t: 0., log: vec![], rolled: false, shadows: vec![], bugs: vec![], shake: vec![], hearts: vec![], snd: vec![], hr: 12, mo: 6, curve: 0.01, dom: 1, yr: 2026, bubbles: vec![], visit: None, fx: vec![] };
         if !g.free(g.me.pos) { g.me.pos = door_stand(HOME); g.me.cam = g.me.pos }
         let map = &g.map; let open = |t: &(i32, i32)| tile_at(map, t.0, t.1) != BLD && *t != mailbox_tile(0) && *t != mailbox_tile(1); // objects saved before a building existed there
         g.w.weeds.retain(open); g.w.digs.retain(open); g.w.holes.retain(open); g.w.ground.retain(|i| open(&tile_of(vec2(i.x, i.z))));
@@ -194,7 +196,7 @@ impl Game {
     fn refresh_profile(&mut self, letters: bool) {
         let mine = self.w.p.id == self.me.id;
         let reqs = [self.w.native, 40, 42, 10, 12, 30];
-        for i in 0..4 { let s = &mut self.w.p.npcs[i]; s.talked = false; s.gifted = false; s.req = if gen_range(0, 2) == 0 { Some(reqs[gen_range(0, reqs.len())]) } else { None };
+        for i in 0..4 { let s = &mut self.w.p.npcs[i]; s.talked = false; s.gifted = false; s.visited = false; s.req = if gen_range(0, 2) == 0 { Some(reqs[gen_range(0, reqs.len())]) } else { None };
             if letters && s.friend >= 10 && gen_range(0, 3) == 0 { let m = gen_range(2u32, 8) * 100;
                 const NOTES: [&str; 4] = ["Thinking of you! Here's a little something.", "Hmph. Found this. Don't make it weird.", "I dreamed you liked coins. So here are some.", "Training fund! Spend it on snacks!"];
                 self.w.p.mail.push(Letter { from: RES[i].name.into(), text: NOTES[RES[i].pers].into(), coins: m, item: None, read: false, claimed: false });
@@ -282,6 +284,7 @@ impl Game {
                 if BLDS[b].kind == BK::Museum { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Curator, None); cand(vec2(0.5, 2.5), 1.5, 1., Tg::Exhibit(0), None); cand(vec2(6.5, 2.5), 1.5, 1., Tg::Exhibit(1), None);
                     for (k, p) in MUSEUM_PED.iter().enumerate() { cand(tc(p.0), 1.5, 1., Tg::Exhibit(2 + k), None) } }
                 if let BK::Res(r) = BLDS[b].kind { if where_(r, self.hr) == Loc::Home { cand(res_spot(), 1.7, 0.9, Tg::Npc(r), None) } }
+                if let Some((r, vb, _)) = self.visit { if vb == b { cand(self.visit_spot(b), 1.7, 0.9, Tg::Npc(r), None) } }
             }
         }
         best.map(|b| b.1)
@@ -290,7 +293,7 @@ impl Game {
     pub fn tg_pos(&self, tg: Tg) -> Vec3 {
         let v = |p: Vec2, y: f32| vec3(p.x, y, p.y);
         match tg {
-            Tg::Npc(i) => v(if self.me.scene == Scene::Town { self.npcs[i].pos } else { res_spot() }, 1.5), Tg::Door(b) => v(door_face(b), 1.3),
+            Tg::Npc(i) => v(match self.me.scene { Scene::Town => self.npcs[i].pos, Scene::Room(b) if self.visit.is_some_and(|x| x.0 == i && x.1 == b) => self.visit_spot(b), _ => res_spot() }, 1.5), Tg::Door(b) => v(door_face(b), 1.3),
             Tg::Tree(i) => v(tc((self.w.trees[i].x, self.w.trees[i].z)), 2.15), Tg::Item(i) => vec3(self.w.ground[i].x, 0.45, self.w.ground[i].z),
             Tg::Weed(i) => v(tc(self.w.weeds[i]), 0.55), Tg::Rack => vec3(1.5, 1.8, 1.5), Tg::Mailbox(o) => v(tc(mailbox_tile(o)), 1.4), Tg::Stall => v(tc(STALL), 1.9), Tg::Curator => vec3(3.5, 1.3, 1.5), Tg::Exhibit(k) => match k { 0 => vec3(0.5, 1.5, 2.5), 1 => vec3(6.5, 1.5, 2.5), _ => { let p = tc(MUSEUM_PED[k - 2].0); vec3(p.x, 1.2, p.y) } }, Tg::Counter => vec3(3.5, 1.3, 1.5), Tg::Keeper => vec3(3.5, 1.7, 0.5), Tg::Display(i) => v(tc(DISPLAYS[i]), 1.3),
             Tg::Furn(uid, d) => { let c = self.room_furn(match self.me.scene { Scene::Room(b) => b, _ => HOME }).into_iter().find(|f| f.uid == uid && f.def == d).map(|f| fcenter(&f)).unwrap_or_default(); v(c, if def(d).wall { 1.9 } else { 1.2 }) }
@@ -349,8 +352,9 @@ impl Game {
         let slot = if !(5..21).contains(&hr) { 3 } else if hr < 12 { 0 } else if hr < 17 { 1 } else { 2 };
         let fruit = def(self.w.native).name.to_lowercase(); let fruits = if fruit.ends_with("ch") { format!("{fruit}es") } else { format!("{fruit}s") }; let name = self.w.p.name.clone();
         let fill = |s: &str, item: &str| s.replace("{p}", &name).replace("{fs}", &fruits).replace("{f}", &fruit).replace("{i}", item);
-        let indoor = self.me.scene != Scene::Town;
-        let mut lines = vec![fill(if indoor { HOMEL[pers] } else { GREET[pers][slot] }, "")];
+        let indoor = self.me.scene != Scene::Town && !self.visit.is_some_and(|v| v.0 == i);
+        let visiting = self.visit.is_some_and(|v| v.0 == i);
+        let mut lines = vec![fill(if visiting { VISIT[pers] } else if indoor { HOMEL[pers] } else { GREET[pers][slot] }, "")];
         if self.fair() { lines.push("The Harvest Fair is on! There's a prize stall by the plaza.".into()) }
         match weather(self.w.day, self.mo) { Wx::Rain if !indoor => lines.push(fill(RAIN[pers], "")), Wx::Snow if !indoor => lines.push(fill(SNOW[pers], "")), _ => {} }
         if let Some(q) = self.w.p.npcs[i].req {
@@ -438,6 +442,33 @@ impl Game {
         if self.w.p.inv.len() >= INV_CAP { return self.note("Make room in your pockets first!") }
         let d = FURN_IDS[gen_range(0, FURN_IDS.len())]; self.add_furn(d); self.w.p.fair_year = self.yr; self.snd.push(Snd::Coin);
         self.note(format!("Harvest Fair prize: a {}!", def(d).name));
+    }
+
+    /// Where a visiting resident stands inside a home (next to the door).
+    pub fn visit_spot(&self, b: usize) -> Vec2 { let (w, d) = self.rdims(b); vec2((w / 2) as f32 - 0.5, d as f32 - 1.5) }
+    /// Start a visit by resident `i` to building `b` (the visited player's home). Provisional rules decide when this is called.
+    pub fn start_visit(&mut self, i: usize, b: usize) {
+        if self.visit.is_some() { return } self.visit = Some((i, b, 120.)); self.npcs[i].inside = true; self.npcs[i].path.clear();
+        self.snd.push(Snd::Door);
+        for pl in std::iter::once(&mut self.me).chain(self.others.iter_mut()) { if pl.scene == Scene::Room(b) { pl.msgs.push((format!("Knock knock! {} dropped by for a visit.", RES[i].name), self.t)) } }
+    }
+    /// Visits (provisional): while a player is in their own home, a resident who is out, friendship >= 5, not yet visited
+    /// that player today, may knock (about once every 10 s of eligible time). Ends after 120 s or when nobody is home.
+    fn sim_visit(&mut self, dt: f32) {
+        if let Some((i, b, left)) = self.visit {
+            let occupied = std::iter::once(&self.me).chain(self.others.iter()).any(|p| p.scene == Scene::Room(b));
+            if left - dt <= 0. || !occupied { self.visit = None; self.npcs[i].inside = false; self.npcs[i].pos = door_stand(b); self.npcs[i].wait = 1.; } else { self.visit = Some((i, b, left - dt)) }
+            return;
+        }
+        if gen_range(0, 600) != 0 { return }
+        let hosts: Vec<usize> = std::iter::once(&self.me).chain(self.others.iter()).filter(|p| p.scene == Scene::Room(home_of(p.id))).map(|p| p.id).collect();
+        for id in hosts {
+            let pr = if self.w.p.id == id { &self.w.p } else { match self.w.others.iter().find(|p| p.id == id) { Some(p) => p, None => continue } };
+            if let Some(i) = (0..4).find(|&i| where_(i, self.hr) == Loc::Out && !self.npcs[i].inside && pr.npcs[i].friend >= 5 && !pr.npcs[i].visited) {
+                if self.w.p.id == id { self.w.p.npcs[i].visited = true } else if let Some(p) = self.w.others.iter_mut().find(|p| p.id == id) { p.npcs[i].visited = true }
+                self.start_visit(i, home_of(id)); return;
+            }
+        }
     }
 
     // ---- clothing ----
@@ -638,6 +669,7 @@ impl Game {
     fn sim_npcs(&mut self, dt: f32) {
         let talkers: Vec<(usize, Vec2, bool)> = std::iter::once(&self.me).chain(self.others.iter()).filter_map(|p| if let Ui::Talk { npc: Some(j), .. } = p.ui { Some((j, p.pos, p.scene == Scene::Town)) } else { None }).collect();
         for i in 0..4 {
+            if self.visit.is_some_and(|v| v.0 == i) { continue }
             let loc = where_(i, self.hr);
             { let n = &mut self.npcs[i]; n.happy = (n.happy - dt).max(0.); n.moving = false; }
             if let Some(&(_, pp, town)) = talkers.iter().find(|t| t.0 == i) { let d = pp - self.npcs[i].pos; if town && d.length() > 0.01 { self.npcs[i].yaw = yaw_of(d) } continue }
@@ -688,7 +720,7 @@ impl Game {
         for e in &mut self.fx { e.1 += dt } self.fx.retain(|e| e.1 < 0.8);
         for s in &mut self.shake { s.1 -= dt } self.shake.retain(|s| s.1 > 0.);
         for h in &mut self.hearts { h.1 += dt; if h.1 > 0. { h.0.y += dt * 0.8 } } self.hearts.retain(|h| h.1 < 1.6);
-        self.sim_npcs(dt); self.sim_life(dt);
+        self.sim_npcs(dt); self.sim_life(dt); self.sim_visit(dt);
         fresh
     }
     /// Per-player update for the active player (`activate` first): its own input, camera, UI, movement, actions.

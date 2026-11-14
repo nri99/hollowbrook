@@ -368,6 +368,8 @@ fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, Strin
             if g.me.ipos.distance(vec2(p.x, p.z)) < 2.2 { labels.push((p + vec3(0., 1.15, 0.), txt, if i < 5 && g.w.stock[i].sold { Color::new(1., 0.5, 0.5, 1.) } else { Color::new(1., 0.95, 0.6, 1.) })) } }
     }
     for f in &furn { furniture(r, f.def, fbase(f), f.on); if f.def == 54 && f.on { let c = fcenter(f); r.disc(vec3(c.x, 0.012, c.y), vec2(0.9, 0.9), Color::new(1., 0.85, 0.4, 0.18)) } }
+    if let Some((vi, vb, _)) = g.visit { if vb == b { let s = g.visit_spot(b); let talking = matches!(g.me.ui, Ui::Talk { npc: Some(j), .. } if j == vi);
+        r.disc(vec3(s.x, 0.02, s.y), vec2(0.3, 0.24), Color::new(0., 0., 0., 0.2)); resident(r, vi, vec3(s.x, 0., s.y), yaw_of(g.me.ipos - s), 0., false, t, talking, g.npcs[vi].happy) } }
     if let BK::Res(i) = BLDS[b].kind { if where_(i, g.hr) == Loc::Home { let s = res_spot(); let talking = matches!(g.me.ui, Ui::Talk { npc: Some(j), .. } if j == i);
         r.disc(vec3(s.x, 0.02, s.y), vec2(0.3, 0.24), Color::new(0., 0., 0., 0.2)); resident(r, i, vec3(s.x, 0., s.y), yaw_of(g.me.ipos - s), 0., false, t, talking, g.npcs[i].happy) } }
     if let Some(p) = &g.me.placing { let ok = g.place_ok(&p.f).is_ok(); let c = if ok { Color::new(0.2, 0.9, 0.3, 0.45) } else { Color::new(0.95, 0.2, 0.2, 0.45) };

@@ -246,6 +246,12 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         for _ in 0..600 { if !g.bubbles.is_empty() { break } step(g, c, &[], &[]).await }
         if let Some(b) = g.bubbles.iter().map(|b| b.0).min_by(|a, b| a.distance(g.me.pos).total_cmp(&b.distance(g.me.pos))) { for _ in 0..600 { if g.me.pos.distance(b) < 0.9 { break } let k = keys_toward(b - g.me.pos); step(g, c, &k, &[]).await } }
         shot!("c01_swimming"); press(g, c, KeyCode::Space).await; log!("after dive: inv={:?} bubbles={}", g.w.p.inv, g.bubbles.len());
+    } else if phase == "14" {
+        // C-02: resident visit while at home (friendship 5 set as a logged FIXTURE; the visit itself is the normal provisional trigger)
+        for n in &mut g.w.p.npcs { n.friend = 5 } log!("FIXTURE: friendship 5 with all residents");
+        go(g, c, door_stand(HOME), 0.12).await; face(g, c, door_face(HOME)).await; press(g, c, KeyCode::E).await; wait(g, c, 40).await;
+        for _ in 0..3000 { if g.visit.is_some() { break } step(g, c, &[], &[]).await } log!("visit={:?}", g.visit);
+        if let Some((_, b, _)) = g.visit { let s = g.visit_spot(b); approach(g, c, s).await; press(g, c, KeyCode::E).await; log!("talk ui={:?}", g.me.ui); shot!("c02_visit") }
     } else if phase == "0" {
         log!("load-only check");
     } else if phase == "3" && c.now().hour() < 18 {

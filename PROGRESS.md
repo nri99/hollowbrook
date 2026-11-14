@@ -1,10 +1,10 @@
 # Progress log
 
 ## Current
-- Current task: C-02 resident home visits
-- Last completed: C-01 swimming + diving
+- Current task: C-03 resident moving out/in (provisional, with safeguards)
+- Last completed: C-02 resident home visits
 - Known blockers: physical keyboard/controller verification (HUMAN_VERIFICATION.md); recreation-sensitive systems need an original design approved by the user (BACKLOG "Blocked")
-- Next action: provisional rule: once per day a resident with friendship >= 5 may "knock" while a player is inside their own home during that resident awake+Out hours; the resident appears inside at the spot near the door for 2 game hours or until the player leaves; talk works there; tests + screenshot.
+- Next action: decide a minimal original rule set: a resident with low friendship across all profiles (max < 3) for 14+ processed days announces a move (letter + dialogue), moves out 2 days later unless a player talks them into staying (dialogue option); a replacement resident from a small reserve (1-2 new original characters reusing the house) moves in. Record as provisional; tests for timing and the "stay" path.
 
 ## Baseline verification (before this run)
 - 19 headless tests pass. Executable bot run (2 launches) completed the full loop; screenshots inspected:
@@ -96,3 +96,7 @@ schedules, resume-outdoors policy, clock-rollback pause).
 ### 03:20 — C-01 done (swimming + diving)
 - [PROV] Walking from sand into SEA tiles starts swimming (player-only passability; residents never enter water); swim speed 2.0, no running/tools; Space/X dives at shared bubble spots (max 3 near players) holding Sea Star / Sea Urchin / Sea Slug / Octopus (new K::Sea, sellable, donatable, shown in the museum tank, journal column "Fish & sea"). Swimmers drawn waist-deep with a ripple ring (both players).
 - H: 42/42 (new: swimming_and_diving). X: phase 13 walked off the beach, swam to a bubble, dived -> Sea Slug. S (inspected): c01_swimming.
+
+### 03:40 — C-02 done (home visits)
+- [PROV] While a player is in their own home, a resident who is Out with friendship >= 5 for that player and not yet visited today may knock (~1 in 600 frames of eligible time); stands by the door for 120 s or until nobody is home; `NpcS.visited` per profile (serde default, reset 06:00). VISIT dialogue lines; gifts/talk work as usual.
+- H: 43/43 (new: resident_visits_player_home). X: phase 14 (friendship 5 set as logged FIXTURE) at home -> Juniper visited, talked. S (inspected): c02_visit. Fixed a "{f}s" plural in Mossy visit line.
