@@ -407,8 +407,27 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
     // terrain
     for z in z0..z1 { for x in x0..x1 { let (fx, fz) = (x as f32, z as f32); if !near(fx + 0.5, fz + 0.5) { continue }
         let c = ext(x, z);
-        if water(c) { let s = (t * 1.5 + (x + z) as f32 * 0.7).sin() * 0.035; let wc = if c == SEA { Color::new(0.2 + s, 0.5 + s, 0.78 + s, 1.) } else { Color::new(0.3 + s, 0.62 + s, 0.86 + s, 1.) };
-            r.quad(vec3(fx, -0.2, fz), vec3(fx + 1., -0.2, fz), vec3(fx + 1., -0.2, fz + 1.), vec3(fx, -0.2, fz + 1.), Vec3::Y, wc);
+        if water(c) {
+            // smooth rolling ripples per corner; the sea deepens away from the beach, shallows near banks turn turquoise
+            let wc = |dx: i32, dz: i32| { let (xc, zc) = ((x + dx) as f32, (z + dz) as f32);
+                let s = ((t * 1.3 + xc * 0.9 + zc * 0.6).sin() * 0.5 + (t * 0.8 - xc * 0.45 + zc * 1.1).sin() * 0.5) * 0.04;
+                let shore = [(-1, -1), (0, -1), (-1, 0), (0, 0)].iter().any(|&(ox, oz)| !water(ext(x + dx + ox, z + dz + oz))) as i32 as f32;
+                let (mut cr, mut cg, mut cb) = if c == SEA { let d = ((zc - 26.) / 7.).clamp(0., 1.); (0.24 - 0.1 * d, 0.56 - 0.14 * d, 0.8 - 0.06 * d) } else { (0.22, 0.52, 0.8) };
+                cr += shore * 0.07; cg += shore * 0.09; cb += shore * 0.03; Color::new(cr + s, cg + s, cb + s, 1.) };
+            r.quad4([vec3(fx, -0.2, fz), vec3(fx + 1., -0.2, fz), vec3(fx + 1., -0.2, fz + 1.), vec3(fx, -0.2, fz + 1.)], Vec3::Y, [wc(0, 0), wc(1, 0), wc(1, 1), wc(0, 1)]);
+            { let u = r.unlit; r.unlit = true; let day = 1. - lt.night;
+                // sun glints: brief bright flecks that drift with the current
+                if day > 0.2 { for k in 0..2u32 { let hv = hash(x * 7 + k as i32, z * 13 - k as i32); let ph = (hv % 628) as f32 / 100.; let v = (t * (1.4 + k as f32 * 0.5) + ph).sin();
+                    if v > 0.8 { let a = (v - 0.8) / 0.2 * 0.75 * day; let gx = fx + 0.15 + ((hv >> 3) % 70) as f32 / 100.; let gz = fz + 0.15 + ((hv >> 9) % 70) as f32 / 100. + (t * 0.15).fract() * 0.1;
+                        r.quad(vec3(gx - 0.07, -0.19, gz - 0.015), vec3(gx + 0.07, -0.19, gz - 0.015), vec3(gx + 0.07, -0.19, gz + 0.015), vec3(gx - 0.07, -0.19, gz + 0.015), Vec3::Y, Color::new(1., 1., 0.95, a)) } } }
+                // lapping foam along every bank edge
+                let fa = 0.32 + (t * 1.7 + (x * 3 + z * 5) as f32 * 0.4).sin() * 0.12; let fw = 0.07 + (t * 1.1 + (x + z) as f32).sin().abs() * 0.05; let fcol = Color::new(1., 1., 1., fa);
+                for (dx, dz) in [(0, -1), (0, 1), (-1, 0), (1, 0)] { if water(ext(x + dx, z + dz)) || ext(x + dx, z + dz) == BRIDGE { continue } let y = -0.195;
+                    match (dx, dz) { (0, -1) => r.quad(vec3(fx, y, fz), vec3(fx + 1., y, fz), vec3(fx + 1., y, fz + fw), vec3(fx, y, fz + fw), Vec3::Y, fcol),
+                        (0, 1) => r.quad(vec3(fx, y, fz + 1. - fw), vec3(fx + 1., y, fz + 1. - fw), vec3(fx + 1., y, fz + 1.), vec3(fx, y, fz + 1.), Vec3::Y, fcol),
+                        (-1, 0) => r.quad(vec3(fx, y, fz), vec3(fx + fw, y, fz), vec3(fx + fw, y, fz + 1.), vec3(fx, y, fz + 1.), Vec3::Y, fcol),
+                        _ => r.quad(vec3(fx + 1. - fw, y, fz), vec3(fx + 1., y, fz), vec3(fx + 1., y, fz + 1.), vec3(fx + 1. - fw, y, fz + 1.), Vec3::Y, fcol) } }
+                r.unlit = u }
             for (dx, dz) in [(0, -1), (0, 1), (-1, 0), (1, 0)] { let nc = ext(x + dx, z + dz); if water(nc) { continue } let bc = if nc == SAND { sand } else { soil };
                 let (a, b, n) = match (dx, dz) { (0, -1) => (vec3(fx, 0., fz), vec3(fx + 1., 0., fz), Vec3::Z), (0, 1) => (vec3(fx + 1., 0., fz + 1.), vec3(fx, 0., fz + 1.), -Vec3::Z), (-1, 0) => (vec3(fx, 0., fz + 1.), vec3(fx, 0., fz), Vec3::X), _ => (vec3(fx + 1., 0., fz), vec3(fx + 1., 0., fz + 1.), -Vec3::X) };
                 r.quad(a, b, b - Vec3::Y * 0.2, a - Vec3::Y * 0.2, n, bc) } }
