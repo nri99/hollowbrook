@@ -342,12 +342,25 @@ fn islet_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(Vec3, String, 
     let _ = lt;
 }
 fn tree(r: &mut R, p: Vec2, fruit: Option<Color>, shake: f32, t: f32, fol: Color) {
-    r.cyl(vec3(p.x, 0., p.y), 0.13, 0.85, Color::new(0.5, 0.33, 0.2, 1.));
-    let o = vec3(p.x + (t * 45.).sin() * 0.08 * shake, 0., p.y);
+    // per-tree variety from its position (shape only; the tree's tile is unchanged)
+    let hv = hash((p.x * 2.) as i32, (p.y * 2.) as i32); let v = |k: u32| ((hv >> k) % 100) as f32 / 100.;
+    let bark = Color::new(0.5, 0.33, 0.2, 1.);
+    r.cyl(vec3(p.x, 0., p.y), 0.17, 0.12, sh(bark, 0.9)); r.cyl(vec3(p.x, 0., p.y), 0.13, 0.85, bark);
+    r.seg(vec3(p.x, 0.7, p.y), vec3(p.x + 0.28 * (v(3) - 0.5).signum(), 1.0, p.y + 0.08), 0.04, bark);
+    let sway = (t * 1.1 + p.x * 0.7 + p.y * 0.3).sin() * 0.025;
+    let o = vec3(p.x + (t * 45.).sin() * 0.08 * shake + sway, 0., p.y);
+    let fol = Color::new(fol.r * (0.95 + v(5) * 0.1), fol.g * (0.95 + v(7) * 0.1), fol.b, 1.);
+    r.sphere(o + vec3(0., 1.08, 0.05), vec3(0.6, 0.38, 0.6), sh(fol, 0.82)); // shaded underside
     r.sphere(o + vec3(0., 1.2, 0.), vec3(0.65, 0.55, 0.65), fol); r.sphere(o + vec3(0.3, 1.5, 0.1), Vec3::splat(0.38), sh(fol, 1.08)); r.sphere(o + vec3(-0.28, 1.42, -0.12), Vec3::splat(0.4), sh(fol, 0.94));
+    r.sphere(o + vec3(0.05 + (v(9) - 0.5) * 0.2, 1.68, -0.05), Vec3::splat(0.3), sh(fol, 1.14)); r.sphere(o + vec3(-0.15, 1.25, 0.42), Vec3::splat(0.3), sh(fol, 1.03));
     if let Some(fc) = fruit { for q in [vec3(0.32, 1.05, 0.48), vec3(-0.38, 1.12, 0.42), vec3(0.05, 1.38, 0.55), vec3(0.52, 1.28, 0.2)] { r.sphere(o + q, Vec3::splat(0.09), fc) } }
 }
-fn pine(r: &mut R, x: f32, z: f32, s: f32) { r.cyl(vec3(x, 0., z), 0.1 * s, 0.5 * s, Color::new(0.45, 0.3, 0.2, 1.)); for k in 0..3 { r.cone(vec3(x, (0.4 + k as f32 * 0.38) * s, z), (0.62 - k as f32 * 0.15) * s, 0.65 * s, Color::new(0.16, 0.42 + k as f32 * 0.04, 0.26, 1.)) } }
+fn pine(r: &mut R, x: f32, z: f32, s: f32) {
+    let hv = hash((x * 3.) as i32, (z * 3.) as i32); let tone = ((hv % 100) as f32 / 100. - 0.5) * 0.06; let tw = ((hv >> 7) % 628) as f32 / 100.;
+    r.cyl(vec3(x, 0., z), 0.1 * s, 0.5 * s, Color::new(0.45, 0.3, 0.2, 1.));
+    for k in 0..3 { let kf = k as f32; let y = (0.4 + kf * 0.38) * s; let lean = (tw + kf).sin() * 0.02 * kf;
+        r.cone(vec3(x + lean, y - 0.04 * s, z), (0.66 - kf * 0.15) * s, 0.12 * s, Color::new(0.11, 0.3 + tone, 0.2, 1.)); // dark skirt under each tier
+        r.cone(vec3(x + lean, y, z), (0.62 - kf * 0.15) * s, 0.65 * s, Color::new(0.16 + tone * 0.5, 0.42 + kf * 0.05 + tone, 0.26, 1.)) } }
 fn indicator(r: &mut R, p: Vec3, t: f32) { let u = r.unlit; r.unlit = true; let y = p.y + (t * 4.).sin() * 0.06; r.with(Mat4::from_translation(vec3(p.x, y, p.z)) * Mat4::from_rotation_x(PI), |r| r.cone(Vec3::ZERO, 0.1, 0.18, Color::new(1., 0.85, 0.2, 1.))); r.unlit = u }
 
 // ---- scenes ----

@@ -246,3 +246,4 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - Interiors: plank floors with staggered seams (homes/residents/civic), grouted tiles (shop/museum), wainscot + chair rail + striped wallpaper, faint daytime sunbeam under windows.
 - Evidence: rendered screenshots inspected (test_output/v0_* baseline vs v4_*); 84 tests pass.
 - Water: smooth per-corner ripples, sea deepens offshore, turquoise shallows at banks, animated foam along bank edges, daytime sun glints (render only).
+- Trees: root flare, branch stub, extra canopy lobes with shaded underside, per-tree tint/shape variety, gentle wind sway; pines get tone variety and dark tier skirts. Not screenshot-verified (tour run skipped at user's request).
