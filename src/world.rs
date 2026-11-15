@@ -595,6 +595,7 @@ impl Game {
         v
     }
     #[cfg(test)] pub fn shake_tree_pub(&mut self, ti: usize) { self.shake_tree(ti) }
+    #[cfg(test)] pub fn reel_pub(&mut self) { self.reel() }
     fn shake_tree(&mut self, ti: usize) {
         self.shake.push((ti, 0.6)); self.snd.push(Snd::Rustle);
         let tr = self.w.trees[ti];
@@ -1202,22 +1203,28 @@ impl Game {
     fn reel(&mut self) {
         let Some(f) = self.me.fish.take() else { return };
         match f.fish {
-            Some(si) if f.bite => { self.fx.push((vec3(f.bob.x, -0.17, f.bob.y), 0., 0)); let d = self.shadows.remove(si).def; self.snd.push(Snd::Splash); if self.add(d) { self.note(format!("You caught a {}!", def(d).name)); self.ev(Ev::Fish, 1) } }
-            Some(si) => { self.shadows.remove(si); self.note("Too early! The fish swam off.") }
+            Some(si) if f.bite => { self.fx.push((vec3(f.bob.x, -0.17, f.bob.y), 0., 0)); let Some(sh) = self.take_shadow(si) else { return self.note("The fish slipped away.") }; let d = sh.def; self.snd.push(Snd::Splash); if self.add(d) { self.note(format!("You caught a {}!", def(d).name)); self.ev(Ev::Fish, 1) } }
+            Some(si) => { self.take_shadow(si); self.note("Too early! The fish swam off.") }
             None => self.note("You reel in your line."),
         }
     }
 
+    /// Remove a fish shadow and fix every player's hooked-fish index (shadows are shared, so indices shift).
+    fn take_shadow(&mut self, k: usize) -> Option<Shadow> {
+        if k >= self.shadows.len() { return None } let s = self.shadows.remove(k);
+        for p in std::iter::once(&mut self.me).chain(self.others.iter_mut()) { if let Some(f) = &mut p.fish { match f.fish { Some(j) if j == k => f.fish = None, Some(j) if j > k => f.fish = Some(j - 1), _ => {} } } }
+        Some(s)
+    }
     // ---- simulation ----
     fn sim_fish(&mut self, dt: f32) {
         let Some(mut f) = self.me.fish.take() else { return };
         f.t += dt; f.dip = (f.dip - dt * 2.5).max(0.); let mut keep = true;
         match f.fish {
             None => if f.t > 6. { keep = false; self.note("Nothing seems interested...") },
-            Some(si) => if f.bite { if f.t > 0.8 + 0.3 * self.tool_level(61) as f32 { keep = false; self.shadows.remove(si); self.note("It got away!") } }
-                else { let sh = &mut self.shadows[si]; let to = f.bob - sh.pos;
+            Some(si) => if f.bite { if f.t > 0.8 + 0.3 * self.tool_level(61) as f32 { keep = false; self.take_shadow(si); self.note("It got away!") } }
+                else if let Some(sh) = self.shadows.get_mut(si) { let to = f.bob - sh.pos;
                     if to.length() > 0.3 { sh.pos += to.normalize() * 0.8 * dt; f.t = 0. }
-                    else if f.t > 0.9 { f.t = 0.; f.nib += 1; f.dip = 0.5; self.snd.push(Snd::Blip); if f.nib >= f.need { f.bite = true; f.dip = 1.2; self.snd.push(Snd::Splash) } } },
+                    else if f.t > 0.9 { f.t = 0.; f.nib += 1; f.dip = 0.5; self.snd.push(Snd::Blip); if f.nib >= f.need { f.bite = true; f.dip = 1.2; self.snd.push(Snd::Splash) } } } else { keep = false; self.note("The fish swam away.") },
         }
         if keep { self.me.fish = Some(f) }
     }

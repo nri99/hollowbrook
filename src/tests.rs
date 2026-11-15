@@ -627,3 +627,12 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     assert_eq!(cg.me.id, 1); assert_eq!(cg.remote, Some(0)); assert!((cg.me.pos - moved).length() < 0.01); assert_eq!(snd, vec![Snd::Coin]); assert_eq!(cg.w.p.id, 1);
     c.bye(); let t1 = std::time::Instant::now(); let mut left = false; while t1.elapsed().as_secs() < 5 && !left { for e in h.poll() { if let HostEv::Left = e { left = true } } std::thread::sleep(std::time::Duration::from_millis(10)) } assert!(left);
 }
+#[test] fn two_players_fishing_same_river_no_crash() {
+    let mut g = two(at(11, 12, 0, 0)); let bob = vec2(20.5, 10.5);
+    g.shadows = vec![Shadow { pos: bob, def: 10, vel: Vec2::ZERO }, Shadow { pos: bob + vec2(1., 0.), def: 12, vel: Vec2::ZERO }];
+    g.me.fish = Some(Fishing { bob: bob + vec2(1., 0.), fish: Some(1), t: 0., nib: 0, need: 3, bite: false, dip: 0. }); // P1 hooked shadow 1
+    g.activate(1); g.me.fish = Some(Fishing { bob, fish: Some(0), t: 0., nib: 3, need: 3, bite: true, dip: 0. }); g.w.p.inv.clear(); g.reel_pub(); assert!(g.w.p.inv.iter().any(|s| s.def == 10)); // P2 catches shadow 0
+    g.activate(0); assert_eq!(g.me.fish.as_ref().unwrap().fish, Some(0)); assert_eq!(g.shadows[0].def, 12); // P1's index followed its fish
+    for _ in 0..200 { g.tick(1. / 60., at(11, 12, 0, 0)); g.update_player(&Inp::none(), 1. / 60.); } // simulating must not panic
+    g.me.fish = Some(Fishing { bob, fish: Some(7), t: 0., nib: 0, need: 3, bite: false, dip: 0. }); g.update_player(&Inp::none(), 1. / 60.); assert!(g.me.fish.is_none()); // stale index: let go, no panic
+}
