@@ -10,6 +10,16 @@ use std::f32::consts::{FRAC_PI_2, PI};
 pub fn rgb(c: (f32, f32, f32)) -> Color { Color::new(c.0, c.1, c.2, 1.) }
 fn sh(c: Color, k: f32) -> Color { Color::new(c.r * k, c.g * k, c.b * k, c.a) }
 fn dark(now: NaiveDateTime) -> f32 { light(now.hour() as f32 + now.minute() as f32 / 60., false).night }
+/// Smooth value noise on grid corners (0..1): a broad layer for meadow patches plus a fine layer.
+fn gnoise(x: i32, z: i32) -> f32 {
+    let h = |x: i32, z: i32| (hash(x, z) % 1000) as f32 / 1000.;
+    let (bx, bz) = (x.div_euclid(4), z.div_euclid(4)); let (fx, fz) = (x.rem_euclid(4) as f32 / 4., z.rem_euclid(4) as f32 / 4.);
+    let (sx, sz) = (fx * fx * (3. - 2. * fx), fz * fz * (3. - 2. * fz));
+    let a = h(bx + 500, bz) + (h(bx + 501, bz) - h(bx + 500, bz)) * sx; let b = h(bx + 500, bz + 1) + (h(bx + 501, bz + 1) - h(bx + 500, bz + 1)) * sx;
+    (a + (b - a) * sz) * 0.75 + h(x, z) * 0.25
+}
+/// Ground tint at a corner: darker/greener in hollows, sunnier on rises.
+fn gtint(c: Color, n: f32) -> Color { let k = 0.89 + n * 0.21; Color::new(c.r * k * (0.97 + n * 0.06), c.g * k, c.b * k * (1.03 - n * 0.06), c.a) }
 fn hash(x: i32, z: i32) -> u32 { ((x as u32).wrapping_mul(73856093) ^ (z as u32).wrapping_mul(19349663)).wrapping_mul(2654435761) >> 16 }
 const DARK: Color = Color::new(0.09, 0.07, 0.07, 1.);
 const WOOD: Color = Color::new(0.58, 0.4, 0.26, 1.);
@@ -31,6 +41,8 @@ impl R {
     pub fn flush(&mut self) { if !self.v.is_empty() { draw_mesh(&Mesh { vertices: std::mem::take(&mut self.v), indices: std::mem::take(&mut self.i), texture: None }) } }
     pub fn with(&mut self, m: Mat4, f: impl FnOnce(&mut R)) { let o = self.xf; self.xf = o * m; f(self); self.xf = o }
     pub fn quad(&mut self, a: Vec3, b: Vec3, c: Vec3, d: Vec3, n: Vec3, col: Color) { let o = self.base(4); for p in [a, b, c, d] { self.vtx(p, n, col) } self.i.extend_from_slice(&[o, o + 1, o + 2, o, o + 2, o + 3]) }
+    /// Quad with a colour per corner (smooth ground shading).
+    pub fn quad4(&mut self, p: [Vec3; 4], n: Vec3, c: [Color; 4]) { let o = self.base(4); for k in 0..4 { self.vtx(p[k], n, c[k]) } self.i.extend_from_slice(&[o, o + 1, o + 2, o, o + 2, o + 3]) }
     pub fn tri(&mut self, a: Vec3, b: Vec3, c: Vec3, n: Vec3, col: Color) { let o = self.base(3); for p in [a, b, c] { self.vtx(p, n, col) } self.i.extend_from_slice(&[o, o + 1, o + 2]) }
     pub fn cube(&mut self, c: Vec3, h: Vec3, col: Color) {
         let p = |x: f32, y: f32, z: f32| c + vec3(x * h.x, y * h.y, z * h.z);
@@ -360,6 +372,12 @@ fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(f32, f32)>)
     let bg = if g.me.scene != Scene::Room(0) && !matches!(g.me.scene, Scene::Room(_)) { lt.sky } else { Color::new(0.08, 0.06, 0.06, 1.) };
     let cam = Camera3D { viewport: vp.map(|(x, w)| (x as i32, 0, w as i32, vh() as i32)), aspect: Some(vw() / vh()), ..cam };
     if vp.is_some() { hud_cam(vp); draw_rectangle(0., 0., vw(), vh(), bg) } else { clear_background(bg) }
+    { hud_cam(vp); let indoor = matches!(g.me.scene, Scene::Room(_)); let (w, h) = (vw(), vh());
+        // outdoors: deeper zenith fading to the horizon (fog) colour; indoors: warm dim glow behind the room instead of flat black
+        let top = if indoor { Color::new(0.05, 0.04, 0.05, 1.) } else { Color::new(bg.r * 0.62, bg.g * 0.72, (bg.b * 0.9 + 0.08).min(1.), 1.) };
+        let bot = if indoor { Color::new(0.2, 0.15, 0.12, 1.) } else { bg }; let n = 24;
+        for k in 0..n { let (a, b) = (k as f32 / n as f32, (k + 1) as f32 / n as f32); let f = |t: f32| if indoor { t * t } else { (t / 0.55).min(1.).sqrt() }; let t = f((a + b) / 2.);
+            draw_rectangle(0., a * h, w, (b - a) * h + 1., Color::new(top.r + (bot.r - top.r) * t, top.g + (bot.g - top.g) * t, top.b + (bot.b - top.b) * t, 1.)) } }
     set_camera(&cam);
     let mut r = R::new(curve, c0, &lt, if matches!(g.me.scene, Scene::Room(_)) { (100., 200.) } else { (12., 21.) });
     let mut labels: Vec<(Vec3, String, Color)> = vec![];
@@ -394,8 +412,12 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
             for (dx, dz) in [(0, -1), (0, 1), (-1, 0), (1, 0)] { let nc = ext(x + dx, z + dz); if water(nc) { continue } let bc = if nc == SAND { sand } else { soil };
                 let (a, b, n) = match (dx, dz) { (0, -1) => (vec3(fx, 0., fz), vec3(fx + 1., 0., fz), Vec3::Z), (0, 1) => (vec3(fx + 1., 0., fz + 1.), vec3(fx, 0., fz + 1.), -Vec3::Z), (-1, 0) => (vec3(fx, 0., fz + 1.), vec3(fx, 0., fz), Vec3::X), _ => (vec3(fx + 1., 0., fz), vec3(fx + 1., 0., fz + 1.), -Vec3::X) };
                 r.quad(a, b, b - Vec3::Y * 0.2, a - Vec3::Y * 0.2, n, bc) } }
-        else { let col = match c { PATH => Color::new(0.77, 0.65, 0.47, 1.), SAND => sand, b'f' => sh(grass, 0.8), _ => grass }; let v = 1. + ((hash(x, z) % 7) as f32 - 3.) * 0.013;
-            r.quad(vec3(fx, 0., fz), vec3(fx + 1., 0., fz), vec3(fx + 1., 0., fz + 1.), vec3(fx, 0., fz + 1.), Vec3::Y, sh(col, v)) } } }
+        else { let base = |c: u8| match c { PATH => Color::new(0.77, 0.65, 0.47, 1.), SAND => sand, b'f' => sh(grass, 0.8), RIVER | SEA | BRIDGE => sand, _ => grass }; let col = base(c); let amt = if c == PATH || c == SAND { 0.45 } else { 1. };
+            // soft borders: each corner leans toward the average of the four tiles that share it
+            let cc = |dx: i32, dz: i32| { let n = 0.5 + (gnoise(x + dx, z + dz) - 0.5) * amt; let (cx, cz) = (x + dx, z + dz);
+                let mut a = [0f32; 3]; for (ox, oz) in [(-1, -1), (0, -1), (-1, 0), (0, 0)] { let b = if water(ext(cx + ox, cz + oz)) { col } else { base(ext(cx + ox, cz + oz)) }; a[0] += b.r / 4.; a[1] += b.g / 4.; a[2] += b.b / 4. }
+                gtint(Color::new(col.r * 0.55 + a[0] * 0.45, col.g * 0.55 + a[1] * 0.45, col.b * 0.55 + a[2] * 0.45, 1.), n) };
+            r.quad4([vec3(fx, 0., fz), vec3(fx + 1., 0., fz), vec3(fx + 1., 0., fz + 1.), vec3(fx, 0., fz + 1.)], Vec3::Y, [cc(0, 0), cc(1, 0), cc(1, 1), cc(0, 1)]) } } }
     // ground decals: contact shadows, holes, fish shadows
     let shc = Color::new(0., 0., 0., 0.22);
     r.disc(vec3(g.me.pos.x, 0.02, g.me.pos.y), vec2(0.32, 0.26), shc);
@@ -553,13 +575,29 @@ fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, Strin
     r.sun = vec3(0.35, 0.85, 0.5).normalize();
     r.amb = if dim { vec3(0.3, 0.32, 0.48) } else if lamp && lt.night > 0.3 { vec3(0.68, 0.57, 0.42) } else { vec3(0.56, 0.56, 0.56) };
     r.dif = if dim { vec3(0.14, 0.14, 0.22) } else { vec3(0.44, 0.42, 0.4) };
-    for z in 0..d { for x in 0..w { let (fx, fz) = (x as f32, z as f32); r.quad(vec3(fx, 0., fz), vec3(fx + 1., 0., fz), vec3(fx + 1., 0., fz + 1.), vec3(fx, 0., fz + 1.), Vec3::Y, sh(floor, if (x + z) % 2 == 0 { 1. } else { 0.93 })) } }
-    r.quad(vec3(0., 0., 0.), vec3(wf, 0., 0.), vec3(wf, 2.4, 0.), vec3(0., 2.4, 0.), Vec3::Z, wall);
+    let tiled = matches!(BLDS[b].kind, BK::Shop | BK::Museum);
+    for z in 0..d { for x in 0..w { let (fx, fz) = (x as f32, z as f32);
+        if tiled { r.quad(vec3(fx, 0., fz), vec3(fx + 1., 0., fz), vec3(fx + 1., 0., fz + 1.), vec3(fx, 0., fz + 1.), Vec3::Y, sh(floor, if (x + z) % 2 == 0 { 1. } else { 0.95 }));
+            r.quad(vec3(fx, 0.002, fz), vec3(fx + 1., 0.002, fz), vec3(fx + 1., 0.002, fz + 0.025), vec3(fx, 0.002, fz + 0.025), Vec3::Y, sh(floor, 0.82)); r.quad(vec3(fx, 0.002, fz), vec3(fx + 0.025, 0.002, fz), vec3(fx + 0.025, 0.002, fz + 1.), vec3(fx, 0.002, fz + 1.), Vec3::Y, sh(floor, 0.82)) }
+        else { // wooden boards: three planks per tile running left-right, staggered seams, gentle per-plank tone
+            for k in 0..3 { let (z0, z1) = (fz + k as f32 / 3., fz + (k + 1) as f32 / 3.); let v = 0.94 + (hash(x * 3 + k * 7, z * 5 + k) % 9) as f32 * 0.012;
+                r.quad(vec3(fx, 0., z0), vec3(fx + 1., 0., z0), vec3(fx + 1., 0., z1), vec3(fx, 0., z1), Vec3::Y, sh(floor, v));
+                r.quad(vec3(fx, 0.002, z0), vec3(fx + 1., 0.002, z0), vec3(fx + 1., 0.002, z0 + 0.018), vec3(fx, 0.002, z0 + 0.018), Vec3::Y, sh(floor, 0.78));
+                let sx = fx + if (k + x) % 2 == 0 { 0.33 } else { 0.8 }; r.quad(vec3(sx, 0.002, z0), vec3(sx + 0.018, 0.002, z0), vec3(sx + 0.018, 0.002, z1), vec3(sx, 0.002, z1), Vec3::Y, sh(floor, 0.8)) } } } }
+    // back wall: wainscot panel below a chair rail, softly striped paper above
+    r.quad(vec3(0., 0., 0.), vec3(wf, 0., 0.), vec3(wf, 0.85, 0.), vec3(0., 0.85, 0.), Vec3::Z, sh(wall, 0.86));
+    r.quad(vec3(0., 0.85, 0.), vec3(wf, 0.85, 0.), vec3(wf, 2.4, 0.), vec3(0., 2.4, 0.), Vec3::Z, wall);
+    { let mut x = 0.; let mut k = 0; while x < wf - 0.01 { if k % 2 == 1 { r.quad(vec3(x, 0.88, 0.005), vec3((x + 0.18).min(wf), 0.88, 0.005), vec3((x + 0.18).min(wf), 2.34, 0.005), vec3(x, 2.34, 0.005), Vec3::Z, sh(wall, 0.965)) } x += 0.18; k += 1 } }
+    r.cube(vec3(wf / 2., 0.86, 0.025), vec3(wf / 2., 0.025, 0.025), WOOD);
+    { let mut x = 0.4; while x < wf - 0.2 { r.cube(vec3(x, 0.47, 0.006), vec3(0.008, 0.3, 0.006), sh(wall, 0.78)); x += 0.8 } }
     r.cube(vec3(wf / 2., 0.08, 0.03), vec3(wf / 2., 0.08, 0.03), WOOD); r.cube(vec3(wf / 2., 2.38, 0.03), vec3(wf / 2., 0.04, 0.04), WOOD);
     for x in [-0.08, wf + 0.08] { r.cube(vec3(x, 0.5, df / 2. - 0.04), vec3(0.08, 0.5, df / 2. + 0.04), sh(wall, 0.85)) } // cut-away side walls
     let dxw = (w / 2) as f32; r.cube(vec3(dxw / 2., 0.12, df + 0.06), vec3(dxw / 2., 0.12, 0.06), sh(wall, 0.8)); r.cube(vec3((dxw + 1. + wf) / 2., 0.12, df + 0.06), vec3((wf - dxw - 1.) / 2., 0.12, 0.06), sh(wall, 0.8));
     r.cube(vec3(dxw + 0.5, 0.005, df - 0.4), vec3(0.4, 0.005, 0.3), Color::new(0.7, 0.3, 0.3, 1.)); // door mat
-    if !matches!(BLDS[b].kind, BK::Shop | BK::Museum) { let wx = if w > 3 { wf - 0.9 } else { wf / 2. }; r.cube(vec3(wx, 1.45, 0.04), vec3(0.42, 0.36, 0.04), WOOD); let u = r.unlit; r.unlit = true; r.cube(vec3(wx, 1.45, 0.07), vec3(0.34, 0.28, 0.02), Color::new(lt.sky.r * 0.9 + 0.1, lt.sky.g * 0.9 + 0.1, lt.sky.b * 0.9 + 0.1, 1.)); r.unlit = u }
+    if !matches!(BLDS[b].kind, BK::Shop | BK::Museum) { let wx = if w > 3 { wf - 0.9 } else { wf / 2. }; r.cube(vec3(wx, 1.45, 0.04), vec3(0.42, 0.36, 0.04), WOOD); let u = r.unlit; r.unlit = true; r.cube(vec3(wx, 1.45, 0.07), vec3(0.34, 0.28, 0.02), Color::new(lt.sky.r * 0.9 + 0.1, lt.sky.g * 0.9 + 0.1, lt.sky.b * 0.9 + 0.1, 1.));
+        let day = 1. - lt.night; if day > 0.05 { let a = 0.16 * day; let c = Color::new(1., 0.93, 0.7, a); r.quad(vec3(wx - 0.36, 0.004, 0.25), vec3(wx + 0.36, 0.004, 0.25), vec3(wx + 0.62, 0.004, 1.45), vec3(wx - 0.1, 0.004, 1.45), Vec3::Y, c);
+            r.quad(vec3(wx - 0.3, 0.005, 0.5), vec3(wx - 0.27, 0.005, 0.5), vec3(wx + 0.03, 0.005, 1.4), vec3(wx, 0.005, 1.4), Vec3::Y, Color::new(0.4, 0.3, 0.2, a * 0.6)); }
+        r.unlit = u }
     if BLDS[b].kind == BK::Civic {
         r.cube(vec3(3.5, 0.005, 3.2), vec3(0.6, 0.005, 1.6), Color::new(0.55, 0.15, 0.18, 1.)); // carpet
         for &(x, z) in &CIVIC_DESK { r.cube(vec3(x as f32 + 0.5, 0.3, z as f32 + 0.5), vec3(0.5, 0.3, 0.42), Color::new(0.42, 0.28, 0.2, 1.)); r.cube(vec3(x as f32 + 0.5, 0.62, z as f32 + 0.5), vec3(0.52, 0.03, 0.45), Color::new(0.3, 0.45, 0.35, 1.)) }

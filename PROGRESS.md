@@ -238,3 +238,10 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - Milestone M2 complete. Suite 82 pass (+2 ignored helpers). Next milestone candidates (M3, not started): resident invitations (meet-ups, hide-and-seek), monthly fishing/bug contests.
 - LAN multiplayer added (src/net.rs): host-authoritative, client sends input (key indices) each frame, host streams JSON snapshots (~20/s) of the world + runtime state; UDP discovery; refuse when Player 2 is local; F2 disabled while a LAN friend is connected. Tests: lan_host_client_loopback (unit, real sockets on loopback); autotest phases 37/38 run as two processes on 127.0.0.1 (HOLLOWBROOK_LAN_BIND), screenshots of both views inspected. NOT verified across two physical computers or through Windows Firewall (human check).
 - 2026-11-15 CRASH FIX (user report, LAN session): world.rs sim_fish indexed shadows[si] after another player's catch had removed a shadow -> index out of bounds. Shadows removal now goes through take_shadow(), which re-indexes every player's hooked fish; a stale index releases the line. Test two_players_fishing_same_river_no_crash.
+
+## 2026-11-15 — Visual polish loop (presentation only, no gameplay changes)
+- Autotest phase 40: fixed-viewpoint visual tour (test_output/tour.sh <prefix> runs it at 11:00 and 17:10 and builds contact sheets).
+- Terrain: per-corner smooth value noise replaces the per-tile checker; soft blended borders between grass, paths and sand.
+- Sky: vertical gradient (deeper zenith to horizon/fog colour); interiors get a warm dim backdrop instead of flat black.
+- Interiors: plank floors with staggered seams (homes/residents/civic), grouted tiles (shop/museum), wainscot + chair rail + striped wallpaper, faint daytime sunbeam under windows.
+- Evidence: rendered screenshots inspected (test_output/v0_* baseline vs v4_*); 84 tests pass.
