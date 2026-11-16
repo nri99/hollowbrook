@@ -268,6 +268,10 @@ fn building(r: &mut R, bi: usize, night: f32, paint: Option<((f32, f32, f32), (f
     for k in 1..n { let y = k as f32 * 0.22; r.cube(vec3(c.x, y, z + d - 0.045), vec3(w / 2. - 0.05, 0.012, 0.006), sid); for sx in [x + 0.045, x + w - 0.045] { r.cube(vec3(sx, y, c.z), vec3(0.006, 0.012, d / 2. - 0.05), sid) } }
     for (cx, cz) in [(x + 0.05, z + d - 0.05), (x + w - 0.05, z + d - 0.05), (x + 0.05, z + 0.05), (x + w - 0.05, z + 0.05)] { r.cube(vec3(cx, hg / 2., cz), vec3(0.05, hg / 2., 0.05), trim) }
     r.roof(c + vec3(0., hg, 0.), w / 2. + 0.25, d / 2. + 0.3, if civic { 1.0 } else { 0.85 }, roof);
+    // Fascia beneath the existing overhang: the roof surface and silhouette stay intact.
+    for sz in [-1f32, 1.] {
+        r.cube(c + vec3(0., hg - 0.03, sz * (d / 2. + 0.26)), vec3(w / 2. + 0.24, 0.025, 0.04), trim);
+    }
     let dx = door_face(bi).x; let fz = z + d - 0.05;
     r.cube(vec3(dx, 0.52, fz), vec3(0.3, 0.52, 0.06), Color::new(0.45, 0.28, 0.18, 1.)); r.sphere(vec3(dx + 0.18, 0.5, fz + 0.07), Vec3::splat(0.04), GOLD);
     let lit = night > 0.35; let win = if lit { Color::new(1., 0.85, 0.5, 1.) } else { Color::new(0.68, 0.84, 0.95, 1.) };
