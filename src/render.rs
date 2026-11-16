@@ -271,7 +271,15 @@ fn building(r: &mut R, bi: usize, night: f32, paint: Option<((f32, f32, f32), (f
     let dx = door_face(bi).x; let fz = z + d - 0.05;
     r.cube(vec3(dx, 0.52, fz), vec3(0.3, 0.52, 0.06), Color::new(0.45, 0.28, 0.18, 1.)); r.sphere(vec3(dx + 0.18, 0.5, fz + 0.07), Vec3::splat(0.04), GOLD);
     let lit = night > 0.35; let win = if lit { Color::new(1., 0.85, 0.5, 1.) } else { Color::new(0.68, 0.84, 0.95, 1.) };
-    for wx in [x + 0.5, x + w - 0.5] { r.cube(vec3(wx, 0.98, fz), vec3(0.24, 0.24, 0.05), WHITE); let u = r.unlit; r.unlit = lit; r.cube(vec3(wx, 0.98, fz + 0.012), vec3(0.19, 0.19, 0.05), win); r.unlit = u }
+    for wx in [x + 0.5, x + w - 0.5] {
+        r.cube(vec3(wx, 0.98, fz), vec3(0.24, 0.24, 0.05), WHITE);
+        let u = r.unlit; r.unlit = lit; r.cube(vec3(wx, 0.98, fz + 0.012), vec3(0.19, 0.19, 0.05), win); r.unlit = u;
+        // Narrow painted dividers sit above the glass face (fz + 0.062).
+        let wz = fz + 0.076;
+        r.quad(vec3(wx - 0.012, 0.79, wz), vec3(wx + 0.012, 0.79, wz), vec3(wx + 0.012, 1.17, wz), vec3(wx - 0.012, 1.17, wz), Vec3::Z, WHITE);
+        r.quad(vec3(wx - 0.19, 0.968, wz + 0.002), vec3(wx + 0.19, 0.968, wz + 0.002), vec3(wx + 0.19, 0.992, wz + 0.002), vec3(wx - 0.19, 0.992, wz + 0.002), Vec3::Z, WHITE);
+        r.cube(vec3(wx, 0.735, fz + 0.045), vec3(0.27, 0.025, 0.1), WHITE);
+    }
     match b.kind {
         BK::Shop => { for k in 0..7 { r.cube(vec3(x + 0.4 + k as f32 * (w - 0.8) / 6., hg * 0.82, fz + 0.32), vec3((w - 0.8) / 14., 0.04, 0.3), if k % 2 == 0 { WHITE } else { Color::new(0.2, 0.6, 0.6, 1.) }) } r.cube(vec3(c.x, hg + 0.15, fz + 0.1), vec3(0.8, 0.22, 0.05), WOOD) }
         BK::Museum => { for k in 0..4 { r.cyl(vec3(x + 0.45 + k as f32 * (w - 0.9) / 3., 0.16, fz + 0.3), 0.1, hg - 0.16, Color::new(0.97, 0.96, 0.92, 1.)) } r.cube(vec3(c.x, hg - 0.05, fz + 0.3), vec3(w / 2., 0.08, 0.14), Color::new(0.97, 0.96, 0.92, 1.)) }
