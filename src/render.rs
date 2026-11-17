@@ -641,7 +641,19 @@ fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, Strin
     if !matches!(BLDS[b].kind, BK::Shop | BK::Museum) { let wx = if w > 3 { wf - 0.9 } else { wf / 2. }; r.cube(vec3(wx, 1.45, 0.04), vec3(0.42, 0.36, 0.04), WOOD); let u = r.unlit; r.unlit = true; r.cube(vec3(wx, 1.45, 0.07), vec3(0.34, 0.28, 0.02), Color::new(lt.sky.r * 0.9 + 0.1, lt.sky.g * 0.9 + 0.1, lt.sky.b * 0.9 + 0.1, 1.));
         let day = 1. - lt.night; if day > 0.05 { let a = 0.16 * day; let c = Color::new(1., 0.93, 0.7, a); r.quad(vec3(wx - 0.36, 0.004, 0.25), vec3(wx + 0.36, 0.004, 0.25), vec3(wx + 0.62, 0.004, 1.45), vec3(wx - 0.1, 0.004, 1.45), Vec3::Y, c);
             r.quad(vec3(wx - 0.3, 0.005, 0.5), vec3(wx - 0.27, 0.005, 0.5), vec3(wx + 0.03, 0.005, 1.4), vec3(wx, 0.005, 1.4), Vec3::Y, Color::new(0.4, 0.3, 0.2, a * 0.6)); }
-        r.unlit = u }
+        r.unlit = u;
+        if matches!(BLDS[b].kind, BK::Home(_)) {
+            // Gathered linen panels, lifted above the glass (front face z = 0.09).
+            let linen = Color::new(0.56, 0.72, 0.65, 1.);
+            r.cube(vec3(wx, 1.845, 0.11), vec3(0.49, 0.015, 0.02), WOOD);
+            for sx in [-1f32, 1.] {
+                let cx = wx + sx * 0.33;
+                r.quad(vec3(cx - 0.05, 1.12, 0.118), vec3(cx + 0.05, 1.12, 0.118), vec3(cx + 0.09, 1.79, 0.118), vec3(cx - 0.09, 1.79, 0.118), Vec3::Z, linen);
+                r.quad(vec3(cx - 0.01, 1.12, 0.124), vec3(cx + 0.01, 1.12, 0.124), vec3(cx + 0.018, 1.79, 0.124), vec3(cx - 0.018, 1.79, 0.124), Vec3::Z, sh(linen, 0.88));
+            }
+            r.cube(vec3(wx, 1.065, 0.11), vec3(0.48, 0.03, 0.08), WOOD);
+        }
+    }
     if BLDS[b].kind == BK::Civic {
         r.cube(vec3(3.5, 0.005, 3.2), vec3(0.6, 0.005, 1.6), Color::new(0.55, 0.15, 0.18, 1.)); // carpet
         for &(x, z) in &CIVIC_DESK { r.cube(vec3(x as f32 + 0.5, 0.3, z as f32 + 0.5), vec3(0.5, 0.3, 0.42), Color::new(0.42, 0.28, 0.2, 1.)); r.cube(vec3(x as f32 + 0.5, 0.62, z as f32 + 0.5), vec3(0.52, 0.03, 0.45), Color::new(0.3, 0.45, 0.35, 1.)) }
