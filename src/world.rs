@@ -369,7 +369,6 @@ impl Game {
         if (self.fair() || self.fest().is_some()) && (x, z) == STALL { return false }
         if (x, z) == BOARD { return false }
         if camp_block((x, z)) { return false }
-        if self.w.surprise.as_ref().is_some_and(|s| (s.x, s.z) == (x, z)) { return false }
         if self.w.mproject.as_ref().is_some_and(|m| (m.x, m.z) == (x, z)) { return false }
         if let Some(b) = self.w.built.iter().find(|b| ptiles(b.kind, b.x, b.z).contains(&(x, z))) { return b.kind == PK_BRIDGE }
         if self.w.project.as_ref().is_some_and(|p| p.kind != PK_BRIDGE && (p.x, p.z) == (x, z)) { return false } matches!(self.tile(x, z), GRASS | PATH | SAND | BRIDGE | FLOWER) && !self.w.holes.contains(&(x, z)) && (x, z) != mailbox_tile(0) && (x, z) != mailbox_tile(1) }

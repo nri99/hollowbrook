@@ -759,9 +759,9 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
     let hint = if g.me.mplace.is_some() { "Placing project: walk/face a spot  Enter place  Esc cancel" } else if g.swimming() { if g.me.pad { "Swimming:  X dive  stick swim" } else { "Swimming:  Space dive  WASD swim" } } else if g.me.pad { if g.me.placing.is_some() { "Stick move  RB rotate  A place  B cancel" } else { if narrow { "Stick move  A act  X tool  RB tool  Y bag  B back" } else { "Stick move  RT run  A act  X tool  RB next tool  Y bag  Start journal  B cancel" } } } else if narrow { if g.me.placing.is_some() { "Move  R rotate  Enter place  Esc cancel" } else { "Move  E act  Space tool  Tab tool  I bag  J journal" } } else if g.me.placing.is_some() { "Placing:  WASD/Arrows move   R rotate   Enter place   Esc cancel" } else { "WASD move  Shift run  E interact  Space use tool  Tab tool  I inventory  J journal  F/G move/pick up furniture  Esc cancel" };
     draw_rectangle(4., sh - 34., measure_text(hint, None, 19, 1.).width + 24., 28., Color::new(0., 0., 0., 0.4)); txt(hint, 12., sh - 14., 19., WHITE);
     if let Some(s) = g.w.p.seek.as_ref().filter(|s| g.seek_live(s)) {
-        let bw = (sw - 24.).min(460.); draw_rectangle(12., 150., bw, 50., Color::new(0.1, 0.24, 0.16, 0.85));
-        txt(&format!("Trail Seek: {}/3 found   {}s left", s.found.len(), (s.deadline_ms - g.clock_ms + 999) / 1000), 22., 171., 21., WHITE);
-        txt("Talk to friends at their hiding spots.", 22., 192., 17., WHITE);
+        let bw = (sw - 24.).min(460.); draw_rectangle(12., 160., bw, 50., Color::new(0.1, 0.24, 0.16, 0.85));
+        txt(&format!("Trail Seek: {}/3 found   {}s left", s.found.len(), (s.deadline_ms - g.clock_ms + 999) / 1000), 22., 181., 21., WHITE);
+        txt("Talk to friends at their hiding spots.", 22., 202., 17., WHITE);
     }
     match &g.me.ui {
         Ui::Play => {}
