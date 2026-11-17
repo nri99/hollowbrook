@@ -542,6 +542,10 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         go(g, c, door_stand(HOME), 0.12).await; face(g, c, door_face(HOME)).await; press(g, c, KeyCode::E).await; tickn!(300, &[], &[]); log!("scene={:?} variant={:?}", g.me.scene, audio::variant(g));
         press(g, c, KeyCode::J).await; press(g, c, KeyCode::X).await; tickn!(10, &[], &[]); log!("after mute: muted={} applied={:.2}", g.muted, m.applied);
         press(g, c, KeyCode::X).await; press(g, c, KeyCode::Left).await; press(g, c, KeyCode::Down).await; tickn!(10, &[], &[]); log!("after unmute/-music/-sfx: music_vol={:.1} sfx_vol={:.1} applied={:.2} dirty={}", g.music_vol, g.sfx_vol, m.applied, g.settings_dirty);
+    } else if phase == "44" {
+        // Home stories: main floor with both stairways, then basement and upstairs.
+        g.w.p.home = 4; g.swap(Scene::Room(HOME)); g.me.scene = Scene::Room(HOME); wait(g, c, 30).await; shot!("h_main");
+        g.take_stairs(1); wait(g, c, 30).await; shot!("h_basement"); g.take_stairs(0); g.take_stairs(2); wait(g, c, 30).await; shot!("h_upstairs");
     } else if phase == "43" {
         g.join("Seek partner"); g.activate(1); g.me.pos = vec2(13.5, 17.5); g.me.cam = g.me.pos; g.activate(0);
         g.me.pos = vec2(13.5, 17.5); g.me.cam = g.me.pos; g.me.face = vec2(0., 1.);

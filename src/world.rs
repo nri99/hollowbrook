@@ -15,8 +15,16 @@ pub const SHOP: usize = 0;
 pub const HOME: usize = 1;
 pub const SAVE_VERSION: u32 = 5;
 /// Home sizes per house level and the price of each expansion (provisional numbers).
-pub const HOME_DIMS: [(i32, i32); 3] = [(4, 4), (5, 5), (6, 5)];
-pub const EXPAND_COST: [u32; 2] = [3000, 15000];
+pub const HOME_DIMS: [(i32, i32); 5] = [(4, 4), (5, 5), (6, 5), (6, 5), (6, 5)];
+/// Levels 1-2 enlarge the main room; level 3 adds a basement, level 4 an upstairs (provisional prices).
+pub const EXPAND_COST: [u32; 4] = [3000, 15000, 30000, 50000];
+/// Home stories: 0 main floor, 1 basement, 2 upstairs. Stairs up sit in the back-left corner, stairs down beside them.
+pub const STAIR_UP: (i32, i32) = (0, 0); pub const STAIR_DOWN: (i32, i32) = (1, 0);
+pub fn elev(story: u8) -> i32 { match story { 1 => -1, 2 => 1, _ => 0 } }
+/// Stair tiles on `story` of a home at house level `lv`: (tile, destination story).
+pub fn stairs(lv: u32, story: u8) -> Vec<((i32, i32), u8)> {
+    match story { 0 => { let mut v = vec![]; if lv >= 4 { v.push((STAIR_UP, 2)) } if lv >= 3 { v.push((STAIR_DOWN, 1)) } v } 1 => vec![(STAIR_DOWN, 0)], _ => vec![(STAIR_UP, 0)] }
+}
 
 // ---- persistent state (definition id `def` is separate from instance id `uid` and from location) ----
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
@@ -76,7 +84,7 @@ pub struct Profile {
     #[serde(default)] pub social_day: i64,
     #[serde(default)] pub missed_visit: Option<(usize, usize, i64)>,
     #[serde(default)] pub seek: Option<crate::events::Seek>,
-    #[serde(default)] pub id: usize, pub name: String, pub money: u32, pub home: u32, pub inv: Vec<Slot>, pub storage: Vec<Slot>, pub room: Vec<Furn>,
+    #[serde(default)] pub id: usize, pub name: String, pub money: u32, pub home: u32, pub inv: Vec<Slot>, pub storage: Vec<Slot>, pub room: Vec<Furn>, #[serde(default)] pub story: u8, #[serde(default)] pub stories: Vec<Vec<Furn>>,
     pub npcs: Vec<NpcS>, pub seen: Vec<u16>, pub tools: Vec<u16>, pub equip: Option<u16>, pub pos: [f32; 2],
     /// worn shirt (item def); None = starting outfit
     #[serde(default)] pub shirt: Option<u16>,
@@ -104,7 +112,7 @@ pub struct Profile {
     #[serde(default)] pub tints: Vec<(u32, u8)>, #[serde(default)] pub wall: u8, #[serde(default)] pub floor: u8,
 }
 impl Profile {
-    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { seek: None, invitation: None, social_day: 0, missed_visit: None, contests: vec![], id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false, visited: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, hat: None, hair: 0, mail: vec![], catalog: vec![], fair_year: 0, art_week: 0, keepsakes: vec![], fest_years: vec![], lost_owner: None, tool_lv: vec![], home_best: 0, paint: None, coupons: 0, tasks: vec![], task_day: 0, camp_favors: vec![], ferry: 0, debt: 0, islet_done: 0, act_day: [0; 3], parcel: None, tints: vec![], wall: 0, floor: 0 } }
+    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { seek: None, invitation: None, social_day: 0, missed_visit: None, contests: vec![], story: 0, stories: vec![], id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false, visited: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, hat: None, hair: 0, mail: vec![], catalog: vec![], fair_year: 0, art_week: 0, keepsakes: vec![], fest_years: vec![], lost_owner: None, tool_lv: vec![], home_best: 0, paint: None, coupons: 0, tasks: vec![], task_day: 0, camp_favors: vec![], ferry: 0, debt: 0, islet_done: 0, act_day: [0; 3], parcel: None, tints: vec![], wall: 0, floor: 0 } }
 }
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct World {
@@ -143,7 +151,7 @@ impl World {
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)] pub enum Pose { Stand, Sit(u32), Lie(u32) }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Loc { Out, Home, Asleep }
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)] pub enum Snd { Step, Blip, Splash, Coin, Dig, Rustle, Door, StepPath, StepSand, StepWood, StepFloor, Swim }
-#[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Contest, Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize), Stall, Site, Board, Built(usize), Dock, Pell, IItem(usize), IStall, MSite, ActBoard, Hazel, ArtStall, Camper, CampSign, Kiosk, Fest, Surprise, Plant(usize), PlantSpot }
+#[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Contest, Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize), Stall, Site, Board, Built(usize), Dock, Pell, IItem(usize), IStall, MSite, ActBoard, Hazel, ArtStall, Camper, CampSign, Kiosk, Fest, Surprise, Plant(usize), PlantSpot, Stairs(u8) }
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum Ui { Invitation, Contest(usize), Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize), Tint(usize), Travel(bool), IStall(usize), ConfirmExpand, MPick(usize), Fund, Policy(usize), PolicyOk(usize), Act(usize), Civic(usize), Paint(usize), Keeper(usize), Camp(usize), Kiosk(usize), Title(usize), Help }
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -373,10 +381,22 @@ impl Game {
         if let Some(b) = self.w.built.iter().find(|b| ptiles(b.kind, b.x, b.z).contains(&(x, z))) { return b.kind == PK_BRIDGE }
         if self.w.project.as_ref().is_some_and(|p| p.kind != PK_BRIDGE && (p.x, p.z) == (x, z)) { return false } matches!(self.tile(x, z), GRASS | PATH | SAND | BRIDGE | FLOWER) && !self.w.holes.contains(&(x, z)) && (x, z) != mailbox_tile(0) && (x, z) != mailbox_tile(1) }
     pub fn room_furn(&self, b: usize) -> Vec<Furn> {
-        match BLDS[b].kind { BK::Home(o) => if self.w.p.id == o { self.w.p.room.clone() } else { self.w.others.iter().find(|p| p.id == o).map(|p| p.room.clone()).unwrap_or_default() }, BK::Res(r) => TEMPL[r].iter().map(|&(def, x, z, rot)| Furn { uid: 0, def, x, z, rot, on: true }).collect(), _ => vec![] }
+        match BLDS[b].kind { BK::Home(o) => if self.w.p.id == o { self.w.p.room.clone() } else { self.w.others.iter().find(|p| p.id == o).map(|p| if p.story == 0 { p.room.clone() } else { p.stories.first().cloned().unwrap_or_default() }).unwrap_or_default() }, BK::Res(r) => TEMPL[r].iter().map(|&(def, x, z, rot)| Furn { uid: 0, def, x, z, rot, on: true }).collect(), _ => vec![] }
+    }
+    /// Story of building `b` the active player is on (only owners use stairs; visitors stay on the main floor).
+    pub fn story_in(&self, b: usize) -> u8 { match BLDS[b].kind { BK::Home(o) if self.w.p.id == o => self.w.p.story, _ => 0 } }
+    /// Stairs visible on the active player's story of building `b`.
+    pub fn home_stairs(&self, b: usize) -> Vec<((i32, i32), u8)> { if let BK::Home(o) = BLDS[b].kind { stairs(self.owner(o).home, self.story_in(b)) } else { vec![] } }
+    /// Swap the active player's furniture to another story (no movement).
+    pub fn set_story(&mut self, to: u8) { let p = &mut self.w.p; if p.story == to { return } p.stories.resize(3, vec![]); let cur = p.story as usize; p.stories[cur] = std::mem::take(&mut p.room); p.room = std::mem::take(&mut p.stories[to as usize]); p.story = to }
+    pub fn take_stairs(&mut self, to: u8) {
+        let t = if to == 2 || self.w.p.story == 2 { STAIR_UP } else { STAIR_DOWN }; self.place_cancel(); self.set_story(to);
+        self.me.ipos = vec2(t.0 as f32 + 0.5, t.1 as f32 + 1.5); self.me.face = vec2(0., 1.); self.me.cam = self.me.ipos; self.snd.push(Snd::Door);
+        self.note(match to { 0 => "Back on the main floor.", 1 => "Down in the basement.", _ => "Up in the attic room." });
     }
     pub fn room_block(&self, b: usize, x: i32, z: i32, skip: u32) -> bool {
         let (w, d) = self.rdims(b); if x < 0 || z < 0 || x >= w || z >= d { return true }
+        if self.home_stairs(b).iter().any(|s| s.0 == (x, z)) { return true }
         if BLDS[b].kind == BK::Shop { return COUNTER.contains(&(x, z)) || DISPLAYS.contains(&(x, z)) || (x, z) == RACK || ((x, z) == SPECIAL_DISPLAY && self.shop_tier() >= 1) || ((x, z) == EXTRA_DISPLAY && self.w.stock.len() > 5) }
         if BLDS[b].kind == BK::Civic { return CIVIC_DESK.contains(&(x, z)) || CIVIC_PLANTS.contains(&(x, z)) || CIVIC_BENCH.contains(&(x, z)) || (x, z) == KIOSK }
         if BLDS[b].kind == BK::Museum { return MUSEUM_DESK.contains(&(x, z)) || MUSEUM_TANK.contains(&(x, z)) || MUSEUM_CASE.contains(&(x, z)) || MUSEUM_PED.iter().any(|p| p.0 == (x, z)) }
@@ -394,7 +414,7 @@ impl Game {
         let p0 = self.ppos(); let mut p = p0;
         let nx = p + vec2(d.x * s, 0.); if self.free(nx) { p = nx }
         let nz = p + vec2(0., d.y * s);
-        if self.free(nz) { p = nz } else if let Scene::Room(b) = self.me.scene { let (w, dd) = self.rdims(b); if d.y > 0. && p.x.floor() as i32 == w / 2 && p.y > dd as f32 - 0.5 { self.set_ppos(p); self.go(Scene::Town); return } }
+        if self.free(nz) { p = nz } else if let Scene::Room(b) = self.me.scene { let (w, dd) = self.rdims(b); if d.y > 0. && self.story_in(b) == 0 && p.x.floor() as i32 == w / 2 && p.y > dd as f32 - 0.5 { self.set_ppos(p); self.go(Scene::Town); return } }
         self.set_ppos(p); let moved = (p - p0).length(); self.me.spd = moved / dt.max(1e-4); self.me.step_acc += moved;
         if self.me.step_acc > if run { 0.9 } else { 0.6 } { self.me.step_acc = 0.; let st = self.step_sound(); self.snd.push(st) }
         if run && self.me.scene == Scene::Town { self.bugs.retain(|b| b.1.distance(p) > 2.5);
@@ -409,7 +429,7 @@ impl Game {
     }
     pub fn go(&mut self, to: Scene) { if self.me.trans.is_none() { self.me.trans = Some((0., to, false)); self.snd.push(Snd::Door) } }
     pub fn swap(&mut self, to: Scene) {
-        self.place_cancel();
+        self.place_cancel(); self.set_story(0);
         if to != Scene::Islet { let id = self.me.id; if let Some(a) = &mut self.act { if !a.done { a.players.retain(|&p| p != id) } } } // leaving forfeits
         match to { Scene::Islet => { self.me.ipos = vec2(ISLET_SPAWN.0, ISLET_SPAWN.1); self.me.face = vec2(0., -1.); self.me.cam = self.me.ipos }
             Scene::Town => { if let Scene::Room(b) = self.me.scene { self.me.pos = door_stand(b) } if self.me.scene == Scene::Islet { self.me.pos = dock_stand() } self.me.face = vec2(0., 1.); self.me.cam = self.me.pos }
@@ -451,6 +471,7 @@ impl Game {
             }
             Scene::Room(b) => {
                 for fu in self.room_furn(b) { cand(fcenter(&fu), 1.5, 1., Tg::Furn(fu.uid, fu.def), None) }
+                if matches!(BLDS[b].kind, BK::Home(o) if o == self.w.p.id) { for (t, to) in self.home_stairs(b) { cand(tc(t), 1.6, 1., Tg::Stairs(to), None) } }
                 if BLDS[b].kind == BK::Shop { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Counter, None); cand(vec2(3.5, 0.5), 2.6, 1.3, Tg::Keeper, None); for (i, &d) in DISPLAYS.iter().enumerate() { cand(tc(d), 1.5, 1., Tg::Display(i), None) } cand(tc(RACK), 1.5, 1., Tg::Rack, None); if self.w.stock.len() > 5 { cand(tc(EXTRA_DISPLAY), 1.5, 1., Tg::Display(7), None) } if self.shop_tier() >= 1 { cand(tc(SPECIAL_DISPLAY), 1.5, 1., Tg::Display(8), None) } }
                 if BLDS[b].kind == BK::Civic { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Hazel, None); cand(tc(KIOSK), 1.4, 0.9, Tg::Kiosk, None) }
                 if BLDS[b].kind == BK::Museum { cand(vec2(3.5, 1.5), 1.4, 0.9, Tg::Curator, None); cand(vec2(0.5, 2.5), 1.5, 1., Tg::Exhibit(0), None); cand(vec2(6.5, 2.5), 1.5, 1., Tg::Exhibit(1), None);
@@ -467,6 +488,7 @@ impl Game {
         match tg {
             Tg::Contest => vec3(crate::events::CONTEST_SPOT.0, 1.5, crate::events::CONTEST_SPOT.1), Tg::Npc(i) => v(match self.me.scene { Scene::Town => self.npcs[i].pos, Scene::Room(b) if self.visit.is_some_and(|x| x.0 == i && x.1 == b) => self.visit_spot(b), _ => res_spot() }, 1.5), Tg::Door(b) => v(door_face(b), 1.3),
             Tg::Tree(i) => v(tc((self.w.trees[i].x, self.w.trees[i].z)), 2.15), Tg::Item(i) => vec3(self.w.ground[i].x, 0.45, self.w.ground[i].z),
+            Tg::Stairs(_) => { let t = self.home_stairs(match self.me.scene { Scene::Room(b) => b, _ => HOME }).first().map_or(STAIR_UP, |s| s.0); vec3(t.0 as f32 + 0.5, 1.6, t.1 as f32 + 0.5) }
             Tg::Weed(i) => v(tc(self.w.weeds[i]), 0.55), Tg::Rack => vec3(1.5, 1.8, 1.5), Tg::Mailbox(o) => v(tc(mailbox_tile(o)), 1.4), Tg::Stall | Tg::ArtStall | Tg::Fest => v(tc(STALL), 1.9), Tg::Camper => vec3(CAMP_SPOT.0, 1.7, CAMP_SPOT.1), Tg::Plant(i) => v(tc((self.w.garden[i].x, self.w.garden[i].z)), 0.7), Tg::PlantSpot => v(tc(tile_of(self.me.pos + self.me.face * 0.9)), 0.4), Tg::Surprise => self.w.surprise.as_ref().map_or(Vec3::ZERO, |sp| v(tc((sp.x, sp.z)), 0.9)), Tg::CampSign => v(tc(CAMP_SIGN), 1.5), Tg::Kiosk => v(tc(KIOSK), 1.5), Tg::Board => v(tc(BOARD), 1.9), Tg::MSite => self.w.mproject.as_ref().map_or(Vec3::ZERO, |m| v(tc((m.x, m.z)), 1.6)), Tg::Dock => vec3(DOCK.0 as f32 + 0.5, 1.6, DOCK.1 as f32 + 0.3), Tg::ActBoard => v(tc(ACT_BOARD), 1.5), Tg::Pell => vec3(PELL_I.0, 1.6, PELL_I.1), Tg::IStall => v(tc(ISTALL), 1.5), Tg::IItem(i) => vec3(self.w.iground[i].x, 0.45, self.w.iground[i].z), Tg::Built(i) => v(tc((self.w.built[i].x, self.w.built[i].z)), 1.2), Tg::Site => self.w.project.as_ref().map_or(Vec3::ZERO, |p| v(tc((p.x, p.z)), 1.6)), Tg::Curator | Tg::Hazel => vec3(3.5, 1.3, 1.5), Tg::Exhibit(k) => match k { 0 => vec3(0.5, 1.5, 2.5), 1 => vec3(6.5, 1.5, 2.5), _ => { let p = tc(MUSEUM_PED[k - 2].0); vec3(p.x, 1.2, p.y) } }, Tg::Counter => vec3(3.5, 1.3, 1.5), Tg::Keeper => vec3(3.5, 1.7, 0.5), Tg::Display(i) => v(tc(match i { 7 => EXTRA_DISPLAY, 8 => SPECIAL_DISPLAY, _ => DISPLAYS[i] }), 1.3),
             Tg::Furn(uid, d) => { let c = self.room_furn(match self.me.scene { Scene::Room(b) => b, _ => HOME }).into_iter().find(|f| f.uid == uid && f.def == d).map(|f| fcenter(&f)).unwrap_or_default(); v(c, if def(d).wall { 1.9 } else { 1.2 }) }
         }
@@ -483,6 +505,7 @@ impl Game {
             Tg::Plant(i) => { let p = self.w.garden[i]; let n = def(FLOWERS[p.kind as usize]).name; if p.stage == 2 { format!("Pick the {n}") } else { format!("{n} ({}{})", ["sprout", "bud"][p.stage as usize], if p.watered == self.w.day { ", watered" } else { ", needs water" }) } }
             Tg::PlantSpot => format!("Plant {}", self.w.p.inv.iter().find(|s| SEEDS.contains(&s.def)).map_or("", |s| def(s.def).name)),
             Tg::Surprise => self.w.surprise.as_ref().map_or(String::new(), |sp| format!("Pick up the {}", SURPRISES[sp.kind as usize])),
+            Tg::Stairs(to) => match to { 0 => "Go back to the main floor", 1 => "Go down to the basement", _ => "Go upstairs" }.into(),
             Tg::Fest => format!("Talk to Hazel about the {}", self.fest().map_or("", |f| FESTS[f].name)),
             Tg::ArtStall => format!("Art stall: {} ({ART_PRICE} coins)", def(art_of_week(self.w.day)).name),
             Tg::Stall => if self.w.p.fair_year == self.yr { "Harvest Fair stall (prize claimed)".into() } else { "Claim a Harvest Fair prize".into() }, Tg::Mailbox(o) => if o == self.me.id { let n = self.w.p.mail.iter().filter(|l| !l.read).count(); if n > 0 { format!("Check mailbox ({n} new)") } else { "Check mailbox".into() } } else { format!("Player {}'s mailbox", o + 1) },
@@ -511,6 +534,7 @@ impl Game {
             Tg::Stall => self.fair_prize(),
             Tg::Fest => self.fest_talk(),
             Tg::Surprise => self.take_surprise(),
+            Tg::Stairs(to) => self.take_stairs(to),
             Tg::Plant(i) => self.pick_flower(i),
             Tg::PlantSpot => { let ft = tile_of(self.me.pos + self.me.face * 0.9); if let Err(e) = self.plant(ft) { self.note(e) } }
             Tg::Camper => { self.me.ui = Ui::Camp(0) }
@@ -644,12 +668,13 @@ impl Game {
     pub fn expand_home(&mut self) -> Result<(), &'static str> {
         let lv = self.w.p.home as usize; if lv >= EXPAND_COST.len() { return Err("Your home is already as big as it gets!") }
         if self.w.p.debt > 0 { return Err("Pay off your current balance first.") } let cost = EXPAND_COST[lv];
-        let (w, d) = HOME_DIMS[lv + 1]; let door = (w / 2, d - 1);
-        if self.w.p.storage.len() + self.w.p.room.iter().filter(|f| foot(f.def, f.x, f.z, f.rot).contains(&door)).count() > STORE_CAP { return Err("Clear some home storage first.") }
+        let (w, d) = HOME_DIMS[lv + 1]; let mut clear = vec![(w / 2, d - 1)]; for (t, _) in stairs(lv as u32 + 1, 0) { clear.push(t); clear.push((t.0, t.1 + 1)) }
+        let hit = |f: &Furn| if def(f.def).wall { lv + 1 >= 4 && f.x == STAIR_UP.0 } else { foot(f.def, f.x, f.z, f.rot).iter().any(|t| clear.contains(t)) };
+        self.set_story(0); if self.w.p.storage.len() + self.w.p.room.iter().filter(|f| hit(f)).count() > STORE_CAP { return Err("Clear some home storage first.") }
         self.w.p.debt = cost; self.w.p.home += 1;
-        let (moved, keep): (Vec<Furn>, Vec<Furn>) = self.w.p.room.iter().copied().partition(|f| !def(f.def).wall && foot(f.def, f.x, f.z, f.rot).contains(&door));
+        let (moved, keep): (Vec<Furn>, Vec<Furn>) = self.w.p.room.iter().copied().partition(|f| hit(f));
         self.w.p.room = keep; for f in &moved { self.w.p.storage.push(Slot { size_mm: 0, def: f.def, qty: 1, uid: f.uid }) }
-        if !moved.is_empty() { self.note("Furniture in front of the new doorway was moved to your storage.") }
+        if !moved.is_empty() { self.note("Furniture in the way of the new doorway or stairs was moved to your storage.") }
         Ok(())
     }
 
@@ -753,7 +778,7 @@ impl Game {
     // ---- Home evaluation ----
     /// Score of a profile's home with up to two improvement tips.
     pub fn home_score(p: &Profile) -> (u32, Vec<&'static str>) {
-        let room = &p.room; let n = room.len().min(30) as u32; let mut ids: Vec<u16> = room.iter().map(|f| f.def).collect(); ids.sort(); ids.dedup();
+        let all: Vec<Furn> = p.room.iter().chain(p.stories.iter().flatten()).copied().collect(); let room = &all; let n = room.len().min(30) as u32; let mut ids: Vec<u16> = room.iter().map(|f| f.def).collect(); ids.sort(); ids.dedup();
         let sets = SETS.iter().filter(|s| s.1.iter().all(|d| ids.contains(d))).count() as u32; let lamp = room.iter().any(|f| def(f.def).act == Act::Lamp);
         let walls = room.iter().filter(|f| def(f.def).wall).count().min(3) as u32; let decor = p.wall != 0 || p.floor != 0; let keeps = room.iter().filter(|f| KEEPSAKES.contains(&f.def)).count() as u32;
         let score = n * 10 + ids.len() as u32 * 5 + sets * 60 + if lamp { 15 } else { 0 } + walls * 10 + if decor { 20 } else { 0 } + p.home as u32 * 40 + keeps * 15;
@@ -1134,10 +1159,12 @@ impl Game {
         if df.wall {
             if f.z != -1 || f.x < 0 || f.x >= w { return Err("Wall items go on the back wall.") }
             if self.w.p.room.iter().any(|o| def(o.def).wall && o.x == f.x && o.uid != f.uid) { return Err("Something already hangs there.") }
+            if self.home_stairs(self.home()).iter().any(|s| elev(s.1) > elev(self.w.p.story) && s.0 .0 == f.x) { return Err("The stairs are in the way.") }
             return Ok(())
         }
         let fp = foot(f.def, f.x, f.z, f.rot);
         if fp.iter().any(|&(x, z)| x < 0 || z < 0 || x >= w || z >= d) { return Err("It doesn't fit there.") }
+        if self.home_stairs(self.home()).iter().any(|s| fp.iter().any(|&(x, z)| x == s.0 .0 && (z == s.0 .1 || z == s.0 .1 + 1))) { return Err("Keep the stairs clear.") }
         if fp.contains(&(w / 2, d - 1)) { return Err("Keep the doorway clear.") }
         if fp.iter().any(|&t| self.room_block(self.home(), t.0, t.1, f.uid)) { return Err("Something is in the way.") }
         let me: Vec<(i32, i32)> = [(-PR, -PR), (PR, -PR), (-PR, PR), (PR, PR)].iter().map(|&(a, b)| tile_of(self.me.ipos + vec2(a, b))).collect();

@@ -494,11 +494,11 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
 
 #[test] fn housing_migration_independent_balances_relaunch() {
     // a pre-balance save: P1 already at the largest home with furniture, P2 mid-size; no `debt` field anywhere
-    let mut g = two(at(11, 12, 0, 0)); g.w.p.home = 2; g.w.p.room.push(Furn { uid: 77, def: 50, x: 1, z: 1, rot: 0, on: false }); g.w.p.money = 5000;
+    let mut g = two(at(11, 12, 0, 0)); g.w.p.home = 4; g.w.p.room.push(Furn { uid: 77, def: 50, x: 1, z: 1, rot: 0, on: false }); g.w.p.money = 5000;
     g.activate(1); g.w.p.home = 1; g.w.p.money = 20000; g.activate(0);
     let mut v = serde_json::to_value(g.persist()).unwrap(); v["p"].as_object_mut().unwrap().remove("debt"); for o in v["others"].as_array_mut().unwrap() { o.as_object_mut().unwrap().remove("debt"); }
     let p = tmp("predebt"); std::fs::write(&p, v.to_string()).unwrap(); let mut g = Game::from_world(save::load(&p).unwrap(), town());
-    assert_eq!((g.w.p.home, g.w.p.debt, g.w.p.money), (2, 0, 5000)); assert!(g.w.p.room.iter().any(|f| f.uid == 77)); assert!(g.expand_home().is_err()); // already max, no retroactive debt
+    assert_eq!((g.w.p.home, g.w.p.debt, g.w.p.money), (4, 0, 5000)); assert!(g.w.p.room.iter().any(|f| f.uid == 77)); assert!(g.expand_home().is_err()); // already max, no retroactive debt
     g.activate(1); assert_eq!((g.w.p.home, g.w.p.debt), (1, 0));
     g.expand_home().unwrap(); assert_eq!((g.w.p.home, g.w.p.debt), (2, EXPAND_COST[1]));
     g.activate(0); assert_eq!((g.w.p.debt, g.w.p.money), (0, 5000)); g.activate(1);
@@ -774,4 +774,20 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     g.activate(0); assert_eq!(g.me.fish.as_ref().unwrap().fish, Some(0)); assert_eq!(g.shadows[0].def, 12); // P1's index followed its fish
     for _ in 0..200 { g.tick(1. / 60., at(11, 12, 0, 0)); g.update_player(&Inp::none(), 1. / 60.); } // simulating must not panic
     g.me.fish = Some(Fishing { bob, fish: Some(7), t: 0., nib: 0, need: 3, bite: false, dip: 0. }); g.update_player(&Inp::none(), 1. / 60.); assert!(g.me.fish.is_none()); // stale index: let go, no panic
+}
+#[test] fn basement_and_upstairs_stories() {
+    let mut g = two(at(11, 12, 0, 0)); g.w.p.home = 2; g.w.p.money = 0;
+    g.w.p.room.push(Furn { uid: 91, def: 50, x: 1, z: 1, rot: 0, on: false }); g.w.p.room.push(Furn { uid: 92, def: 50, x: 4, z: 2, rot: 0, on: false });
+    g.expand_home().unwrap(); assert_eq!((g.w.p.home, g.w.p.debt, g.rdims(HOME)), (3, EXPAND_COST[2], (6, 5)));
+    assert!(g.w.p.storage.iter().any(|s| s.uid == 91) && g.w.p.room.iter().any(|f| f.uid == 92)); // only the piece on the stairwell moved
+    g.w.p.debt = 0; g.expand_home().unwrap(); assert_eq!(g.w.p.home, 4); assert!(g.expand_home().is_err());
+    g.swap(Scene::Room(HOME)); g.me.scene = Scene::Room(HOME); assert_eq!(g.home_stairs(HOME).len(), 2); assert!(g.room_block(HOME, 0, 0, 0));
+    g.take_stairs(1); assert_eq!(g.story_in(HOME), 1); assert!(g.w.p.room.is_empty()); assert_eq!(g.home_stairs(HOME), vec![(STAIR_DOWN, 0)]);
+    let f = Furn { uid: 93, def: 50, x: 3, z: 2, rot: 0, on: false }; assert!(g.place_ok(&f).is_ok()); g.w.p.room.push(f);
+    assert!(g.place_ok(&Furn { uid: 94, def: 50, x: 1, z: 1, rot: 0, on: false }).is_err()); // stairs stay clear
+    g.activate(1); assert!(g.room_furn(HOME).iter().any(|f| f.uid == 92) && !g.room_furn(HOME).iter().any(|f| f.uid == 93)); g.activate(0); // a visitor sees the main floor
+    let g2 = reload(&g, "stories"); assert_eq!(g2.w.p.story, 1); assert!(g2.w.p.room.iter().any(|f| f.uid == 93));
+    g.take_stairs(0); g.take_stairs(2); assert!(g.w.p.room.is_empty()); g.take_stairs(0); assert!(g.w.p.room.iter().any(|f| f.uid == 92));
+    g.take_stairs(1); g.swap(Scene::Town); assert_eq!(g.w.p.story, 0); assert!(g.w.p.room.iter().any(|f| f.uid == 92)); // leaving always returns to the main floor
+    let (s, _) = Game::home_score(&g.w.p); g.take_stairs(1); assert_eq!(Game::home_score(&g.w.p).0, s); // score counts every story
 }

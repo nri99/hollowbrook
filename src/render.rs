@@ -622,13 +622,17 @@ fn others(r: &mut R, g: &Game, t: f32) {
 fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, String, Color)>) {
     let (w, d) = g.rdims(b); let (wf, df) = (w as f32, d as f32); let t = g.t;
     let (fl, wl) = match BLDS[b].kind { BK::Shop => ((0.72, 0.76, 0.66), (0.93, 0.95, 0.86)), BK::Civic => ((0.5, 0.36, 0.28), (0.9, 0.87, 0.78)), BK::Res(i) => THEME[i], BK::Home(o) => { let pr = g.owner(o); (FLOORS[pr.floor as usize % 4], WALLS[pr.wall as usize % 4]) } _ => ((0.78, 0.6, 0.42), (0.97, 0.93, 0.84)) };
+    let st = g.story_in(b); let stair = g.home_stairs(b);
+    let (fl, wl) = match st { 1 => ((0.6, 0.56, 0.5), (0.7, 0.5, 0.42)), 2 => ((0.84, 0.7, 0.52), (0.88, 0.9, 0.92)), _ => (fl, wl) };
     let (floor, wall) = (rgb(fl), rgb(wl)); let furn = g.room_furn(b); let lamp = furn.iter().any(|f| def(f.def).act == Act::Lamp && f.on);
     let dim = lt.night > 0.6 && !lamp;
     r.sun = vec3(0.35, 0.85, 0.5).normalize();
     r.amb = if dim { vec3(0.3, 0.32, 0.48) } else if lamp && lt.night > 0.3 { vec3(0.68, 0.57, 0.42) } else { vec3(0.56, 0.56, 0.56) };
     r.dif = if dim { vec3(0.14, 0.14, 0.22) } else { vec3(0.44, 0.42, 0.4) };
-    let tiled = matches!(BLDS[b].kind, BK::Shop | BK::Museum);
+    if st == 1 { r.amb *= 0.86; r.dif *= 0.8 } else if st == 2 { r.amb *= 1.05 }
+    let tiled = matches!(BLDS[b].kind, BK::Shop | BK::Museum) || st == 1;
     for z in 0..d { for x in 0..w { let (fx, fz) = (x as f32, z as f32);
+        if stair.iter().any(|s| s.0 == (x, z) && elev(s.1) < elev(st)) { continue } // stairwell opening
         if tiled { r.quad(vec3(fx, 0., fz), vec3(fx + 1., 0., fz), vec3(fx + 1., 0., fz + 1.), vec3(fx, 0., fz + 1.), Vec3::Y, sh(floor, if (x + z) % 2 == 0 { 1. } else { 0.95 }));
             r.quad(vec3(fx, 0.002, fz), vec3(fx + 1., 0.002, fz), vec3(fx + 1., 0.002, fz + 0.025), vec3(fx, 0.002, fz + 0.025), Vec3::Y, sh(floor, 0.82)); r.quad(vec3(fx, 0.002, fz), vec3(fx + 0.025, 0.002, fz), vec3(fx + 0.025, 0.002, fz + 1.), vec3(fx, 0.002, fz + 1.), Vec3::Y, sh(floor, 0.82)) }
         else { // wooden boards: three planks per tile running left-right, staggered seams, gentle per-plank tone
@@ -639,14 +643,36 @@ fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, Strin
     // back wall: wainscot panel below a chair rail, softly striped paper above
     r.quad(vec3(0., 0., 0.), vec3(wf, 0., 0.), vec3(wf, 0.85, 0.), vec3(0., 0.85, 0.), Vec3::Z, sh(wall, 0.86));
     r.quad(vec3(0., 0.85, 0.), vec3(wf, 0.85, 0.), vec3(wf, 2.4, 0.), vec3(0., 2.4, 0.), Vec3::Z, wall);
-    { let mut x = 0.; let mut k = 0; while x < wf - 0.01 { if k % 2 == 1 { r.quad(vec3(x, 0.88, 0.005), vec3((x + 0.18).min(wf), 0.88, 0.005), vec3((x + 0.18).min(wf), 2.34, 0.005), vec3(x, 2.34, 0.005), Vec3::Z, sh(wall, 0.965)) } x += 0.18; k += 1 } }
+    if st == 1 { let mortar = sh(wall, 0.8); let mut row = 0; let mut y = 0.98; while y < 2.36 { r.quad(vec3(0., y, 0.005), vec3(wf, y, 0.005), vec3(wf, y + 0.02, 0.005), vec3(0., y + 0.02, 0.005), Vec3::Z, mortar);
+            let mut x = if row % 2 == 0 { 0.3 } else { 0. }; while x < wf { r.quad(vec3(x, y, 0.005), vec3(x + 0.02, y, 0.005), vec3(x + 0.02, (y + 0.2).min(2.38), 0.005), vec3(x, (y + 0.2).min(2.38), 0.005), Vec3::Z, mortar); x += 0.6 } y += 0.2; row += 1 }
+        r.cube(vec3(wf / 2., 2.2, 0.08), vec3(wf / 2., 0.035, 0.035), Color::new(0.55, 0.42, 0.3, 1.)); } // brick courses and an old pipe
+    else { let mut x = 0.; let mut k = 0; while x < wf - 0.01 { if k % 2 == 1 { r.quad(vec3(x, 0.88, 0.005), vec3((x + 0.18).min(wf), 0.88, 0.005), vec3((x + 0.18).min(wf), 2.34, 0.005), vec3(x, 2.34, 0.005), Vec3::Z, sh(wall, 0.965)) } x += 0.18; k += 1 } }
     r.cube(vec3(wf / 2., 0.86, 0.025), vec3(wf / 2., 0.025, 0.025), WOOD);
     { let mut x = 0.4; while x < wf - 0.2 { r.cube(vec3(x, 0.47, 0.006), vec3(0.008, 0.3, 0.006), sh(wall, 0.78)); x += 0.8 } }
     r.cube(vec3(wf / 2., 0.08, 0.03), vec3(wf / 2., 0.08, 0.03), WOOD); r.cube(vec3(wf / 2., 2.38, 0.03), vec3(wf / 2., 0.04, 0.04), WOOD);
     for x in [-0.08, wf + 0.08] { r.cube(vec3(x, 0.5, df / 2. - 0.04), vec3(0.08, 0.5, df / 2. + 0.04), sh(wall, 0.85)) } // cut-away side walls
-    let dxw = (w / 2) as f32; r.cube(vec3(dxw / 2., 0.12, df + 0.06), vec3(dxw / 2., 0.12, 0.06), sh(wall, 0.8)); r.cube(vec3((dxw + 1. + wf) / 2., 0.12, df + 0.06), vec3((wf - dxw - 1.) / 2., 0.12, 0.06), sh(wall, 0.8));
-    r.cube(vec3(dxw + 0.5, 0.005, df - 0.4), vec3(0.4, 0.005, 0.3), Color::new(0.7, 0.3, 0.3, 1.)); // door mat
-    if !matches!(BLDS[b].kind, BK::Shop | BK::Museum) { let wx = if w > 3 { wf - 0.9 } else { wf / 2. }; r.cube(vec3(wx, 1.45, 0.04), vec3(0.42, 0.36, 0.04), WOOD); let u = r.unlit; r.unlit = true; r.cube(vec3(wx, 1.45, 0.07), vec3(0.34, 0.28, 0.02), Color::new(lt.sky.r * 0.9 + 0.1, lt.sky.g * 0.9 + 0.1, lt.sky.b * 0.9 + 0.1, 1.));
+    let dxw = (w / 2) as f32; if st != 0 { r.cube(vec3(wf / 2., 0.12, df + 0.06), vec3(wf / 2., 0.12, 0.06), sh(wall, 0.8)) } else { r.cube(vec3(dxw / 2., 0.12, df + 0.06), vec3(dxw / 2., 0.12, 0.06), sh(wall, 0.8)); r.cube(vec3((dxw + 1. + wf) / 2., 0.12, df + 0.06), vec3((wf - dxw - 1.) / 2., 0.12, 0.06), sh(wall, 0.8));
+    r.cube(vec3(dxw + 0.5, 0.005, df - 0.4), vec3(0.4, 0.005, 0.3), Color::new(0.7, 0.3, 0.3, 1.)) } // door mat
+    for &((sx, sz), to) in &stair { let (x0, z0) = (sx as f32, sz as f32);
+        if elev(to) > elev(st) { // stairs climbing into the back wall, with a dark landing above and a rail
+            for k in 0..6 { let h = (k + 1) as f32 * 0.38; let zc = z0 + 1. - (k as f32 + 0.5) / 6.; r.cube(vec3(x0 + 0.5, h / 2., zc), vec3(0.44, h / 2., 1. / 12.), sh(WOOD, 0.86 + k as f32 * 0.03)); r.cube(vec3(x0 + 0.5, h + 0.01, zc + 0.07), vec3(0.45, 0.012, 0.02), sh(WOOD, 1.15)) }
+            r.quad(vec3(x0 + 0.06, 1.9, 0.004), vec3(x0 + 0.94, 1.9, 0.004), vec3(x0 + 0.94, 2.4, 0.004), vec3(x0 + 0.06, 2.4, 0.004), Vec3::Z, Color::new(0.16, 0.12, 0.1, 1.));
+            r.cube(vec3(x0 + 0.95, 0.47, z0 + 0.95), vec3(0.035, 0.47, 0.035), sh(WOOD, 0.7)); r.cube(vec3(x0 + 0.95, 0.96, z0 + 0.95), vec3(0.05, 0.03, 0.05), sh(WOOD, 0.9)); // newel post
+            r.with(Mat4::from_rotation_translation(Quat::from_rotation_x(1.0), vec3(x0 + 0.95, 1.65, z0 + 0.5)), |r| r.cube(Vec3::ZERO, vec3(0.025, 0.025, 0.83), sh(WOOD, 0.75)));
+        } else { // stairwell going down: steps sinking toward the back, shaded walls, a low rail
+            let dark = |k: f32| Color::new(0.3 - k * 0.05, 0.24 - k * 0.04, 0.2 - k * 0.035, 1.);
+            for k in 0..4 { let y = -(k as f32 + 1.) * 0.28; let (za, zb) = (z0 + 1. - (k + 1) as f32 * 0.25, z0 + 1. - k as f32 * 0.25);
+                r.quad(vec3(x0, y, za), vec3(x0 + 1., y, za), vec3(x0 + 1., y, zb), vec3(x0, y, zb), Vec3::Y, sh(WOOD, 0.8 - k as f32 * 0.12));
+                r.quad(vec3(x0, y, zb), vec3(x0 + 1., y, zb), vec3(x0 + 1., y + 0.28, zb), vec3(x0, y + 0.28, zb), Vec3::Z, dark(k as f32)) }
+            for x in [x0, x0 + 1.] { r.quad(vec3(x, -1.2, z0), vec3(x, -1.2, z0 + 1.), vec3(x, 0., z0 + 1.), vec3(x, 0., z0), Vec3::X, dark(1.5)) }
+            r.quad(vec3(x0, -1.2, z0 + 0.002), vec3(x0 + 1., -1.2, z0 + 0.002), vec3(x0 + 1., 0., z0 + 0.002), vec3(x0, 0., z0 + 0.002), Vec3::Z, dark(3.));
+            let rx = if sx == 0 { x0 + 1. } else { x0 + 0.98 }; for z in [z0 + 0.1, z0 + 0.9] { r.cube(vec3(rx, 0.32, z), vec3(0.025, 0.32, 0.025), sh(WOOD, 0.7)) } r.cube(vec3(rx, 0.64, z0 + 0.5), vec3(0.03, 0.025, 0.45), WOOD);
+        } }
+    if st == 2 { let beam = sh(WOOD, 0.85); for (cx, a) in [(wf * 0.25, 0.3f32), (wf * 0.75, -0.3)] { r.with(Mat4::from_rotation_translation(Quat::from_rotation_z(a), vec3(cx, 1.95, 0.05)), |r| r.cube(Vec3::ZERO, vec3(wf * 0.28, 0.05, 0.05), beam)) }
+        r.cube(vec3(wf / 2., 2.33, 0.06), vec3(0.08, 0.08, 0.06), beam); } // attic rafters
+    if st == 1 { let wx = wf - 0.9; r.cube(vec3(wx, 2.05, 0.04), vec3(0.36, 0.17, 0.04), WOOD); let u = r.unlit; r.unlit = true; r.cube(vec3(wx, 2.05, 0.07), vec3(0.3, 0.12, 0.02), Color::new(lt.sky.r * 0.8 + 0.1, lt.sky.g * 0.8 + 0.1, lt.sky.b * 0.8 + 0.1, 1.)); r.unlit = u;
+        r.cube(vec3(wx, 2.05, 0.09), vec3(0.008, 0.12, 0.01), WOOD); } // small high window at ground level
+    if !matches!(BLDS[b].kind, BK::Shop | BK::Museum) && st != 1 { let wx = if w > 3 && st != 2 { wf - 0.9 } else { wf / 2. }; r.cube(vec3(wx, 1.45, 0.04), vec3(0.42, 0.36, 0.04), WOOD); let u = r.unlit; r.unlit = true; r.cube(vec3(wx, 1.45, 0.07), vec3(0.34, 0.28, 0.02), Color::new(lt.sky.r * 0.9 + 0.1, lt.sky.g * 0.9 + 0.1, lt.sky.b * 0.9 + 0.1, 1.));
         let day = 1. - lt.night; if day > 0.05 { let a = 0.16 * day; let c = Color::new(1., 0.93, 0.7, a); r.quad(vec3(wx - 0.36, 0.004, 0.25), vec3(wx + 0.36, 0.004, 0.25), vec3(wx + 0.62, 0.004, 1.45), vec3(wx - 0.1, 0.004, 1.45), Vec3::Y, c);
             r.quad(vec3(wx - 0.3, 0.005, 0.5), vec3(wx - 0.27, 0.005, 0.5), vec3(wx + 0.03, 0.005, 1.4), vec3(wx, 0.005, 1.4), Vec3::Y, Color::new(0.4, 0.3, 0.2, a * 0.6)); }
         r.unlit = u;
@@ -791,7 +817,7 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         Ui::Inv(s) | Ui::Sell(s) => { let sell = matches!(g.me.ui, Ui::Sell(_)); panel(sw / 2. - 260., 90., 520., 520.);
             txt(if sell { "Sell to Mr. Tumble" } else { "Pockets" }, sw / 2. - 240., 125., 30., Color::new(0.45, 0.3, 0.2, 1.));
             let mut items: Vec<String> = g.w.p.inv.iter().map(|it| if sell { format!("{}  -  {}c", slot_name(it), def(it.def).sell * it.qty as u32) } else { slot_name(it) }).collect();
-            if sell { let lv = g.w.p.home as usize; items.push(if g.w.p.debt > 0 { format!("Pay home balance  ({} left)", g.w.p.debt) } else if lv < EXPAND_COST.len() { format!("Expand your home  (adds {}c balance)", EXPAND_COST[lv]) } else { "Home fully expanded".into() }); items.push(format!("Order from catalog ({} items)", g.w.p.catalog.len())); items.push("Customize furniture / wallpaper / flooring".into()); items.push("Seeds, watering can and tool upgrades".into()) }
+            if sell { let lv = g.w.p.home as usize; items.push(if g.w.p.debt > 0 { format!("Pay home balance  ({} left)", g.w.p.debt) } else if lv < EXPAND_COST.len() { format!("{}  (adds {}c balance)", ["Expand your home", "Expand your home", "Dig a basement", "Build an upstairs"][lv], EXPAND_COST[lv]) } else { "Home fully expanded".into() }); items.push(format!("Order from catalog ({} items)", g.w.p.catalog.len())); items.push("Customize furniture / wallpaper / flooring".into()); items.push("Seeds, watering can and tool upgrades".into()) }
             if items.is_empty() { txt("(empty)", sw / 2. - 230., 170., 22., GRAY) } list(&items, Some(*s), sw / 2. - 230., 170.);
             txt(match (sell, g.me.pad) { (true, false) => "W/S select  Enter sell  A sell all finds  Esc close", (true, true) => "Up/Down select  A sell  Y sell all finds  B close", (false, false) => "W/S select  Enter place furniture (at home)  Esc close", _ => "Up/Down select  A place furniture (at home)  B close" }, sw / 2. - 240., 590., 19., DARKGRAY);
             if !sell { txt(&format!("Tools: {}", g.w.p.tools.iter().map(|t| def(*t).name).collect::<Vec<_>>().join(", ")), sw / 2. - 240., 565., 19., DARKGRAY) } }
@@ -849,7 +875,7 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         Ui::Fund => { if let Some(m) = &g.w.mproject { panel(sw / 2. - 260., sh / 2. - 80., 520., 150.); txt(&format!("{}: {} / {} coins", MPROJECTS[m.idx].0, m.funded, MPROJECTS[m.idx].1), sw / 2. - 240., sh / 2. - 40., 24., BLACK);
             txt(&format!("You have {} coins. Each press donates up to {}.", g.w.p.money, DONATE_STEP), sw / 2. - 240., sh / 2. - 6., 20., DARKGRAY); txt(if g.me.pad { "[A] Donate   [B] Close" } else { "[Enter] Donate   [Esc] Close" }, sw / 2. - 240., sh / 2. + 36., 22., Color::new(0.45, 0.3, 0.2, 1.)) } }
         Ui::ConfirmExpand => { let lv = g.w.p.home as usize; let (a, b) = (HOME_DIMS[lv], HOME_DIMS[(lv + 1).min(HOME_DIMS.len() - 1)]); panel(sw / 2. - 270., sh / 2. - 90., 540., 170.);
-            txt(&format!("Expand your home: {}x{} -> {}x{} floor", a.0, a.1, b.0, b.1), sw / 2. - 245., sh / 2. - 45., 24., BLACK); txt(&format!("Adds a {} coin balance. No interest, no deadline.", EXPAND_COST[lv.min(EXPAND_COST.len() - 1)]), sw / 2. - 245., sh / 2. - 12., 20., DARKGRAY);
+            txt(&if lv >= 2 { format!("{} for your home", if lv == 2 { "Dig a cosy basement" } else { "Build a bright upstairs" }) } else { format!("Expand your home: {}x{} -> {}x{} floor", a.0, a.1, b.0, b.1) }, sw / 2. - 245., sh / 2. - 45., 24., BLACK); txt(&format!("Adds a {} coin balance. No interest, no deadline.", EXPAND_COST[lv.min(EXPAND_COST.len() - 1)]), sw / 2. - 245., sh / 2. - 12., 20., DARKGRAY);
             txt("Pay it off at the counter to unlock the next expansion.", sw / 2. - 245., sh / 2. + 14., 20., DARKGRAY); txt(if g.me.pad { "[A] Expand   [B] Cancel" } else { "[Enter] Expand   [Esc] Cancel" }, sw / 2. - 245., sh / 2. + 52., 22., Color::new(0.45, 0.3, 0.2, 1.)) }
         Ui::Travel(out) => { panel(sw / 2. - 270., sh / 2. - 80., 540., 150.); txt(if *out { "Sail to Gullrock Islet?" } else { "Sail back to Hollowbrook?" }, sw / 2. - 245., sh / 2. - 35., 26., BLACK);
             txt(&if *out { format!("Fare: {FARE} coins (you have {}).", g.w.p.money) } else { "The trip home is free.".into() }, sw / 2. - 245., sh / 2. - 2., 22., DARKGRAY); txt(if g.me.pad { "[A] Sail     [B] Stay" } else { "[Enter] Sail     [Esc] Stay" }, sw / 2. - 245., sh / 2. + 40., 22., Color::new(0.45, 0.3, 0.2, 1.)) }
