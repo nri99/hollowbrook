@@ -344,7 +344,7 @@ pub const HELP_KEYS: [&str; 10] = ["Move: WASD or arrows   Run: hold Shift", "In
 pub const HELP_PAD: [&str; 10] = ["Move: left stick or d-pad   Run: hold LT or RT", "Interact / confirm / next: A   Cancel / close: B", "Use tool / dive: X   Cycle tools: RB",
     "Pockets: Y   Journal: Menu (Start)", "Gift during a chat: LB", "Furniture: View move, LB pick up, RB rotate", "Menu or A on a new pad: join as P2", "Hold View + press Menu: switch pad P1 <-> P2",
     "Journal pages: RB next page", "Xbox names; PlayStation: Cross = A, Circle = B"];
-pub const GUIDE: [&str; 14] = [
+pub const GUIDE: [&str; 15] = [
     "Home: expand at the General Store counter. Each expansion adds an interest-free balance to pay off whenever you like; pay it off before the next one.",
     "Projects: residents propose material projects at the notice board; the town leader (Player 1) starts coin-funded projects at Hazel's desk. Fully funded = built next morning.",
     "Policies: Player 1 can enact one policy at Hazel's desk (fee shown first): earlier store hours, later hours, or fewer weeds.",
@@ -354,6 +354,7 @@ pub const GUIDE: [&str; 14] = [
     "Home Society: every Monday a letter scores your home (furniture, variety, collections, lamps, wall items, decor, size) with tips; reaching a new rating pays a reward. Hazel can repaint your house outside.",
     "Gardening: buy seeds and a watering can from Mr. Tumble, plant on grass, water daily (rain counts). Blooms can be picked; different colours side by side may cross. He also upgrades tools.",
     "Museum: donate fish, bugs, fossils and paintings. The art stall opens on Saturdays (not during festivals).",
+    "Trail Seek: a friend may invite you to find three residents behind trees or buildings. They walk to hiding spots first. Talk to each within four real-clock minutes for a personal reward. Indoors, menus, and reloads do not pause the timer; timeout costs nothing.",
     "Resident invitations: nearby friends may ask to chat. Talk to accept or decline. Visit the named home during the agreed hour today for friendship and a flower. Missed visits cause no penalty; a gentle follow-up arrives next day. Check the notice board for your appointment.",
     "Monthly surveys (Mara at plaza): fish on 2nd Wednesday, bugs on 4th Sunday. Register/enter 09-17; prizes 17-22. Measured catches score by relative size and rarity. Improved entries are released. Old unsized stacks stay usable but cannot enter.",
     "Calendar: First Light Jan 1-2, Blossom Picnic Apr 10-12, Starlit Regatta Jul 24-26, Harvest Fair Nov 13-16, Frost Lantern Festival Dec 20-24. Visit the plaza host.",

@@ -1,19 +1,28 @@
 # Hollowbrook — Design Specification
 
-## M3 monthly surveys (original provisional rules)
-
-### M3 resident home invitations — provisional rules
-
-- **Provisional:** from 09:00 until 17:00, a visible resident with friendship at least 5 within 2.8 tiles may initiate one personal invitation that day. A deterministic three-day cycle, offset by player id, reserves one day for visits, one for hide-and-seek, and one quiet day; hide-and-seek is the next implementation slice. Offers are saved and cannot be rerolled by reloading. They create a message and existing greeting emote, not an interrupting popup. Talk to accept or decline.
-- **Provisional:** a home invitation is for the next whole hour today; the full hour is the arrival window. Accepted appointments keep that resident home during the agreed hour (for the shared town), but only the invited player receives friendship +4 and one of the existing ordinary flowers, once. Full pockets send the gift by mail. Going early or late does not grant the reward; entering a different building is safe. The invitation and completion receipt persist.
-- **Provisional:** declining has no penalty. An accepted visit missed online or while away gives one mild follow-up line on a later day, with no friendship/item/coin loss. A changed resident invalidates the old invitation quietly. The notice board displays the active player's appointment; the guide explains the flow.
+## M3 activities (original provisional rules)
 
 All schedules, sizes, scoring constants, limits, fees, rewards, item values, and presentation measurements added for M3 are **provisional** original design choices, not reference-game rules.
+
+### Monthly surveys
+
 - River Measure: second Wednesday monthly; Wing & Leaf Survey: fourth Sunday monthly, in every season. Mara Vale stands in the plaza at (13.5, 17.5) from 09:00 until 22:00. Registration and entries 09:00–17:00; prizes 17:00–22:00. A calendar/guide topic and the notice board announce these rules.
 - Every newly caught fish/bug takes one pocket slot, with size in millimetres preserved through storage/reload. Base size = definition size × 500 (fish) or × 100 (bug), rounded, at least 1 mm; capture size = 65–135% of base (integer truncation, at least 1 mm). Existing unmeasured stacks are kept unchanged and remain usable/sellable, but cannot enter surveys. Save v4 migrates additively to v5; v1–v3 migration continues through it.
 - Score = floor(mm × 80 / base mm) + rarity band × 7. Rarity band = 1 + min(4, floor(species sell value / 400)). Thus size is relative to species; valuable rarer species receive a modest bonus. A better entry is released/consumed only after successful validation; a worse or wrong entry is returned. Best entry and prize receipt persist independently for each player and contest day.
 - Score tiers at 68 / 93 / 116 award 120 / 350 / 950 / 1750 coins (field / copper / silver / laurel); laurel also awards a Riverglass or Leafprint Plaque (catalog value 1800, wall furniture). Full-pocket plaques go to mail. Unclaimed prizes are mailed at the next daily refresh, even after multiple missed days; no duplicate payout on reload or repeated input.
-- Measurements are visible in pockets, storage, gifting, and the survey menu. The guide uses selectable topics so new calendar information remains readable in split-screen. Network protocol 2 refuses older clients rather than sending them unknown menu states.
+- Measurements are visible in pockets, storage, gifting, and the survey menu. The guide uses selectable topics so new calendar information remains readable in split-screen. Network protocol 3 refuses older clients rather than sending them unknown menu states.
+
+### M3 resident home invitations — provisional rules
+
+- **Provisional:** from 09:00 until 17:00, a visible resident with friendship at least 5 within 2.8 tiles may initiate one personal invitation that day. A deterministic three-day cycle, offset by player id, reserves one day for visits, one for hide-and-seek, and one quiet day. Offers are saved and cannot be rerolled by reloading. They create a message and existing greeting emote, not an interrupting popup. Talk to accept or decline.
+- **Provisional:** a home invitation is for the next whole hour today; the full hour is the arrival window. Accepted appointments keep that resident home during the agreed hour (for the shared town), but only the invited player receives friendship +4 and one of the existing ordinary flowers, once. Full pockets send the gift by mail. Going early or late does not grant the reward; entering a different building is safe. The invitation and completion receipt persist.
+- **Provisional:** declining has no penalty. An accepted visit missed online or while away gives one mild follow-up line on a later day, with no friendship/item/coin loss. A changed resident invalidates the old invitation quietly. The notice board displays the active player's appointment; the guide explains the flow.
+
+### M3 Trail Seek — provisional rules
+
+- **Provisional:** on the hide-and-seek day of the personal three-day cycle, a nearby friend can propose Trail Seek. Accept outside during the offer hour. Three residents walk to saved, reachable tiles immediately north of trees or buildings; different spots are at least 3 tiles apart. Existing home appointments/offers and ongoing home visits take priority. If three safe spots/residents cannot be found, starting is refused without spending anything.
+- **Provisional:** the round lasts 4 real-clock minutes (240,000 ms) from acceptance, including the walk to hiding spots. A friend is findable by normal talk targeting (1.7-tile reach) only once they are within 0.25 tile of their spot. Shared overlapping rounds use the same real residents and locations; each player has their own deadline, found list, and completion receipt. Residents resume normal walking when no active player needs them; they do not teleport between views. Ambient visits/chats do not steal active hiding residents, and construction cannot occupy their hiding tiles.
+- **Provisional:** finding all 3 pays 240 coins, one Branch, and friendship +2 with each hider, once per player per gameplay day. Full pockets mail the Branch. Expiry costs no possessions, coins, or friendship. Menus, buildings, leaving the session, and reloads do not pause the absolute deadline. Progress, spots, identities, deadline, and completed/failed receipt are saved. A day rollover ends unfinished rounds safely for active and inactive profiles. The guide, notice board, and personal countdown show the rules/progress. Human difficulty assessment remains pending; these values are not tuned to the scripted bot.
 
 Original real-time village-life game in Rust (macroquad). All names, characters, art and dialogue are original.
 Status tags: **[IMPL]** implemented & verified (see PROGRESS.md for evidence type) · **[PART]** partially implemented ·

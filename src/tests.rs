@@ -6,6 +6,74 @@ use chrono::{Datelike, NaiveDate, NaiveDateTime};
 use macroquad::prelude::*;
 use crate::events::*;
 
+#[test] fn m3_v4_migration_keeps_both_profiles_and_defaults_all_activity_fields() {
+    let mut g = two(at(13, 12, 0, 0)); g.w.p.inv.push(Slot { def: 12, qty: 9, uid: 0, size_mm: 0 }); g.w.p.money = 4321;
+    g.activate(1); g.add_furn(50); g.transfer(0, 0); g.w.p.debt = 700; g.activate(0);
+    let expected = g.persist(); let mut v = serde_json::to_value(&expected).unwrap(); v["version"] = 4.into();
+    fn old_profile(p: &mut serde_json::Value) {
+        for key in ["contests", "invitation", "social_day", "missed_visit", "seek"] { p.as_object_mut().unwrap().remove(key); }
+        for key in ["inv", "storage"] { for s in p[key].as_array_mut().unwrap() { s.as_object_mut().unwrap().remove("size_mm"); } }
+    }
+    old_profile(&mut v["p"]); for p in v["others"].as_array_mut().unwrap() { old_profile(p); }
+    let upgraded: World = serde_json::from_value(save::upgrade(v)).unwrap(); assert_eq!(upgraded, expected);
+}
+
+fn seek_offer(g: &mut Game, slot: usize) {
+    g.w.p.invitation = Some(SocialInvite { day: g.w.day, slot, character: g.w.roster[slot], kind: 1, hour: g.hr, state: 0 });
+    g.accept_social().unwrap();
+}
+fn find_seeker(g: &mut Game, h: &HidingFriend) {
+    g.me.scene = Scene::Town; g.me.ui = Ui::Play;
+    for off in [vec2(0.7, 0.), vec2(-0.7, 0.), vec2(0., 0.7), vec2(0., -0.7)] {
+        g.me.pos = tc(h.tile) + off; g.me.face = -off.normalize();
+        if g.free(g.me.pos) && g.target() == Some(Tg::Npc(h.slot)) { g.update_player(&Inp::keys(&[], &[KeyCode::E]), 0.016); return }
+    }
+    panic!("hidden friend must remain reachable for interaction: {h:?}");
+}
+#[test] fn m3_seek_shared_walks_personal_progress_reload_and_once_only_rewards() {
+    let now = at(13, 12, 0, 0); let mut g = two(now); g.hr = 12;
+    g.w.p.npcs[0].friend = 5; g.npcs[0].inside = false; g.npcs[0].pos = g.me.pos + vec2(0.7, 0.);
+    g.maybe_social_offer(); assert_eq!(g.w.p.invitation.as_ref().unwrap().kind, 1); g.accept_social().unwrap();
+    let spots = g.w.p.seek.as_ref().unwrap().spots.clone(); assert_eq!(spots.len(), 3);
+    for h in &spots { assert!(g.free(tc(h.tile))); assert!(g.bfs(tile_of(g.me.pos), h.tile, true).is_some()); assert!(!g.mp_site_ok(h.tile)); }
+    for i in 0..500 { g.tick(0.2, now + chrono::Duration::milliseconds(i * 200)); }
+    for h in &spots { assert!(g.npcs[h.slot].pos.distance(tc(h.tile)) < 0.25, "resident walked to hiding spot"); }
+    g.activate(1); seek_offer(&mut g, 3); assert_eq!(g.w.p.seek.as_ref().unwrap().spots, spots); assert!(g.w.p.seek.as_ref().unwrap().found.is_empty());
+    g.activate(0); find_seeker(&mut g, &spots[0]); assert_eq!(g.w.p.seek.as_ref().unwrap().found.len(), 1);
+    let clock = g.clock_ms; let mut g = reload(&g, "m3_seek_partial"); g.join("Partner"); g.clock_ms = clock; g.hr = 12;
+    assert_eq!(g.w.p.seek.as_ref().unwrap().found, vec![spots[0].slot]);
+    for h in &spots { g.npcs[h.slot].inside = false; g.npcs[h.slot].pos = tc(h.tile); }
+    let money = g.w.p.money; find_seeker(&mut g, &spots[1]); find_seeker(&mut g, &spots[2]); assert_eq!(g.w.p.money, money + 240); assert!(g.w.p.seek.as_ref().unwrap().done);
+    assert!(g.seek_hide_position(spots[0].slot).is_some(), "partner's round still holds the same residents");
+    let money = g.w.p.money; g.w.p.invitation.as_mut().unwrap().state = 0; assert!(g.accept_social().is_err()); assert_eq!(g.w.p.money, money);
+    g.activate(1); assert!(g.w.p.seek.as_ref().unwrap().found.is_empty()); let money = g.w.p.money;
+    for h in &spots { find_seeker(&mut g, h); } assert_eq!(g.w.p.money, money + 240); assert!(g.seek_hide_position(spots[0].slot).is_none());
+    let clock = g.clock_ms; let mut g = reload(&g, "m3_seek_done"); g.clock_ms = clock; assert!(g.w.p.seek.as_ref().unwrap().done);
+}
+
+#[test] fn m3_seek_timeout_indoors_offline_rollover_and_blocked_start_are_safe() {
+    let now = at(13, 12, 0, 0); let mut g = two(now); g.hr = 12; seek_offer(&mut g, 0);
+    let deadline = g.w.p.seek.as_ref().unwrap().deadline_ms; let before = (g.w.p.money, g.w.p.inv.clone());
+    g.swap(Scene::Room(HOME)); let mut g = reload(&g, "m3_seek_offline"); g.swap(Scene::Room(HOME)); g.tick(0., now + chrono::Duration::seconds(241)); g.update_player(&Inp::none(), 0.);
+    let s = g.w.p.seek.as_ref().unwrap(); assert_eq!(s.deadline_ms, deadline); assert!(s.done && s.failed); assert_eq!((g.w.p.money, g.w.p.inv.clone()), before); assert_eq!(g.me.scene, Scene::Room(HOME));
+    g.tick(0., now); assert!(!g.seek_live(g.w.p.seek.as_ref().unwrap()), "clock rollback cannot revive finished round");
+    g.w.p.seek.as_mut().unwrap().done = false; g.w.p.seek.as_mut().unwrap().deadline_ms += 86_400_000; g.join("Partner");
+    g.activate(1); g.w.p.seek = Some(g.w.others.iter().find(|p| p.id == 0).unwrap().seek.clone().unwrap()); g.activate(0);
+    g.catch_up(at(14, 6, 0, 0)); for p in std::iter::once(&g.w.p).chain(g.w.others.iter()) { assert!(p.seek.as_ref().unwrap().failed); assert!(p.seek.as_ref().unwrap().done); }
+    let mut g = g0(now); g.hr = 12; g.map.fill(BLD); g.w.p.invitation = Some(SocialInvite { day: g.w.day, slot: 0, character: 0, kind: 1, hour: 12, state: 0 });
+    let before = g.w.p.clone(); assert!(g.accept_social().is_err()); assert_eq!(g.w.p, before);
+}
+
+#[test] fn m3_seek_protects_appointments_and_mails_full_pocket_reward() {
+    let mut g = two(at(13, 12, 0, 0)); g.hr = 12;
+    g.activate(1); g.w.p.invitation = Some(SocialInvite { day: g.w.day, slot: 0, character: 0, kind: 0, hour: 13, state: 1 }); g.activate(0);
+    seek_offer(&mut g, 1); let spots = g.w.p.seek.as_ref().unwrap().spots.clone(); assert!(!spots.iter().any(|h| h.slot == 0));
+    for h in &spots { g.npcs[h.slot].inside = false; g.npcs[h.slot].pos = tc(h.tile); }
+    for _ in 0..INV_CAP { g.add_furn(50); } for h in &spots { find_seeker(&mut g, h); }
+    assert!(g.w.p.mail.iter().any(|l| l.from == "Trail Seek friends" && l.item == Some(80)));
+    assert_eq!(g.w.others[0].invitation.as_ref().unwrap().state, 1);
+}
+
 #[test] fn m3_home_invitation_initiated_visit_independence_and_reload() {
     let mut g = two(at(12, 12, 0, 0)); g.hr = 12;
     g.w.p.npcs[0].friend = 5; g.npcs[0].inside = false; g.npcs[0].pos = g.me.pos + vec2(0.8, 0.);

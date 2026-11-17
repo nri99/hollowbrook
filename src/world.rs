@@ -75,6 +75,7 @@ pub struct Profile {
     #[serde(default)] pub invitation: Option<crate::events::SocialInvite>,
     #[serde(default)] pub social_day: i64,
     #[serde(default)] pub missed_visit: Option<(usize, usize, i64)>,
+    #[serde(default)] pub seek: Option<crate::events::Seek>,
     #[serde(default)] pub id: usize, pub name: String, pub money: u32, pub home: u32, pub inv: Vec<Slot>, pub storage: Vec<Slot>, pub room: Vec<Furn>,
     pub npcs: Vec<NpcS>, pub seen: Vec<u16>, pub tools: Vec<u16>, pub equip: Option<u16>, pub pos: [f32; 2],
     /// worn shirt (item def); None = starting outfit
@@ -103,7 +104,7 @@ pub struct Profile {
     #[serde(default)] pub tints: Vec<(u32, u8)>, #[serde(default)] pub wall: u8, #[serde(default)] pub floor: u8,
 }
 impl Profile {
-    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { invitation: None, social_day: 0, missed_visit: None, contests: vec![], id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false, visited: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, hat: None, hair: 0, mail: vec![], catalog: vec![], fair_year: 0, art_week: 0, keepsakes: vec![], fest_years: vec![], lost_owner: None, tool_lv: vec![], home_best: 0, paint: None, coupons: 0, tasks: vec![], task_day: 0, camp_favors: vec![], ferry: 0, debt: 0, islet_done: 0, act_day: [0; 3], parcel: None, tints: vec![], wall: 0, floor: 0 } }
+    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { seek: None, invitation: None, social_day: 0, missed_visit: None, contests: vec![], id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false, visited: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, hat: None, hair: 0, mail: vec![], catalog: vec![], fair_year: 0, art_week: 0, keepsakes: vec![], fest_years: vec![], lost_owner: None, tool_lv: vec![], home_best: 0, paint: None, coupons: 0, tasks: vec![], task_day: 0, camp_favors: vec![], ferry: 0, debt: 0, islet_done: 0, act_day: [0; 3], parcel: None, tints: vec![], wall: 0, floor: 0 } }
 }
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct World {
@@ -189,6 +190,7 @@ impl Player {
     pub fn new(id: usize, pos: Vec2) -> Player { Player { id, scene: Scene::Town, pos, ipos: Vec2::ZERO, face: vec2(0., 1.), cam: pos, anim: 0., spd: 0., pose: Pose::Stand, stand_from: Vec2::ZERO, step_acc: 0., ui: Ui::Play, placing: None, fish: None, trans: None, swing: 0., msgs: vec![], pad: false, pad_lost: false, mplace: None, jpage: 0, jcol: 0 } }
 }
 pub struct Game {
+    pub clock_ms: i64,
     pub w: World, pub map: Vec<u8>, pub me: Player, pub others: Vec<Player>, pub npcs: Vec<NpcRt>,
     pub t: f32, pub log: Vec<String>, pub rolled: bool, pub shadows: Vec<Shadow>,
     pub bugs: Vec<(u16, Vec2, f32)>, pub shake: Vec<(usize, f32)>, pub hearts: Vec<(Vec3, f32)>,
@@ -211,13 +213,13 @@ pub struct Game {
 impl Game {
     pub fn new(name: String, now: NaiveDateTime) -> Game {
         let map = town(); let w = World::fresh(name, day_id(now), &map);
-        let mut g = Game::from_world(w, map); g.refresh(false); g.me.face = vec2(0., -1.); g.hr = now.hour(); g.mo = now.month();
+        let mut g = Game::from_world(w, map); g.clock_ms = now.and_utc().timestamp_millis(); g.refresh(false); g.me.face = vec2(0., -1.); g.hr = now.hour(); g.mo = now.month();
         g.note("Welcome to Hollowbrook! Walk up to doors, residents and trees and press E."); g
     }
     pub fn from_world(w: World, map: Vec<u8>) -> Game {
         let pos = vec2(w.p.pos[0], w.p.pos[1]);
         let npcs = (0..4).map(|i| NpcRt { pos: door_stand(HOUSES[i]), path: vec![], wait: gen_range(0., 2.), yaw: 0., inside: true, happy: 0., moving: false, last_chat: 9, anim: 0. }).collect();
-        let mut g = Game { me: Player::new(w.p.id, pos), w, map, others: vec![], npcs, t: 0., log: vec![], rolled: false, shadows: vec![], bugs: vec![], shake: vec![], hearts: vec![], snd: vec![], hr: 12, mo: 6, curve: 0.01, dom: 1, yr: 2026, bubbles: vec![], visit: None, imap: islet(), ibubbles: vec![], pell_talked: false, ibugs: vec![], act: None, quit: false, fresh: false, remote: None, net_req: 0, chats: vec![], music_vol: 0.6, sfx_vol: 0.8, muted: false, settings_dirty: false, fx: vec![] };
+        let mut g = Game { clock_ms: 0, me: Player::new(w.p.id, pos), w, map, others: vec![], npcs, t: 0., log: vec![], rolled: false, shadows: vec![], bugs: vec![], shake: vec![], hearts: vec![], snd: vec![], hr: 12, mo: 6, curve: 0.01, dom: 1, yr: 2026, bubbles: vec![], visit: None, imap: islet(), ibubbles: vec![], pell_talked: false, ibugs: vec![], act: None, quit: false, fresh: false, remote: None, net_req: 0, chats: vec![], music_vol: 0.6, sfx_vol: 0.8, muted: false, settings_dirty: false, fx: vec![] };
         if !g.free(g.me.pos) { g.me.pos = door_stand(HOME); g.me.cam = g.me.pos }
         let map = &g.map; let open = |t: &(i32, i32)| tile_at(map, t.0, t.1) != BLD && *t != mailbox_tile(0) && *t != mailbox_tile(1); // objects saved before a building existed there
         g.w.weeds.retain(open); g.w.digs.retain(open); g.w.holes.retain(open); g.w.ground.retain(|i| open(&tile_of(vec2(i.x, i.z))));
@@ -347,6 +349,7 @@ impl Game {
     /// Resident location with the active policy applied (wake/sleep shifts; exempt characters unchanged).
     pub fn loc(&self, slot: usize) -> Loc {
         if self.invited_home(slot) { return Loc::Home }
+        if self.seek_hide_position(slot).is_some() { return Loc::Out }
         let r = self.res(slot); let (dw, ds) = match self.pol() { Some(p) if !p.exempt.contains(&self.w.roster[slot]) => (p.wake, p.sleep), _ => (0, 0) };
         let (wake, sleep, hr) = ((r.wake as i32 + dw).max(0), (r.sleep as i32 + ds).min(24), self.hr as i32);
         if !(hr >= wake && hr < sleep) { Loc::Asleep } else if r.home_h.iter().enumerate().any(|(k, &(a, b))| hr >= a as i32 && hr < b as i32 + if k == 1 { ds } else { 0 }) { Loc::Home } else { Loc::Out }
@@ -871,7 +874,7 @@ impl Game {
         let hosts: Vec<usize> = std::iter::once(&self.me).chain(self.others.iter()).filter(|p| p.scene == Scene::Room(home_of(p.id))).map(|p| p.id).collect();
         for id in hosts {
             let pr = if self.w.p.id == id { &self.w.p } else { match self.w.others.iter().find(|p| p.id == id) { Some(p) => p, None => continue } };
-            if let Some(i) = (0..4).find(|&i| self.loc(i) == Loc::Out && !self.npcs[i].inside && pr.npcs[i].friend >= 5 && !pr.npcs[i].visited) {
+            if let Some(i) = (0..4).find(|&i| self.loc(i) == Loc::Out && self.seek_hide_position(i).is_none() && !self.npcs[i].inside && pr.npcs[i].friend >= 5 && !pr.npcs[i].visited) {
                 if self.w.p.id == id { self.w.p.npcs[i].visited = true } else if let Some(p) = self.w.others.iter_mut().find(|p| p.id == id) { p.npcs[i].visited = true }
                 self.start_visit(i, home_of(id)); return;
             }
@@ -989,6 +992,7 @@ impl Game {
     pub fn mp_front(&self) -> (i32, i32) { tile_of(self.me.pos + self.me.face) }
     /// Site check: plain free grass, not a reserved tile, and every building stays reachable.
     pub fn mp_site_ok(&mut self, t: (i32, i32)) -> bool {
+        if self.seek_reserved(t) { return false }
         if tile_at(&self.map, t.0, t.1) != GRASS || !self.walk_tile(t.0, t.1) || self.occupied(t.0, t.1) || [mailbox_tile(0), mailbox_tile(1), STALL, BOARD, DOCK, tile_of(self.me.pos)].contains(&t) { return false }
         if self.w.project.as_ref().is_some_and(|p| (p.x, p.z) == t) { return false }
         let keep = self.w.mproject.take(); self.w.mproject = Some(MProject { idx: 0, x: t.0, z: t.1, funded: 0, log: vec![] });
@@ -1282,6 +1286,15 @@ impl Game {
         let talkers: Vec<(usize, Vec2, bool)> = std::iter::once(&self.me).chain(self.others.iter()).filter_map(|p| if let Ui::Talk { npc: Some(j), .. } = p.ui { Some((j, p.pos, p.scene == Scene::Town)) } else { None }).collect();
         for i in 0..4 {
             if self.visit.is_some_and(|v| v.0 == i) { continue }
+            if let Some(spot) = self.seek_hide_position(i) {
+                if self.npcs[i].inside { self.npcs[i].inside = false; self.npcs[i].pos = door_stand(HOUSES[i]); self.npcs[i].path.clear(); }
+                self.npcs[i].moving = false;
+                if talkers.iter().any(|t| t.0 == i) { continue }
+                if self.npcs[i].pos.distance(spot) < 0.05 { self.npcs[i].path.clear(); continue }
+                let tile = tile_of(spot);
+                if self.npcs[i].path.last() != Some(&tile) { self.npcs[i].path = self.bfs(tile_of(self.npcs[i].pos), tile, true).unwrap_or_default(); }
+                self.follow(i, dt); continue
+            }
             if let Some(&(a, b, _)) = self.chats.iter().find(|c| c.0 == i || c.1 == i) { let o = if a == i { b } else { a }; let d = self.npcs[o].pos - self.npcs[i].pos; if d.length() > 0.01 { self.npcs[i].yaw = yaw_of(d) } self.npcs[i].moving = false; continue }
             let loc = self.loc(i);
             { let n = &mut self.npcs[i]; n.happy = (n.happy - dt).max(0.); n.moving = false; }
@@ -1314,7 +1327,7 @@ impl Game {
         if gen_range(0, 60) != 0 { return }
         for a in 0..4 { for b in a + 1..4 {
             let (na, nb) = (&self.npcs[a], &self.npcs[b]);
-            if na.inside || nb.inside || self.loc(a) != Loc::Out || self.loc(b) != Loc::Out || self.chats.iter().any(|c| [c.0, c.1].contains(&a) || [c.0, c.1].contains(&b)) { continue }
+            if self.seek_hide_position(a).is_some() || self.seek_hide_position(b).is_some() || na.inside || nb.inside || self.loc(a) != Loc::Out || self.loc(b) != Loc::Out || self.chats.iter().any(|c| [c.0, c.1].contains(&a) || [c.0, c.1].contains(&b)) { continue }
             if na.pos.distance(nb.pos) < 2.6 { for k in [a, b] { self.npcs[k].path.clear(); self.npcs[k].wait = 5. } self.chats.push((a, b, 5.)); return }
         } }
     }
@@ -1342,6 +1355,7 @@ impl Game {
     pub fn update(&mut self, inp: &Inp, dt: f32, now: NaiveDateTime) -> bool { let f = self.tick(dt, now); self.update_player(inp, dt); f }
     /// Shared per-frame simulation (clock, daily refresh, residents, wildlife, effects). Call once per frame.
     pub fn tick(&mut self, dt: f32, now: NaiveDateTime) -> bool {
+        self.clock_ms = now.and_utc().timestamp_millis();
         self.t += dt; self.hr = now.hour(); self.mo = now.month(); self.dom = now.day(); self.yr = now.year();
         let fresh = self.catch_up(now);
         for e in &mut self.fx { e.1 += dt } self.fx.retain(|e| e.1 < 0.8);

@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 pub const PORT: u16 = 47778;
 pub const DISCO: u16 = 47777;
-pub const PROTO: u32 = 2;
+pub const PROTO: u32 = 3;
 /// Every key the game reads; input travels as indices into this list.
 pub const KEYS: [KeyCode; 25] = [KeyCode::W, KeyCode::A, KeyCode::S, KeyCode::D, KeyCode::Up, KeyCode::Down, KeyCode::Left, KeyCode::Right, KeyCode::LeftShift, KeyCode::RightShift,
     KeyCode::E, KeyCode::Enter, KeyCode::KpEnter, KeyCode::Escape, KeyCode::F, KeyCode::G, KeyCode::I, KeyCode::J, KeyCode::N, KeyCode::Q, KeyCode::R, KeyCode::Space, KeyCode::Tab, KeyCode::X, KeyCode::Y];
@@ -49,7 +49,7 @@ pub fn apply(g: &mut Game, s: Snap, my: usize) -> (chrono::NaiveDateTime, Vec<Sn
     g.chats = s.chats; g.visit = s.visit; g.hearts = s.hearts; g.fx = s.fx; g.shake = s.shake; g.t = s.t; g.hr = s.hr; g.mo = s.mo; g.dom = s.dom; g.yr = s.yr;
     if g.me.id != my && g.others.iter().any(|p| p.id == my) { g.activate(my) }
     g.remote = g.others.first().map(|p| p.id);
-    let now = chrono::NaiveDateTime::parse_from_str(&s.now, "%Y-%m-%d %H:%M:%S%.f").unwrap_or_default(); (now, s.snd)
+    let now = chrono::NaiveDateTime::parse_from_str(&s.now, "%Y-%m-%d %H:%M:%S%.f").unwrap_or_default(); g.clock_ms = now.and_utc().timestamp_millis(); (now, s.snd)
 }
 
 #[derive(Serialize, Deserialize)]

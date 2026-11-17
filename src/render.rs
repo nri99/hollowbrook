@@ -141,6 +141,7 @@ pub fn human(r: &mut R, id: usize, look: (Option<u16>, Option<u16>, u8), pos: Ve
 /// Residents 0-3 and the shopkeeper (4): distinct heads, ears, muzzles, tails, clothes; talk mouth + happy eyes.
 /// Mood emote over a resident's head (0 note, 1 sleepy, 2 thinking, 3 excited, 4 greeting), shown in short idle bursts.
 pub fn emote(g: &Game, i: usize, t: f32) -> Option<u8> {
+    if g.seek_hide_position(i).is_some() { return None }
     if g.w.p.invitation.as_ref().is_some_and(|v| v.slot == i && v.day == g.w.day && v.state == 0) { return Some(4) }
     let n = &g.npcs[i]; if n.happy > 0. || g.chats.iter().any(|c| c.0 == i || c.1 == i) { return None }
     let r = g.res(i); if n.pos.distance(g.me.pos) < 2.2 && !n.moving && !g.w.p.npcs[i].talked { return Some(4) }
@@ -586,7 +587,7 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
         let near_me = !n.moving && n.pos.distance(g.me.pos) < 3. && g.me.scene == Scene::Town; let yaw = if near_me || talking { yaw_of(g.me.pos - n.pos) } else { n.yaw }; // idle residents look at a nearby player
         resident_u(r, g.w.roster[i], vec3(n.pos.x, 0., n.pos.y), yaw, n.anim, n.moving, t, talking, n.happy, weather(g.w.day, now.month()) == Wx::Rain);
         if let Some(e) = emote(g, i, t) { let hp = vec3(n.pos.x + 0.25, 1.55 + (t * 2.).sin() * 0.03, n.pos.y); draw_emote(r, e, hp, t, labels) }
-        if !n.moving && !talking && weather(g.w.day, now.month()) != Wx::Rain { hobby_prop(r, g.w.roster[i], vec3(n.pos.x, 0., n.pos.y), yaw, t) }
+        if !n.moving && !talking && g.seek_hide_position(i).is_none() && weather(g.w.day, now.month()) != Wx::Rain { hobby_prop(r, g.w.roster[i], vec3(n.pos.x, 0., n.pos.y), yaw, t) }
         if let Some(&(a, b, left)) = g.chats.iter().find(|c| c.0 == i || c.1 == i) { let first = a == i; let speak = ((5. - left) as i32 % 2 == 0) == first; let pers = g.res(i).pers;
             if speak && n.pos.distance(g.me.pos) < 7. { labels.push((vec3(n.pos.x, 1.95, n.pos.y), format!("\"{}\"", CHATTER[pers][(i + b) % 3]), WHITE)) } }
         else if n.pos.distance(g.me.pos) < 4. { labels.push((vec3(n.pos.x, 1.75, n.pos.y), g.res(i).name.into(), Color::new(1., 0.95, 0.7, 1.))) } }
@@ -757,14 +758,19 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         txt(&format!("Bronze {} / Silver {} / Gold {}  ->  {} / {} / {} Sea Glass   you: {mine}{}", th[0], th[1], th[2], ACT_REWARD[0], ACT_REWARD[1], ACT_REWARD[2], if a.players.len() > 1 { "   (team)" } else { "" }), x0 + 12., y0 + 78., 17., GOLD) } }
     let hint = if g.me.mplace.is_some() { "Placing project: walk/face a spot  Enter place  Esc cancel" } else if g.swimming() { if g.me.pad { "Swimming:  X dive  stick swim" } else { "Swimming:  Space dive  WASD swim" } } else if g.me.pad { if g.me.placing.is_some() { "Stick move  RB rotate  A place  B cancel" } else { if narrow { "Stick move  A act  X tool  RB tool  Y bag  B back" } else { "Stick move  RT run  A act  X tool  RB next tool  Y bag  Start journal  B cancel" } } } else if narrow { if g.me.placing.is_some() { "Move  R rotate  Enter place  Esc cancel" } else { "Move  E act  Space tool  Tab tool  I bag  J journal" } } else if g.me.placing.is_some() { "Placing:  WASD/Arrows move   R rotate   Enter place   Esc cancel" } else { "WASD move  Shift run  E interact  Space use tool  Tab tool  I inventory  J journal  F/G move/pick up furniture  Esc cancel" };
     draw_rectangle(4., sh - 34., measure_text(hint, None, 19, 1.).width + 24., 28., Color::new(0., 0., 0., 0.4)); txt(hint, 12., sh - 14., 19., WHITE);
+    if let Some(s) = g.w.p.seek.as_ref().filter(|s| g.seek_live(s)) {
+        let bw = (sw - 24.).min(460.); draw_rectangle(12., 150., bw, 50., Color::new(0.1, 0.24, 0.16, 0.85));
+        txt(&format!("Trail Seek: {}/3 found   {}s left", s.found.len(), (s.deadline_ms - g.clock_ms + 999) / 1000), 22., 171., 21., WHITE);
+        txt("Talk to friends at their hiding spots.", 22., 192., 17., WHITE);
+    }
     match &g.me.ui {
         Ui::Play => {}
         Ui::Invitation => {
             let pw = (sw - 24.).min(620.); let x = (sw - pw) / 2.; panel(x, 180., pw, 270.);
             txt("An invitation", x + 18., 216., 26., BLACK);
-            if let Some(v) = &g.w.p.invitation { let s = format!("{} invites you home today, {}:00-{}:00.", g.res(v.slot).name, v.hour, v.hour + 1);
+            if let Some(v) = &g.w.p.invitation { let s = if v.kind == 0 { format!("{} invites you home today, {}:00-{}:00.", g.res(v.slot).name, v.hour, v.hour + 1) } else { format!("{} proposes Trail Seek: find three friends behind trees or buildings in four minutes.", g.res(v.slot).name) };
                 for (i, l) in wrap_txt(&s, ((pw - 36.) / 11.) as usize).iter().enumerate() { txt(l, x + 18., 258. + i as f32 * 25., 21., BLACK); }
-                txt("A friendly visit, with a small gift.", x + 18., 350., 19., DARKGRAY);
+                txt(if v.kind == 0 { "A friendly visit, with a small gift." } else { "They walk to their spots. Nothing lost on timeout." }, x + 18., 350., 19., DARKGRAY);
             }
             txt(if g.me.pad { "A accept   B decline" } else { "Enter accept   Esc decline" }, x + 18., 420., 20., DARKGRAY);
         }

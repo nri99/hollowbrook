@@ -542,6 +542,33 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         go(g, c, door_stand(HOME), 0.12).await; face(g, c, door_face(HOME)).await; press(g, c, KeyCode::E).await; tickn!(300, &[], &[]); log!("scene={:?} variant={:?}", g.me.scene, audio::variant(g));
         press(g, c, KeyCode::J).await; press(g, c, KeyCode::X).await; tickn!(10, &[], &[]); log!("after mute: muted={} applied={:.2}", g.muted, m.applied);
         press(g, c, KeyCode::X).await; press(g, c, KeyCode::Left).await; press(g, c, KeyCode::Down).await; tickn!(10, &[], &[]); log!("after unmute/-music/-sfx: music_vol={:.1} sfx_vol={:.1} applied={:.2} dirty={}", g.music_vol, g.sfx_vol, m.applied, g.settings_dirty);
+    } else if phase == "43" {
+        g.join("Seek partner"); g.activate(1); g.me.pos = vec2(13.5, 17.5); g.me.cam = g.me.pos; g.activate(0);
+        g.me.pos = vec2(13.5, 17.5); g.me.cam = g.me.pos; g.me.face = vec2(0., 1.);
+        g.w.p.npcs[0].friend = 5; g.npcs[0].inside = false; g.npcs[0].pos = g.me.pos + vec2(0., 0.9); g.npcs[0].wait = 60.;
+        g.maybe_social_offer(); press(g, c, KeyCode::E).await; shot!("m3_seek_invitation"); press(g, c, KeyCode::Enter).await;
+        assert!(g.w.p.seek.is_some(), "real invitation input starts a round"); shot!("m3_seek_start");
+        if g.hr == 16 {
+            // Near-expiry fixture: demonstrate that entering a room does not pause the saved deadline.
+            g.w.p.seek.as_mut().unwrap().deadline_ms = g.clock_ms + 700;
+            g.me.pos = door_stand(HOME) + vec2(0., 0.35); g.me.face = vec2(0., -1.);
+            press(g, c, KeyCode::E).await; wait(g, c, 90).await;
+            assert!(g.w.p.seek.as_ref().unwrap().failed); assert_eq!(g.me.scene, Scene::Room(HOME)); shot!("m3_seek_timeout_home");
+        } else {
+            let spots = g.w.p.seek.as_ref().unwrap().spots.clone();
+            for (j, h) in spots.iter().enumerate() {
+                for _ in 0..2 { if go(g, c, tc(h.tile), 0.2).await { break } }
+                for _ in 0..2400 { if g.npcs[h.slot].pos.distance(tc(h.tile)) < 0.25 { break } step(g, c, &[], &[]).await; }
+                let pos = g.npcs[h.slot].pos; assert!(approach(g, c, pos).await, "reach hiding friend");
+                press(g, c, KeyCode::E).await;
+                assert!(g.w.p.seek.as_ref().unwrap().found.contains(&h.slot), "talk finds friend through normal targeting");
+                if j == 0 { shot!("m3_seek_first_found"); } if j == 2 { shot!("m3_seek_complete"); }
+                press(g, c, KeyCode::Escape).await;
+            }
+            log!("personal completion={:?}; coins={}; partner={:?}", g.w.p.seek, g.w.p.money, g.w.others[0].seek);
+        }
+        press(g, c, KeyCode::Escape).await; g.me.jpage = 4; g.me.jcol = GUIDE.iter().position(|s| s.starts_with("Monthly surveys")).unwrap() as u8;
+        press(g, c, KeyCode::J).await; shot!("m3_contest_calendar");
     } else if phase == "42" {
         g.join("Visit partner"); g.activate(1); g.me.pos = vec2(13.5, 17.5); g.me.cam = g.me.pos; g.activate(0);
         if g.hr == 12 && c.now().day() == 12 {
