@@ -34,3 +34,4 @@ Physical items (P) cannot be performed by the agent; they go to HUMAN_VERIFICATI
 - [ ] Activity difficulty: human assessment PENDING. Physical controllers: PENDING.
 
 - [x] M3 monthly surveys: independent registration/entries/prizes, measured captures, backward-compatible save migration and once-only payout across reload/rollover (H); plaza host and entry/prize screens inspected in split-screen (X/S phase 41).
+- [x] M3 resident home invitations: persisted offers/receipts, independent arrival gifts, missed/declined/changed-resident and full-pocket safety (H); invitation, real door arrival, guide and missed follow-up inspected in split-screen (X/S phase 42).

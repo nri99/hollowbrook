@@ -254,3 +254,9 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - H: cargo test --release: 87 passed, 0 failed, 2 ignored (new tests cover both players, capture paths, storage/gifts, legacy migration, reload, rollover, duplicate/full-pocket payouts).
 - X/S: phase 41, test_output/contest_fish_g3_final, contest_bug_g3_final, contest_award_g3_final. Registration, submission, and prize collection through real input; catches/award eligibility are fixtures. Screenshots inspected; initial host overlapped a tree and was moved to the open crossroads before acceptance.
 - Build: release succeeded, existing warnings only. Next action: implement and verify resident home invitations, then hide-and-seek. No physical difficulty assessment claimed.
+
+## M3-2a — Resident home invitations
+- Nearby friends initiate saved, non-interrupting visit offers; talk to accept/decline. Accepted-hour home presence is shared; arrival bonus/gift and receipt are personal. Missed appointments give one gentle later line with no losses. Old saves default to no invitation; roster changes expire stale offers. Full-pocket gifts are mailed.
+- H: 89 passed, 0 failed, 2 ignored (new tests: initiated offer/reload/real acceptance input, early/late visit, independent reward, repeated arrival, decline, missed next-day line, full pockets, changed resident).
+- X/S: phase 42, test_output/invitation_offer_g3, invitation_visit_g3, invitation_missed_g3. Accepted through normal dialogue; visit enters the real door at 13:15 with a saved eligibility fixture, receipt/gift logged; guide topic and follow-up inspected in split-screen. Release build succeeded with existing warnings.
+- Next action: implement/verify per-player hide-and-seek with shared resident pathfinding and absolute deadlines.

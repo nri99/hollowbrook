@@ -141,6 +141,7 @@ pub fn human(r: &mut R, id: usize, look: (Option<u16>, Option<u16>, u8), pos: Ve
 /// Residents 0-3 and the shopkeeper (4): distinct heads, ears, muzzles, tails, clothes; talk mouth + happy eyes.
 /// Mood emote over a resident's head (0 note, 1 sleepy, 2 thinking, 3 excited, 4 greeting), shown in short idle bursts.
 pub fn emote(g: &Game, i: usize, t: f32) -> Option<u8> {
+    if g.w.p.invitation.as_ref().is_some_and(|v| v.slot == i && v.day == g.w.day && v.state == 0) { return Some(4) }
     let n = &g.npcs[i]; if n.happy > 0. || g.chats.iter().any(|c| c.0 == i || c.1 == i) { return None }
     let r = g.res(i); if n.pos.distance(g.me.pos) < 2.2 && !n.moving && !g.w.p.npcs[i].talked { return Some(4) }
     if (t * 0.25 + i as f32 * 1.7) % 5. > 1.4 { return None }
@@ -758,6 +759,15 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
     draw_rectangle(4., sh - 34., measure_text(hint, None, 19, 1.).width + 24., 28., Color::new(0., 0., 0., 0.4)); txt(hint, 12., sh - 14., 19., WHITE);
     match &g.me.ui {
         Ui::Play => {}
+        Ui::Invitation => {
+            let pw = (sw - 24.).min(620.); let x = (sw - pw) / 2.; panel(x, 180., pw, 270.);
+            txt("An invitation", x + 18., 216., 26., BLACK);
+            if let Some(v) = &g.w.p.invitation { let s = format!("{} invites you home today, {}:00-{}:00.", g.res(v.slot).name, v.hour, v.hour + 1);
+                for (i, l) in wrap_txt(&s, ((pw - 36.) / 11.) as usize).iter().enumerate() { txt(l, x + 18., 258. + i as f32 * 25., 21., BLACK); }
+                txt("A friendly visit, with a small gift.", x + 18., 350., 19., DARKGRAY);
+            }
+            txt(if g.me.pad { "A accept   B decline" } else { "Enter accept   Esc decline" }, x + 18., 420., 20., DARKGRAY);
+        }
         Ui::Contest(sel) => {
             let pw = (sw - 24.).min(620.); let x = (sw - pw) / 2.;
             panel(x, 95., pw, 490.);

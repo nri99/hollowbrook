@@ -542,6 +542,24 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         go(g, c, door_stand(HOME), 0.12).await; face(g, c, door_face(HOME)).await; press(g, c, KeyCode::E).await; tickn!(300, &[], &[]); log!("scene={:?} variant={:?}", g.me.scene, audio::variant(g));
         press(g, c, KeyCode::J).await; press(g, c, KeyCode::X).await; tickn!(10, &[], &[]); log!("after mute: muted={} applied={:.2}", g.muted, m.applied);
         press(g, c, KeyCode::X).await; press(g, c, KeyCode::Left).await; press(g, c, KeyCode::Down).await; tickn!(10, &[], &[]); log!("after unmute/-music/-sfx: music_vol={:.1} sfx_vol={:.1} applied={:.2} dirty={}", g.music_vol, g.sfx_vol, m.applied, g.settings_dirty);
+    } else if phase == "42" {
+        g.join("Visit partner"); g.activate(1); g.me.pos = vec2(13.5, 17.5); g.me.cam = g.me.pos; g.activate(0);
+        if g.hr == 12 && c.now().day() == 12 {
+            g.me.pos = vec2(13.5, 17.5); g.me.cam = g.me.pos; g.me.face = vec2(0., 1.);
+            g.w.p.npcs[0].friend = 5; g.npcs[0].inside = false; g.npcs[0].pos = g.me.pos + vec2(0., 0.9); g.npcs[0].wait = 60.;
+            g.maybe_social_offer(); press(g, c, KeyCode::E).await; shot!("m3_invitation"); press(g, c, KeyCode::Enter).await;
+            log!("accepted={:?}", g.w.p.invitation); shot!("m3_appointment");
+        } else if c.now().day() == 12 {
+            g.w.p.invitation = Some(events::SocialInvite { day: g.w.day, slot: 0, character: g.w.roster[0], kind: 0, hour: 13, state: 1 });
+            g.me.pos = door_stand(HOUSES[0]) + vec2(0., 0.35); g.me.cam = g.me.pos; g.me.face = vec2(0., -1.);
+            press(g, c, KeyCode::E).await; wait(g, c, 40).await; shot!("m3_home_visit"); log!("visit={:?} friend={} inv={:?}", g.w.p.invitation, g.w.p.npcs[0].friend, g.w.p.inv);
+        } else {
+            g.w.p.invitation = Some(events::SocialInvite { day: g.w.day - 1, slot: 0, character: g.w.roster[0], kind: 0, hour: 13, state: 1 }); g.refresh_social();
+            g.me.pos = vec2(13.5, 17.5); g.me.cam = g.me.pos; g.me.face = vec2(0., 1.); g.npcs[0].inside = false; g.npcs[0].pos = g.me.pos + vec2(0., 0.9); g.npcs[0].wait = 60.;
+            press(g, c, KeyCode::E).await; shot!("m3_missed_visit");
+        }
+        press(g, c, KeyCode::Escape).await; g.me.jpage = 4; g.me.jcol = GUIDE.iter().position(|s| s.starts_with("Resident invitations")).unwrap() as u8;
+        press(g, c, KeyCode::J).await; shot!("m3_social_guide");
     } else if phase == "41" {
         // Fixture catches; registration, entry selection and prize claim use the real input layer.
         g.join("Survey partner");

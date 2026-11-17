@@ -6,6 +6,33 @@ use chrono::{Datelike, NaiveDate, NaiveDateTime};
 use macroquad::prelude::*;
 use crate::events::*;
 
+#[test] fn m3_home_invitation_initiated_visit_independence_and_reload() {
+    let mut g = two(at(12, 12, 0, 0)); g.hr = 12;
+    g.w.p.npcs[0].friend = 5; g.npcs[0].inside = false; g.npcs[0].pos = g.me.pos + vec2(0.8, 0.);
+    g.maybe_social_offer(); let v = g.w.p.invitation.clone().expect("resident initiates"); assert_eq!((v.kind, v.hour, v.state), (0, 13, 0));
+    let mut g = reload(&g, "m3_offer"); g.join("Partner"); g.talk(0); assert_eq!(g.me.ui, Ui::Invitation);
+    g.update_player(&Inp::keys(&[], &[KeyCode::Enter]), 0.016); assert_eq!(g.w.p.invitation.as_ref().unwrap().state, 1);
+    g.hr = 13; assert_eq!(g.loc(0), Loc::Home);
+    g.activate(1); let p2friend = g.w.p.npcs[0].friend; g.swap(Scene::Room(HOUSES[0])); assert_eq!(g.w.p.npcs[0].friend, p2friend); assert!(g.w.p.inv.is_empty());
+    g.activate(0); let friend = g.w.p.npcs[0].friend; g.swap(Scene::Room(HOUSES[0])); assert_eq!(g.w.p.npcs[0].friend, friend + 4);
+    assert!(g.w.p.inv.iter().any(|s| s.def == FLOWERS[0])); let inv = g.w.p.inv.clone();
+    let mut g = reload(&g, "m3_visit_done"); g.hr = 13; g.swap(Scene::Room(HOUSES[0])); assert_eq!(g.w.p.inv, inv); assert_eq!(g.w.p.npcs[0].friend, friend + 4);
+}
+
+#[test] fn m3_home_invitation_late_rollover_decline_and_full_pockets() {
+    let mut g = g0(at(12, 12, 0, 0)); g.hr = 12;
+    g.w.p.invitation = Some(SocialInvite { day: g.w.day, slot: 0, character: g.w.roster[0], kind: 0, hour: 13, state: 0 });
+    g.me.ui = Ui::Invitation; g.update_player(&Inp::keys(&[], &[KeyCode::Escape]), 0.016); assert_eq!(g.w.p.invitation.as_ref().unwrap().state, 4);
+    g.w.p.invitation.as_mut().unwrap().state = 0; g.accept_social().unwrap();
+    g.hr = 12; g.swap(Scene::Room(HOUSES[0])); assert_eq!(g.w.p.invitation.as_ref().unwrap().state, 1); // too early
+    g.hr = 14; g.social_tick(); assert_eq!(g.w.p.invitation.as_ref().unwrap().state, 3); let friend = g.w.p.npcs[0].friend;
+    assert!(g.catch_up(at(13, 6, 0, 0))); g.talk(0); let Ui::Talk { lines, .. } = &g.me.ui else { panic!() }; assert!(lines[0].contains("saved a chair")); assert_eq!(g.w.p.npcs[0].friend, friend); assert!(g.w.p.missed_visit.is_none());
+    g.w.p.invitation = Some(SocialInvite { day: g.w.day, slot: 0, character: g.w.roster[0], kind: 0, hour: 13, state: 1 });
+    for _ in 0..INV_CAP { g.add_furn(50); } g.hr = 13; g.swap(Scene::Room(HOUSES[0])); assert!(g.w.p.mail.iter().any(|l| l.item == Some(FLOWERS[0])));
+    let n = g.w.p.mail.len(); g.swap(Scene::Room(HOUSES[0])); assert_eq!(g.w.p.mail.len(), n);
+    g.w.p.invitation.as_mut().unwrap().state = 1; g.w.p.invitation.as_mut().unwrap().character = 99; g.social_tick(); assert!(g.w.p.invitation.is_none());
+}
+
 #[test] fn m3_contest_two_players_entries_prizes_and_reload() {
     let mut g = two(at(11, 9, 0, 0)); g.hr = 9;
     assert_eq!(g.contest_kind(), Some(0)); assert!(g.free(vec2(CONTEST_SPOT.0, CONTEST_SPOT.1)));

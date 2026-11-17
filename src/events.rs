@@ -17,6 +17,9 @@ pub const CONTEST_PLAQUES: [u16; 2] = [170, 171];
 pub struct ContestEntry {
     pub day: i64, pub kind: usize, pub best: u32, pub specimen: Option<u16>, pub size_mm: u16, pub claimed: bool,
 }
+/// Per-player invitation. State: 0 offered, 1 accepted, 2 completed, 3 missed, 4 declined.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub struct SocialInvite { pub day: i64, pub slot: usize, pub character: usize, pub kind: u8, pub hour: u32, pub state: u8 }
 /// Second Wednesday (fish), fourth Sunday (bugs), every month, including winter.
 pub fn contest_on(day: i64) -> Option<usize> {
     let d = NaiveDate::from_num_days_from_ce_opt(i32::try_from(day).ok()?)?;
@@ -92,7 +95,77 @@ impl Game {
         if !ok { self.w.p.mail.push(Letter { from: who.into(), text: text.into(), coins: 0, item: Some(d), read: false, claimed: false }); self.note("Your gift is safe in your mailbox."); }
     }
     pub fn contest_notice(&self) -> String {
-        if let Some(k) = self.contest_kind() { format!("Today: {}. Mara at plaza 09-22; entries 09-17, prizes after 17.", CONTEST_NAMES[k]) }
-        else { "Monthly surveys: fish on 2nd Wednesday, bugs on 4th Sunday; entries 09-17, prizes 17-22.".into() }
+        if let Some(k) = self.contest_kind() { format!("Today: {}. Plaza entries 09-17; prizes 17-22.", CONTEST_NAMES[k]) }
+        else { "Fish: 2nd Wed; bugs: 4th Sun. Plaza entries 09-17; prizes 17-22.".into() }
+    }
+    /// A nearby friend initiates an offer without interrupting movement or existing dialogue.
+    pub fn maybe_social_offer(&mut self) {
+        if self.me.scene != Scene::Town || self.me.ui != Ui::Play || !(9..17).contains(&self.hr) || self.w.p.social_day == self.w.day { return }
+        // The other activity day is reserved for hide-and-seek; one quiet day in each cycle.
+        let kind = (self.w.day + self.me.id as i64).rem_euclid(3) as u8;
+        if kind != 0 || self.w.p.invitation.as_ref().is_some_and(|v| v.day == self.w.day) { return }
+        let slot = (0..4).filter(|&i| self.w.p.npcs[i].friend >= 5 && !self.npcs[i].inside && self.npcs[i].pos.distance(self.me.pos) < 2.8)
+            .min_by(|&a, &b| self.npcs[a].pos.distance(self.me.pos).total_cmp(&self.npcs[b].pos.distance(self.me.pos)));
+        if let Some(slot) = slot {
+            self.w.p.social_day = self.w.day;
+            self.w.p.invitation = Some(SocialInvite { day: self.w.day, slot, character: self.w.roster[slot], kind, hour: self.hr + 1, state: 0 });
+            self.note(format!("{} would like to invite you over. Talk to them!", self.res(slot).name));
+        }
+    }
+    pub fn refresh_social(&mut self) {
+        if let Some(v) = self.w.p.invitation.clone() {
+            if v.day < self.w.day {
+                if v.kind == 0 && v.state == 1 { self.w.p.missed_visit = Some((v.slot, v.character, v.day)); }
+                self.w.p.invitation = None;
+            }
+        }
+    }
+    pub fn social_tick(&mut self) {
+        self.refresh_social();
+        if let Some(v) = self.w.p.invitation.clone() {
+            if self.w.roster.get(v.slot) != Some(&v.character) { self.w.p.invitation = None; }
+            else if v.kind == 0 && v.state == 1 && self.hr > v.hour {
+                self.w.p.missed_visit = Some((v.slot, v.character, v.day)); self.w.p.invitation.as_mut().unwrap().state = 3;
+            }
+            else if v.state == 0 && self.hr > v.hour { self.w.p.invitation.as_mut().unwrap().state = 4; }
+        }
+        if self.w.p.missed_visit.is_some_and(|(s, c, _)| self.w.roster.get(s) != Some(&c)) { self.w.p.missed_visit = None; }
+        self.maybe_social_offer();
+    }
+    pub fn invited_home(&self, slot: usize) -> bool {
+        std::iter::once(&self.w.p).chain(self.w.others.iter()).any(|p| p.invitation.as_ref().is_some_and(|v|
+            v.day == self.w.day && v.kind == 0 && v.slot == slot && self.w.roster.get(slot) == Some(&v.character) && (v.state == 1 || v.state == 2) && self.hr == v.hour))
+    }
+    pub fn social_talk(&mut self, slot: usize) -> bool {
+        if let Some((s, c, day)) = self.w.p.missed_visit {
+            if s == slot && self.w.roster[slot] == c && day < self.w.day {
+                self.w.p.missed_visit = None;
+                self.me.ui = Ui::Talk { npc: Some(slot), who: self.res(slot).name.into(), lines: vec!["I saved a chair for our visit. No worries; we can try another day.".into()], i: 0 }; return true
+            }
+        }
+        if self.w.p.invitation.as_ref().is_some_and(|v| v.slot == slot && v.day == self.w.day && self.w.roster[slot] == v.character && v.state == 0) {
+            self.me.ui = Ui::Invitation; return true
+        }
+        false
+    }
+    pub fn accept_social(&mut self) -> Result<(), &'static str> {
+        let Some(v) = self.w.p.invitation.as_ref() else { return Err("There is no invitation waiting.") };
+        if v.day != self.w.day || v.state != 0 || self.hr > v.hour || self.w.roster.get(v.slot) != Some(&v.character) { return Err("That invitation has expired.") }
+        if v.kind != 0 { return Err("That activity is not available.") }
+        let hour = v.hour; let name = self.res(v.slot).name;
+        self.w.p.invitation.as_mut().unwrap().state = 1;
+        self.note(format!("Visit {name} at home today between {hour}:00 and {}:00.", hour + 1)); Ok(())
+    }
+    pub fn visit_arrival(&mut self) {
+        let Some(v) = self.w.p.invitation.clone() else { return };
+        if v.kind != 0 || v.state != 1 || v.day != self.w.day || self.hr != v.hour || self.w.roster.get(v.slot) != Some(&v.character) || self.me.scene != Scene::Room(HOUSES[v.slot]) { return }
+        self.w.p.invitation.as_mut().unwrap().state = 2; self.w.p.npcs[v.slot].friend += 4;
+        let name = self.res(v.slot).name;
+        self.event_gift(name, "Thank you for coming to visit!", FLOWERS[v.slot]);
+        self.note(format!("{}: You made it! Friendship +4, and a flower for you.", name)); self.npcs[v.slot].happy = 2.;
+    }
+    pub fn social_notice(&self) -> Option<String> {
+        self.w.p.invitation.as_ref().filter(|v| v.day == self.w.day && v.kind == 0 && v.state <= 1).map(|v|
+            format!("{} invites you home {}:00-{}:00 today{}.", self.res(v.slot).name, v.hour, v.hour + 1, if v.state == 0 { " (talk to accept)" } else { " (accepted)" }))
     }
 }

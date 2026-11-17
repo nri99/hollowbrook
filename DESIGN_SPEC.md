@@ -2,6 +2,12 @@
 
 ## M3 monthly surveys (original provisional rules)
 
+### M3 resident home invitations — provisional rules
+
+- **Provisional:** from 09:00 until 17:00, a visible resident with friendship at least 5 within 2.8 tiles may initiate one personal invitation that day. A deterministic three-day cycle, offset by player id, reserves one day for visits, one for hide-and-seek, and one quiet day; hide-and-seek is the next implementation slice. Offers are saved and cannot be rerolled by reloading. They create a message and existing greeting emote, not an interrupting popup. Talk to accept or decline.
+- **Provisional:** a home invitation is for the next whole hour today; the full hour is the arrival window. Accepted appointments keep that resident home during the agreed hour (for the shared town), but only the invited player receives friendship +4 and one of the existing ordinary flowers, once. Full pockets send the gift by mail. Going early or late does not grant the reward; entering a different building is safe. The invitation and completion receipt persist.
+- **Provisional:** declining has no penalty. An accepted visit missed online or while away gives one mild follow-up line on a later day, with no friendship/item/coin loss. A changed resident invalidates the old invitation quietly. The notice board displays the active player's appointment; the guide explains the flow.
+
 All schedules, sizes, scoring constants, limits, fees, rewards, item values, and presentation measurements added for M3 are **provisional** original design choices, not reference-game rules.
 - River Measure: second Wednesday monthly; Wing & Leaf Survey: fourth Sunday monthly, in every season. Mara Vale stands in the plaza at (13.5, 17.5) from 09:00 until 22:00. Registration and entries 09:00–17:00; prizes 17:00–22:00. A calendar/guide topic and the notice board announce these rules.
 - Every newly caught fish/bug takes one pocket slot, with size in millimetres preserved through storage/reload. Base size = definition size × 500 (fish) or × 100 (bug), rounded, at least 1 mm; capture size = 65–135% of base (integer truncation, at least 1 mm). Existing unmeasured stacks are kept unchanged and remain usable/sellable, but cannot enter surveys. Save v4 migrates additively to v5; v1–v3 migration continues through it.

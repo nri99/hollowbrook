@@ -72,6 +72,9 @@ pub struct Letter { pub from: String, pub text: String, pub coins: u32, pub item
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Profile {
     #[serde(default)] pub contests: Vec<crate::events::ContestEntry>,
+    #[serde(default)] pub invitation: Option<crate::events::SocialInvite>,
+    #[serde(default)] pub social_day: i64,
+    #[serde(default)] pub missed_visit: Option<(usize, usize, i64)>,
     #[serde(default)] pub id: usize, pub name: String, pub money: u32, pub home: u32, pub inv: Vec<Slot>, pub storage: Vec<Slot>, pub room: Vec<Furn>,
     pub npcs: Vec<NpcS>, pub seen: Vec<u16>, pub tools: Vec<u16>, pub equip: Option<u16>, pub pos: [f32; 2],
     /// worn shirt (item def); None = starting outfit
@@ -100,7 +103,7 @@ pub struct Profile {
     #[serde(default)] pub tints: Vec<(u32, u8)>, #[serde(default)] pub wall: u8, #[serde(default)] pub floor: u8,
 }
 impl Profile {
-    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { contests: vec![], id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false, visited: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, hat: None, hair: 0, mail: vec![], catalog: vec![], fair_year: 0, art_week: 0, keepsakes: vec![], fest_years: vec![], lost_owner: None, tool_lv: vec![], home_best: 0, paint: None, coupons: 0, tasks: vec![], task_day: 0, camp_favors: vec![], ferry: 0, debt: 0, islet_done: 0, act_day: [0; 3], parcel: None, tints: vec![], wall: 0, floor: 0 } }
+    pub fn new(id: usize, name: String, pos: Vec2) -> Profile { Profile { invitation: None, social_day: 0, missed_visit: None, contests: vec![], id, name, money: 1000, home: 0, inv: vec![], storage: vec![], room: vec![], npcs: (0..4).map(|_| NpcS { friend: 0, req: None, talked: false, gifted: false, visited: false }).collect(), seen: vec![], tools: vec![60, 61], equip: None, pos: [pos.x, pos.y], shirt: None, hat: None, hair: 0, mail: vec![], catalog: vec![], fair_year: 0, art_week: 0, keepsakes: vec![], fest_years: vec![], lost_owner: None, tool_lv: vec![], home_best: 0, paint: None, coupons: 0, tasks: vec![], task_day: 0, camp_favors: vec![], ferry: 0, debt: 0, islet_done: 0, act_day: [0; 3], parcel: None, tints: vec![], wall: 0, floor: 0 } }
 }
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct World {
@@ -141,7 +144,7 @@ impl World {
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)] pub enum Snd { Step, Blip, Splash, Coin, Dig, Rustle, Door, StepPath, StepSand, StepWood, StepFloor, Swim }
 #[derive(Clone, Copy, PartialEq, Debug)] pub enum Tg { Contest, Npc(usize), Door(usize), Tree(usize), Item(usize), Weed(usize), Furn(u32, u16), Counter, Keeper, Display(usize), Curator, Exhibit(usize), Rack, Mailbox(usize), Stall, Site, Board, Built(usize), Dock, Pell, IItem(usize), IStall, MSite, ActBoard, Hazel, ArtStall, Camper, CampSign, Kiosk, Fest, Surprise, Plant(usize), PlantSpot }
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub enum Ui { Contest(usize), Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize), Tint(usize), Travel(bool), IStall(usize), ConfirmExpand, MPick(usize), Fund, Policy(usize), PolicyOk(usize), Act(usize), Civic(usize), Paint(usize), Keeper(usize), Camp(usize), Kiosk(usize), Title(usize), Help }
+pub enum Ui { Invitation, Contest(usize), Play, Talk { npc: Option<usize>, who: String, lines: Vec<String>, i: usize }, Inv(usize), Sell(usize), Confirm(usize), Storage(usize, usize), Journal, Rack(usize), Mail(usize), Catalog(usize), Gift(usize, usize), Tint(usize), Travel(bool), IStall(usize), ConfirmExpand, MPick(usize), Fund, Policy(usize), PolicyOk(usize), Act(usize), Civic(usize), Paint(usize), Keeper(usize), Camp(usize), Kiosk(usize), Title(usize), Help }
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Placing { pub f: Furn, pub orig: Option<Furn>, pub slot_uid: Option<u32> }
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -282,6 +285,7 @@ impl Game {
         self.refresh_world(); self.refresh_moves(); self.birthday_letters();
     }
     fn refresh_profile(&mut self, letters: bool) {
+        self.refresh_social();
         self.settle_contests();
         self.assign_tasks(); if weekday(self.w.day) == 0 { self.home_letter() }
         let mine = self.w.p.id == self.me.id;
@@ -342,6 +346,7 @@ impl Game {
     pub fn pol(&self) -> Option<&'static Policy> { self.w.policy.and_then(|i| POLICIES.get(i)) }
     /// Resident location with the active policy applied (wake/sleep shifts; exempt characters unchanged).
     pub fn loc(&self, slot: usize) -> Loc {
+        if self.invited_home(slot) { return Loc::Home }
         let r = self.res(slot); let (dw, ds) = match self.pol() { Some(p) if !p.exempt.contains(&self.w.roster[slot]) => (p.wake, p.sleep), _ => (0, 0) };
         let (wake, sleep, hr) = ((r.wake as i32 + dw).max(0), (r.sleep as i32 + ds).min(24), self.hr as i32);
         if !(hr >= wake && hr < sleep) { Loc::Asleep } else if r.home_h.iter().enumerate().any(|(k, &(a, b))| hr >= a as i32 && hr < b as i32 + if k == 1 { ds } else { 0 }) { Loc::Home } else { Loc::Out }
@@ -407,7 +412,7 @@ impl Game {
         match to { Scene::Islet => { self.me.ipos = vec2(ISLET_SPAWN.0, ISLET_SPAWN.1); self.me.face = vec2(0., -1.); self.me.cam = self.me.ipos }
             Scene::Town => { if let Scene::Room(b) = self.me.scene { self.me.pos = door_stand(b) } if self.me.scene == Scene::Islet { self.me.pos = dock_stand() } self.me.face = vec2(0., 1.); self.me.cam = self.me.pos }
             Scene::Room(b) => { let (w, d) = self.rdims(b); self.me.ipos = vec2((w / 2) as f32 + 0.5, d as f32 - 0.5); self.me.face = vec2(0., -1.); self.me.cam = self.me.ipos } }
-        eprintln!("[scene] {:?} -> {:?}", self.me.scene, to); self.me.scene = to; self.me.pose = Pose::Stand; self.me.fish = None;
+        eprintln!("[scene] {:?} -> {:?}", self.me.scene, to); self.me.scene = to; self.visit_arrival(); self.me.pose = Pose::Stand; self.me.fish = None;
     }
 
     // ---- targeting: distance + facing + line of sight; doors win when deliberately faced ----
@@ -541,6 +546,7 @@ impl Game {
         }
     }
     pub fn talk(&mut self, i: usize) {
+        if self.social_talk(i) { return }
         let r = &self.res(i); let pers = r.pers; let hr = self.hr;
         let slot = if !(5..21).contains(&hr) { 3 } else if hr < 12 { 0 } else if hr < 17 { 1 } else { 2 };
         let fruit = def(self.w.native).name.to_lowercase(); let fruits = plural(&fruit); let name = self.w.p.name.clone();
@@ -973,6 +979,7 @@ impl Game {
     pub fn board_lines(&self) -> Vec<String> {
         let mut v = vec![format!("Town liveliness: {} / 100 ({}).", self.liveliness(), Game::live_word(self.liveliness()))];
         v.push(self.contest_notice());
+        if let Some(s) = self.social_notice() { v.push(s); }
         if let Some(p) = &self.w.project { v.push(format!("Current project: a {} proposed by {}. {}", PROJECTS[p.kind as usize].0, self.res(p.by).name, Game::remaining(p))) }
         v.push("Funded public projects are started by the town leader at the Town Hall civic desk.".into());
         if let Some(m) = &self.w.mproject { v.push(format!("Funded project: a {} ({} / {} coins). It is built the morning after it is fully funded.", MPROJECTS[m.idx].0, m.funded, MPROJECTS[m.idx].1)) }
@@ -1345,6 +1352,7 @@ impl Game {
     }
     /// Per-player update for the active player (`activate` first): its own input, camera, UI, movement, actions.
     pub fn update_player(&mut self, inp: &Inp, dt: f32) {
+        self.social_tick();
         self.me.swing = (self.me.swing - dt).max(0.); self.act_step(); if self.w.p.task_day != self.w.day { self.assign_tasks() } if self.w.wtask.is_none() { self.assign_weekly() }
         if self.me.spd > 0.1 { self.me.anim += dt * self.me.spd * 3.2 }
         self.sim_fish(dt);
@@ -1382,6 +1390,7 @@ impl Game {
         let n = self.w.p.inv.len();
         let mv = |s: usize, len: usize| if up && s > 0 { s - 1 } else if down && s + 1 < len { s + 1 } else { s.min(len.saturating_sub(1)) };
         match self.me.ui {
+            Ui::Invitation => { if esc { if let Some(v) = &mut self.w.p.invitation { v.state = 4; } self.me.ui = Ui::Play; } else if ok { let r = self.accept_social(); self.me.ui = Ui::Play; if let Err(e) = r { self.note(e) } } }
             Ui::Contest(s) => {
                 let slots = self.contest_slots(); let s = mv(s, slots.len()); self.me.ui = Ui::Contest(s);
                 if esc { self.me.ui = Ui::Play } else if ok {
