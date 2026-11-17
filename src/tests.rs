@@ -791,3 +791,10 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     g.take_stairs(1); g.swap(Scene::Town); assert_eq!(g.w.p.story, 0); assert!(g.w.p.room.iter().any(|f| f.uid == 92)); // leaving always returns to the main floor
     let (s, _) = Game::home_score(&g.w.p); g.take_stairs(1); assert_eq!(Game::home_score(&g.w.p).0, s); // score counts every story
 }
+/// UI regression guard: text tables must keep fitting their panels, including a split-screen half (640x720).
+#[test] fn ui_text_budgets() {
+    for l in HELP_KEYS.iter().chain(HELP_PAD.iter()) { assert!(l.len() <= 60, "controls line too long for a split-screen journal: {l}") }
+    assert!(168 + 26 + 21 * HELP_KEYS.len() + 34 + 21 * (HELP_PAD.len() - 1) <= 630, "controls page overflows the journal panel"); // last baseline inside the panel
+    assert!(70 + 34 + 20 * HELP_KEYS.len() + 34 + 20 * HELP_PAD.len() + 36 <= 720 - 56, "help screen lists overflow");
+    for d in DEFS.iter() { assert!(d.name.len() <= 24, "item name too long for menus: {}", d.name) }
+}

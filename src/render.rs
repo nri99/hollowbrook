@@ -411,7 +411,7 @@ fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(f32, f32)>)
     match g.me.scene { Scene::Islet => islet_scene(&mut r, g, &lt, &mut labels), Scene::Town => town(&mut r, g, &lt, now, &mut labels), Scene::Room(b) => room(&mut r, g, b, &lt, &mut labels) }
     r.flush(); hud_cam(vp);
     let m = cam.matrix();
-    for (p, s, c) in labels { let d2 = (p.x - c0.x).powi(2) + (p.z - c0.y).powi(2); let q = m * vec4(p.x, p.y - curve * d2, p.z, 1.); if q.w <= 0. { continue }
+    let menu = matches!(g.me.ui, Ui::Journal | Ui::Help | Ui::Inv(..) | Ui::Mail(_) | Ui::Catalog(_)); for (p, s, c) in labels { if menu { break } let d2 = (p.x - c0.x).powi(2) + (p.z - c0.y).powi(2); let q = m * vec4(p.x, p.y - curve * d2, p.z, 1.); if q.w <= 0. { continue }
         let (x, y) = ((q.x / q.w + 1.) * 0.5 * vw(), (1. - q.y / q.w) * 0.5 * vh()); let tw = measure_text(&s, None, 20, 1.).width;
         draw_rectangle(x - tw / 2. - 5., y - 17., tw + 10., 23., Color::new(0., 0., 0., 0.55)); draw_text(&s, x - tw / 2., y, 20., c); }
     if !matches!(g.me.scene, Scene::Room(_)) { let (mo, w, h, t) = (now.month(), vw(), vh(), g.t);
@@ -772,7 +772,10 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
     const MON: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     txt(&format!("{} {:02}:{:02}  {} {}  {}{}", now.weekday(), now.hour(), now.minute(), MON[now.month0() as usize], now.day(), season, match weather(g.w.day, now.month()) { Wx::Rain => "  Rain", Wx::Snow => "  Snow", Wx::Clear => "" }), 20., 35., 26., WHITE);
     txt(&format!("{} coins    pockets {}/{}    tool: {}", g.w.p.money, g.w.p.inv.len(), INV_CAP, g.w.p.equip.map_or("none", |t| def(t).name)), 20., 62., 22., GOLD);
-    for (k, (m, _)) in g.me.msgs.iter().rev().filter(|m| g.t - m.1 < 5.).take(4).enumerate() { txt(m, 14., 100. + k as f32 * 24., 22., WHITE) }
+    // Recent messages: only during play (menus cover them), shortened to fit the viewport, on a soft backdrop for legibility.
+    if g.me.ui == Ui::Play { for (k, (m, _)) in g.me.msgs.iter().rev().filter(|m| g.t - m.1 < 5.).take(4).enumerate() { let mut s = m.clone();
+        if measure_text(&s, None, 22, 1.).width > sw - 40. { while s.len() > 4 && measure_text(&s, None, 22, 1.).width > sw - 70. { s.pop(); } s = format!("{}...", s.trim_end()) }
+        let y = 100. + k as f32 * 24.; draw_rectangle(8., y - 18., measure_text(&s, None, 22, 1.).width + 12., 24., Color::new(0., 0., 0., 0.28)); txt(&s, 14., y, 22., WHITE) } }
     if g.me.ui == Ui::Play && g.me.placing.is_none() && g.me.trans.is_none() { if let Some(tg) = g.target() { let s = if g.me.pad { format!("[A] {}", g.tg_label(tg)).replace("[F]", "[Select]").replace("[G]", "[LB]") } else { format!("[E] {}", g.tg_label(tg)) }; let tw = measure_text(&s, None, 24, 1.).width; draw_rectangle(sw / 2. - tw / 2. - 10., sh - 92., tw + 20., 32., Color::new(0., 0., 0., 0.55)); txt(&s, sw / 2. - tw / 2., sh - 69., 24., WHITE) } }
     if g.me.fish.as_ref().is_some_and(|f| f.bite) { txt("!", sw / 2. - 10., sh / 2. - 80., 90., Color::new(1., 0.3, 0.2, 1.)) }
     let narrow = sw < 900.;
@@ -785,9 +788,9 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
     let hint = if g.me.mplace.is_some() { "Placing project: walk/face a spot  Enter place  Esc cancel" } else if g.swimming() { if g.me.pad { "Swimming:  X dive  stick swim" } else { "Swimming:  Space dive  WASD swim" } } else if g.me.pad { if g.me.placing.is_some() { "Stick move  RB rotate  A place  B cancel" } else { if narrow { "Stick move  A act  X tool  RB tool  Y bag  B back" } else { "Stick move  RT run  A act  X tool  RB next tool  Y bag  Start journal  B cancel" } } } else if narrow { if g.me.placing.is_some() { "Move  R rotate  Enter place  Esc cancel" } else { "Move  E act  Space tool  Tab tool  I bag  J journal" } } else if g.me.placing.is_some() { "Placing:  WASD/Arrows move   R rotate   Enter place   Esc cancel" } else { "WASD move  Shift run  E interact  Space use tool  Tab tool  I inventory  J journal  F/G move/pick up furniture  Esc cancel" };
     draw_rectangle(4., sh - 34., measure_text(hint, None, 19, 1.).width + 24., 28., Color::new(0., 0., 0., 0.4)); txt(hint, 12., sh - 14., 19., WHITE);
     if let Some(s) = g.w.p.seek.as_ref().filter(|s| g.seek_live(s)) {
-        let bw = (sw - 24.).min(460.); draw_rectangle(12., 160., bw, 50., Color::new(0.1, 0.24, 0.16, 0.85));
-        txt(&format!("Trail Seek: {}/3 found   {}s left", s.found.len(), (s.deadline_ms - g.clock_ms + 999) / 1000), 22., 181., 21., WHITE);
-        txt("Talk to friends at their hiding spots.", 22., 202., 17., WHITE);
+        let bw = (sw - 24.).min(460.); draw_rectangle(12., 186., bw, 50., Color::new(0.1, 0.24, 0.16, 0.85));
+        txt(&format!("Trail Seek: {}/3 found   {}s left", s.found.len(), (s.deadline_ms - g.clock_ms + 999) / 1000), 22., 207., 21., WHITE);
+        txt("Talk to friends at their hiding spots.", 22., 228., 17., WHITE);
     }
     match &g.me.ui {
         Ui::Play => {}
@@ -854,7 +857,7 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
             txt(if g.me.pad { "Stick: choose   A: confirm" } else { "W/S: choose   Enter: confirm" }, sw / 2. - 300., sh * 0.75 + 26., 18., Color::new(0.85, 0.9, 0.85, 1.)) }
         Ui::Help => { draw_rectangle(0., 0., sw, sh, Color::new(0.12, 0.2, 0.16, 0.95)); let mut y = 70.; txt("Controls", 60., y, 30., Color::new(0.95, 0.9, 0.7, 1.)); y += 34.; let wcol = Color::new(0.92, 0.95, 0.92, 1.);
             for l in HELP_KEYS { txt(l, 70., y, 17., wcol); y += 20. } y += 8.; txt("Gamepad", 60., y + 4., 22., Color::new(0.95, 0.9, 0.7, 1.)); y += 26.; for l in HELP_PAD { txt(l, 70., y, 17., wcol); y += 20. } y += 10.; txt("Guide", 60., y, 26., Color::new(0.95, 0.9, 0.7, 1.)); y += 26.;
-            for l in GUIDE.iter().take(5) { for w in wrap(l, ((sw - 140.) / 9.) as usize) { txt(&w, 70., y, 16., wcol); y += 19. } } txt(if g.me.pad { "[A]/[B] back" } else { "[Enter]/[Esc] back" }, 60., sh - 24., 18., GOLD) }
+            'g: for l in GUIDE.iter().take(5) { for w in wrap(l, ((sw - 140.) / 9.) as usize) { if y > sh - 56. { txt("More in the journal's Guide page.", 70., y, 16., GOLD); break 'g } txt(&w, 70., y, 16., wcol); y += 19. } } txt(if g.me.pad { "[A]/[B] back" } else { "[Enter]/[Esc] back" }, 60., sh - 24., 18., GOLD) }
         Ui::Civic(sel) => { panel(sw / 2. - 280., 120., 560., 260.); txt(ADMIN, sw / 2. - 260., 155., 24., Color::new(0.45, 0.3, 0.2, 1.)); txt("Welcome to the Town Hall. How can I help?", sw / 2. - 260., 182., 18., DARKGRAY);
             let items = vec!["Town policies".to_string(), if g.me.id == LEADER { "Start a funded public project".into() } else { "Start a funded public project (leader only)".into() }, "Project and town status".into(), format!("Repaint your house ({PAINT_FEE} coins)")]; list(&items, Some(*sel), sw / 2. - 250., 210.);
             txt(if g.me.pad { "[A] Choose   [B] Leave" } else { "[Enter] Choose   [Esc] Leave" }, sw / 2. - 260., 355., 20., Color::new(0.45, 0.3, 0.2, 1.)) }
