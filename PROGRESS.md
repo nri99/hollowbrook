@@ -247,3 +247,4 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - Evidence: rendered screenshots inspected (test_output/v0_* baseline vs v4_*); 84 tests pass.
 - Water: smooth per-corner ripples, sea deepens offshore, turquoise shallows at banks, animated foam along bank edges, daytime sun glints (render only).
 - Trees: root flare, branch stub, extra canopy lobes with shaded underside, per-tree tint/shape variety, gentle wind sway; pines get tone variety and dark tier skirts. Not screenshot-verified (tour run skipped at user's request).
+- Delegated to Codex (GPT-6.1-Sol high), screenshot-verified by both: window dividers + sills (6e61ed0), roof eaves fascia (caf038b), home curtains + sill (ccdb79e). Golden-hour tint and clothing cuffs tried and rejected (no clear improvement).
