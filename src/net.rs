@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 pub const PORT: u16 = 47778;
 pub const DISCO: u16 = 47777;
-pub const PROTO: u32 = 1;
+pub const PROTO: u32 = 2;
 /// Every key the game reads; input travels as indices into this list.
 pub const KEYS: [KeyCode; 25] = [KeyCode::W, KeyCode::A, KeyCode::S, KeyCode::D, KeyCode::Up, KeyCode::Down, KeyCode::Left, KeyCode::Right, KeyCode::LeftShift, KeyCode::RightShift,
     KeyCode::E, KeyCode::Enter, KeyCode::KpEnter, KeyCode::Escape, KeyCode::F, KeyCode::G, KeyCode::I, KeyCode::J, KeyCode::N, KeyCode::Q, KeyCode::R, KeyCode::Space, KeyCode::Tab, KeyCode::X, KeyCode::Y];

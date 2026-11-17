@@ -248,3 +248,9 @@ schedules, resume-outdoors policy, clock-rollback pause).
 - Water: smooth per-corner ripples, sea deepens offshore, turquoise shallows at banks, animated foam along bank edges, daytime sun glints (render only).
 - Trees: root flare, branch stub, extra canopy lobes with shaded underside, per-tree tint/shape variety, gentle wind sway; pines get tone variety and dark tier skirts. Not screenshot-verified (tour run skipped at user's request).
 - Delegated to Codex (GPT-6.1-Sol high), screenshot-verified by both: window dividers + sills (6e61ed0), roof eaves fascia (caf038b), home curtains + sill (ccdb79e). Golden-hour tint and clothing cuffs tried and rejected (no clear improvement).
+
+## M3-1 — Monthly surveys (round 3)
+- Original River Measure / Wing & Leaf Survey calendars, measured fish/bug slots, per-player registration/best entry/prize receipts, safe delayed/full-pocket mail rewards, new original plaques, guide topics and notice-board text. Save v4 -> v5 preserves all existing quantities; LAN protocol 2 rejects incompatible menu schemas.
+- H: cargo test --release: 87 passed, 0 failed, 2 ignored (new tests cover both players, capture paths, storage/gifts, legacy migration, reload, rollover, duplicate/full-pocket payouts).
+- X/S: phase 41, test_output/contest_fish_g3_final, contest_bug_g3_final, contest_award_g3_final. Registration, submission, and prize collection through real input; catches/award eligibility are fixtures. Screenshots inspected; initial host overlapped a tree and was moved to the open crossroads before acceptance.
+- Build: release succeeded, existing warnings only. Next action: implement and verify resident home invitations, then hide-and-seek. No physical difficulty assessment claimed.

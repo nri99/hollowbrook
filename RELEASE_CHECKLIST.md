@@ -32,3 +32,5 @@ Physical items (P) cannot be performed by the agent; they go to HUMAN_VERIFICATI
 - [x] Construction preview valid/invalid, partial funding, built after rollover — rendered screenshots (phase 25).
 - [x] Crab Corral co-op, Ring Swim with other player in town — executable action path + rendered screenshots (phases 26/27).
 - [ ] Activity difficulty: human assessment PENDING. Physical controllers: PENDING.
+
+- [x] M3 monthly surveys: independent registration/entries/prizes, measured captures, backward-compatible save migration and once-only payout across reload/rollover (H); plaza host and entry/prize screens inspected in split-screen (X/S phase 41).

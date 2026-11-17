@@ -4,6 +4,50 @@ use crate::save;
 use crate::world::*;
 use chrono::{Datelike, NaiveDate, NaiveDateTime};
 use macroquad::prelude::*;
+use crate::events::*;
+
+#[test] fn m3_contest_two_players_entries_prizes_and_reload() {
+    let mut g = two(at(11, 9, 0, 0)); g.hr = 9;
+    assert_eq!(g.contest_kind(), Some(0)); assert!(g.free(vec2(CONTEST_SPOT.0, CONTEST_SPOT.1)));
+    g.contest_talk(); assert!(g.contest_entry().is_some());
+    g.w.p.inv.push(Slot { def: 16, qty: 1, uid: 0, size_mm: catch_base(16) * 135 / 100 });
+    let score = g.contest_submit(0).unwrap(); assert!(score >= 116); assert!(g.w.p.inv.is_empty());
+    g.w.p.inv.push(Slot { def: 10, qty: 1, uid: 0, size_mm: 1 }); assert!(g.contest_submit(0).is_err()); assert_eq!(g.w.p.inv.len(), 1);
+    assert!(g.contest_claim().is_err());
+    g.activate(1); assert!(g.contest_entry().is_none()); assert!(g.contest_submit(0).is_err()); g.contest_talk();
+    g.w.p.inv.push(Slot { def: 10, qty: 1, uid: 0, size_mm: catch_base(10) }); g.contest_submit(0).unwrap();
+    g.activate(0); let mut g = reload(&g, "m3_contest"); g.join("Partner"); g.hr = 17;
+    let money = g.w.p.money; g.contest_claim().unwrap(); assert!(g.w.p.money > money); assert!(g.contest_claim().is_err());
+    assert!(g.w.p.inv.iter().any(|s| s.def == 170));
+    let mut g = reload(&g, "m3_claimed"); g.hr = 17; assert!(g.contest_claim().is_err());
+    g.join("Partner"); g.activate(1); assert!(!g.contest_entry().unwrap().claimed); g.contest_claim().unwrap();
+    g.hr = 22; assert!(!g.contest_host_open());
+}
+
+#[test] fn m3_contest_rollover_full_pockets_bug_date_and_legacy() {
+    assert_eq!(contest_on(crate::clock::day_id(at(22, 12, 0, 0))), Some(1));
+    assert_eq!(contest_on(crate::clock::day_id(at(18, 12, 0, 0))), None);
+    let mut g = two(at(11, 16, 59, 0)); g.hr = 16; g.contest_talk();
+    g.w.p.inv.push(Slot { def: 16, qty: 1, uid: 0, size_mm: 500 }); g.contest_submit(0).unwrap();
+    g.activate(1); g.contest_talk(); g.w.p.inv.push(Slot { def: 16, qty: 1, uid: 0, size_mm: 500 }); g.contest_submit(0).unwrap();
+    for _ in 0..INV_CAP { g.add_furn(50); } g.hr = 17; g.contest_claim().unwrap(); assert!(g.w.p.mail.iter().any(|l| l.item == Some(170)));
+    g.activate(0); assert!(g.catch_up(at(13, 6, 0, 0))); let n = g.w.p.mail.iter().filter(|l| l.from == CONTEST_HOST).count(); assert_eq!(n, 1);
+    assert!(!g.catch_up(at(13, 6, 1, 0))); assert_eq!(g.w.p.mail.iter().filter(|l| l.from == CONTEST_HOST).count(), n);
+    let mut old = serde_json::to_value(g.persist()).unwrap(); old["version"] = 4.into(); old["p"].as_object_mut().unwrap().remove("contests");
+    old["p"]["inv"] = serde_json::json!([{ "def": 12, "qty": 9, "uid": 0 }]);
+    let w: World = serde_json::from_value(save::upgrade(old)).unwrap(); assert_eq!(w.version, SAVE_VERSION); assert_eq!(w.p.inv[0].qty, 9); assert_eq!(w.p.inv[0].size_mm, 0); assert!(w.p.contests.is_empty());
+}
+
+#[test] fn m3_measured_capture_paths_storage_and_gift_selection() {
+    let mut g = g0(at(11, 12, 0, 0)); g.w.p.equip = Some(60); g.me.face = vec2(1., 0.);
+    g.bugs = vec![(7, g.me.pos + vec2(0.7, 0.), 0.)]; g.use_tool(); assert_eq!(g.w.p.inv.len(), 1); assert!(g.w.p.inv[0].size_mm > 0);
+    g.w.p.equip = Some(61); g.shadows = vec![Shadow { def: 12, pos: g.me.pos, vel: Vec2::ZERO }];
+    g.me.fish = Some(Fishing { bob: g.me.pos, fish: Some(0), t: 0., nib: 0, need: 0, bite: true, dip: 0. }); g.use_tool();
+    assert_eq!(g.w.p.inv[1].def, 12); let fish = g.w.p.inv[1]; assert!(fish.size_mm > 0);
+    g.transfer(0, 1); assert_eq!(g.w.p.storage[0], fish); g.transfer(1, 0); assert_eq!(g.w.p.inv[1], fish);
+    g.w.p.inv.push(Slot { def: 12, qty: 1, uid: 0, size_mm: fish.size_mm + 1 }); g.give_gift(0, 2); assert_eq!(g.w.p.inv[1], fish);
+    let g2 = reload(&g, "m3_measurements"); assert_eq!(g2.w.p.inv, g.w.p.inv);
+}
 
 fn at(d: u32, h: u32, m: u32, s: u32) -> NaiveDateTime { NaiveDate::from_ymd_opt(2026, 11, d).unwrap().and_hms_opt(h, m, s).unwrap() } // Nov 10 2026 = Tue
 fn tmp(n: &str) -> String { std::env::temp_dir().join(format!("hb3_{n}.json")).to_string_lossy().into() }
@@ -23,9 +67,9 @@ fn home(g: &mut Game) { g.swap(Scene::Room(HOME)) }
 }
 #[test] fn reload_same_day_keeps_daily_state() { let mut g = g0(at(11, 6, 30, 0)); talk_daily(&mut g); g.w.stock[2].sold = true; let mut g2 = reload(&g, "same"); assert!(!g2.catch_up(at(11, 7, 0, 0))); assert!(g2.w.p.npcs[0].talked && g2.w.stock[2].sold); assert_eq!(g2.w, g.persist()) }
 #[test] fn closed_three_days_regrows_once() {
-    let mut g = g0(at(11, 5, 0, 0)); g.w.trees[0].fruit = false; g.w.trees[0].shaken = g.w.day; g.w.p.inv = vec![Slot { def: 20, qty: 3, uid: 0 }]; g.w.p.money = 4321;
+    let mut g = g0(at(11, 5, 0, 0)); g.w.trees[0].fruit = false; g.w.trees[0].shaken = g.w.day; g.w.p.inv = vec![Slot { size_mm: 0, def: 20, qty: 3, uid: 0 }]; g.w.p.money = 4321;
     let mut g2 = reload(&g, "three"); assert!(g2.catch_up(at(14, 5, 0, 0))); assert_eq!(g2.log.len(), 1); assert!(g2.log[0].contains("(3d)")); assert!(g2.w.trees[0].fruit);
-    assert_eq!((g2.w.p.money, g2.w.p.inv.clone()), (4321, vec![Slot { def: 20, qty: 3, uid: 0 }])); assert!(!g2.catch_up(at(14, 5, 30, 0)));
+    assert_eq!((g2.w.p.money, g2.w.p.inv.clone()), (4321, vec![Slot { size_mm: 0, def: 20, qty: 3, uid: 0 }])); assert!(!g2.catch_up(at(14, 5, 30, 0)));
 }
 #[test] fn fruit_not_regrown_early() { let mut g = g0(at(11, 7, 0, 0)); g.w.trees[0].fruit = false; g.w.trees[0].shaken = g.w.day; assert!(g.catch_up(at(13, 7, 0, 0))); assert!(!g.w.trees[0].fruit) }
 #[test] fn clock_rollback() { let mut g = g0(at(11, 7, 0, 0)); let d = g.w.day; assert!(!g.catch_up(at(9, 7, 0, 0))); assert_eq!(g.w.day, d) }
@@ -36,7 +80,7 @@ fn home(g: &mut Game) { g.swap(Scene::Room(HOME)) }
     assert!(g.buy(0).is_ok()); assert_eq!(g.w.p.money, 10000 - p); assert!(g.w.stock[0].sold); let uid = g.w.p.inv[0].uid; assert!(uid != 0 && g.w.p.inv[0].def == g.w.stock[0].def);
     let m = g.w.p.money; assert_eq!(g.buy(0), Err("Sold out!")); assert_eq!(g.w.p.money, m); assert_eq!(g.w.p.inv.len(), 1); // repeated input: no duplicate
     g.w.p.money = 0; assert_eq!(g.buy(1), Err("Not enough coins.")); assert!(!g.w.stock[1].sold); assert_eq!(g.w.p.inv.len(), 1);
-    g.w.p.money = 10000; while g.w.p.inv.len() < INV_CAP { g.w.p.inv.push(Slot { def: 40, qty: 1, uid: 0 }) } assert_eq!(g.buy(2), Err("Your pockets are full.")); assert_eq!(g.w.p.money, 10000); assert!(!g.w.stock[2].sold);
+    g.w.p.money = 10000; while g.w.p.inv.len() < INV_CAP { g.w.p.inv.push(Slot { size_mm: 0, def: 40, qty: 1, uid: 0 }) } assert_eq!(g.buy(2), Err("Your pockets are full.")); assert_eq!(g.w.p.money, 10000); assert!(!g.w.stock[2].sold);
     g.me.ui = Ui::Confirm(3); let before = g.w.clone(); g.update(&Inp::keys(&[KeyCode::Escape], &[KeyCode::Escape]), 0.016, at(11, 12, 0, 1)); assert_eq!(g.me.ui, Ui::Play); assert_eq!(g.w.stock, before.stock); assert_eq!(g.w.p.money, before.p.money); // cancel
     assert!(g.buy(5).is_ok()); assert!(g.w.p.tools.contains(&62)); assert!(g.buy(5).is_err());
 }
@@ -109,7 +153,7 @@ fn home(g: &mut Game) { g.swap(Scene::Room(HOME)) }
     let mut s = format!("v2\nOld\n739900\n777\n2\n22\n{}\n{}\n1,1,12,20\n{}\n100 100\n", ".".repeat(64 * 48), "0".repeat(64 * 48), "1".repeat(20));
     for f in [3, 12, 0, 20] { s += &format!("{f} 999 1 100 100\n") } s += "room 1 4 4\n1:0:0:0:0,2:1:2:1:1\n"; std::fs::write(&p, s).unwrap();
     let w = save::migrate(p.to_str().unwrap(), &map).unwrap();
-    assert_eq!((w.p.name.as_str(), w.p.money, w.p.home, w.native, w.day), ("Old", 777, 2, 22, 739900)); assert_eq!(w.p.inv, vec![Slot { def: 1, qty: 2, uid: 0 }, Slot { def: 12, qty: 1, uid: 0 }, Slot { def: 20, qty: 1, uid: 0 }]);
+    assert_eq!((w.p.name.as_str(), w.p.money, w.p.home, w.native, w.day), ("Old", 777, 2, 22, 739900)); assert_eq!(w.p.inv, vec![Slot { size_mm: 0, def: 1, qty: 2, uid: 0 }, Slot { size_mm: 0, def: 12, qty: 1, uid: 0 }, Slot { size_mm: 0, def: 20, qty: 1, uid: 0 }]);
     assert_eq!(w.p.npcs[1].friend, 12); assert_eq!(w.p.room, vec![Furn { uid: 1, def: 55, x: 0, z: 0, rot: 0, on: false }, Furn { uid: 2, def: 51, x: 2, z: 1, rot: 1, on: false }]); assert_eq!(w.uid, 3);
     let g = Game::from_world(w, map); assert_eq!(g.w.stock.len(), 5);
 }
@@ -138,7 +182,7 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     let g = g0(at(11, 12, 0, 0)); let mut v = serde_json::to_value(g.persist()).unwrap();
     let p = v["p"].clone(); let o = v.as_object_mut().unwrap(); o.remove("p"); o.remove("others"); o.insert("version".into(), 3.into());
     for (k, x) in p.as_object().unwrap() { if k != "id" { o.insert(k.clone(), x.clone()); } }
-    let w: World = serde_json::from_value(save::upgrade(v)).unwrap(); assert_eq!(w.version, 4); { let a = &w.p; let b = g.persist().p; assert_eq!((&a.name, a.money, &a.inv, &a.room, &a.npcs, &a.tools), (&b.name, b.money, &b.inv, &b.room, &b.npcs, &b.tools)); } assert!(w.others.is_empty());
+    let w: World = serde_json::from_value(save::upgrade(v)).unwrap(); assert_eq!(w.version, SAVE_VERSION); { let a = &w.p; let b = g.persist().p; assert_eq!((&a.name, a.money, &a.inv, &a.room, &a.npcs, &a.tools), (&b.name, b.money, &b.inv, &b.room, &b.npcs, &b.tools)); } assert!(w.others.is_empty());
 }
 #[test] fn two_profiles_independent_and_persist() {
     let mut g = two(at(11, 12, 0, 0)); g.activate(1); g.w.p.money = 5; g.add(20); g.activate(0); assert_eq!(g.w.p.money, 1000); assert!(g.w.p.inv.is_empty());
@@ -393,7 +437,7 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     g.activate(1); g.me.scene = Scene::Islet; g.me.ipos = vec2(7.5, 10.5); g.act_step(); assert_eq!(g.act.as_ref().unwrap().players, vec![0, 1]);
     g.swap(Scene::Town); g.activate(0); assert_eq!(g.act.as_ref().unwrap().players, vec![0]); g.sim_act(1.); assert!(g.act.is_some() && !g.act.as_ref().unwrap().done);
     // full pockets: Sea Glass goes to the mailbox, not lost
-    g.w.p.inv = (0..INV_CAP).map(|k| Slot { def: 20 + (k % 3) as u16, qty: STACK, uid: 0 }).collect(); let mail0 = g.w.p.mail.len();
+    g.w.p.inv = (0..INV_CAP).map(|k| Slot { size_mm: 0, def: 20 + (k % 3) as u16, qty: STACK, uid: 0 }).collect(); let mail0 = g.w.p.mail.len();
     g.act.as_mut().unwrap().score = 99; g.sim_act(99.); g.act_step(); assert_eq!(g.w.p.mail.len() - mail0, ACT_REWARD[2] as usize); assert!(g.w.p.mail.iter().rev().take(4).all(|l| l.item == Some(85)));
     // reload mid-activity: activity not saved, reward flag saved, so restarting cannot pay twice
     let mut g2 = reload(&g, "edge_act"); assert!(g2.act.is_none()); g2.me.scene = Scene::Islet; g2.me.ipos = vec2(7.5, 10.5); g2.act_start(1).unwrap(); g2.act.as_mut().unwrap().score = 99; g2.sim_act(99.); let m = g2.w.p.mail.len(); g2.act_step(); assert_eq!(g2.w.p.mail.len(), m);
@@ -456,7 +500,7 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     let d = VISITORS[v].goods[0]; g.w.p.money = 100; assert_eq!(g.camp_buy(0), Err("Not enough coins."));
     g.w.p.money = 9000; assert_eq!(g.camp_buy(0), Ok(def(d).name)); assert_eq!(g.w.p.money, 9000 - def(d).buy);
     g.activate(1); g.w.p.money = 9000; assert_eq!(g.camp_buy(0), Err("Sold out for today.")); assert_eq!(g.w.p.money, 9000); // shared stock, no double sale
-    g.w.p.inv = (0..INV_CAP).map(|k| Slot { def: 20, qty: 1, uid: 0 + k as u32 * 0 }).collect(); assert_eq!(g.camp_buy(1), Err("Your pockets are full.")); assert_eq!(g.w.p.money, 9000); g.w.p.inv.clear();
+    g.w.p.inv = (0..INV_CAP).map(|k| Slot { size_mm: 0, def: 20, qty: 1, uid: 0 + k as u32 * 0 }).collect(); assert_eq!(g.camp_buy(1), Err("Your pockets are full.")); assert_eq!(g.w.p.money, 9000); g.w.p.inv.clear();
     // favor: needs items, gives reward once, saved per player
     let (fd, fq) = g.favor_item(); assert!(g.camp_favor().is_err()); for _ in 0..fq { g.add(fd); }
     assert_eq!(g.camp_favor(), Ok(def(VISITORS[v].reward).name)); assert!(g.w.p.inv.iter().any(|s| s.def == VISITORS[v].reward)); assert!(g.camp_favor().is_err());
@@ -478,7 +522,7 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     let mut g3 = g2; assert!(g3.claim(0).is_err() && g3.claim(3).is_err()); // no duplicate claims after reload
     // kiosk: deduct only on success; ferry pass works for travel
     g3.w.p.coupons = 4; assert!(g3.kiosk_buy(1).is_err()); assert_eq!(g3.w.p.coupons, 4); assert_eq!(g3.kiosk_buy(6), Ok("Ferry Pass")); assert_eq!((g3.w.p.coupons, g3.w.p.ferry), (0, 1));
-    g3.w.p.coupons = 50; g3.w.p.inv = (0..INV_CAP).map(|_| Slot { def: 20, qty: STACK, uid: 0 }).collect(); assert_eq!(g3.kiosk_buy(0), Err("Your pockets are full.")); assert_eq!(g3.kiosk_buy(7), Err("Your pockets are full.")); assert_eq!(g3.w.p.coupons, 50);
+    g3.w.p.coupons = 50; g3.w.p.inv = (0..INV_CAP).map(|_| Slot { size_mm: 0, def: 20, qty: STACK, uid: 0 }).collect(); assert_eq!(g3.kiosk_buy(0), Err("Your pockets are full.")); assert_eq!(g3.kiosk_buy(7), Err("Your pockets are full.")); assert_eq!(g3.w.p.coupons, 50);
     g3.w.p.inv.clear(); assert!(g3.kiosk_buy(7).is_ok()); assert_eq!(g3.w.p.inv.iter().filter(|s| s.def == 85).map(|s| s.qty).sum::<u16>(), 3);
     // simultaneous claim input from both players in one frame
     let mut g = two(at(11, 12, 0, 0)); assert!(g.catch_up(at(12, 6, 0, 1))); let wt = g.w.wtask.as_ref().unwrap().t; g.ev(WTASKS[wt].0, WTASKS[wt].1);
@@ -489,7 +533,7 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
 #[test] fn task_events_from_normal_actions() {
     let mut g = g0(at(11, 12, 0, 0)); assert!(g.catch_up(at(12, 6, 0, 1))); g.w.p.tasks = vec![PTask { t: 7, prog: 0, claimed: false }, PTask { t: 4, prog: 0, claimed: false }, PTask { t: 11, prog: 0, claimed: false }];
     for it in g.w.ground.clone().iter().filter(|i| def(i.def).k == K::Shell).take(2) { g.me.pos = vec2(it.x, it.z) - vec2(0., 0.6); g.me.face = vec2(0., 1.); if g.target().is_some() { g.interact() } }
-    g.w.p.inv = vec![Slot { def: 41, qty: 2, uid: 0 }]; g.sell_all(); assert_eq!(g.w.p.tasks[1].prog, 500);
+    g.w.p.inv = vec![Slot { size_mm: 0, def: 41, qty: 2, uid: 0 }]; g.sell_all(); assert_eq!(g.w.p.tasks[1].prog, 500);
     g.bubbles = vec![(vec2(5.5, 5.5), 70)]; g.me.pos = vec2(5.5, 5.5); g.dive(); assert_eq!(g.w.p.tasks[2].prog, 1);
 }
 #[test] fn version_and_help_present() { assert!(VERSION.starts_with("v1.1.0")); assert!(HELP_KEYS.len() >= 8 && HELP_PAD.len() >= 8 && GUIDE.len() >= 8); }
@@ -497,14 +541,14 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     let g = g0(at(11, 12, 0, 0)); let mut src: Vec<u16> = vec![];
     for m in 1..=12 { for h in 0..24 { for rain in [false, true] { src.extend(Game::bug_pool(rain, m, h)) } src.extend(Game::islet_bug_pool(m, h)); for hab in [1, 2] { for mouth in [false, true] { src.extend(Game::fish_pool(hab, mouth, m, h)) } } } }
     src.extend(FRUITS); src.extend([40, 41, 42, 84, 82, 75, 85, 86, 80, 81, 45, 46, 47, 70, 71, 72, 73, 74]); src.extend(FOSSILS); src.extend(FURN_IDS); src.extend(ISTALL_ITEMS.iter().map(|x| x.0)); src.extend(CLOTHES); src.extend(ARTS);
-    for v in &VISITORS { src.extend(v.goods); src.push(v.reward) } src.extend(KEEPSAKES); src.push(150); src.extend(SPECIALS); src.extend(SEEDS); src.extend(FLOWERS); src.push(CAN); src.push(169); src.extend(FESTS.iter().map(|f| f.reward)); src.extend(KIOSK_ITEMS.iter().map(|x| x.0)); src.extend([60, 61, 62]);
+    for v in &VISITORS { src.extend(v.goods); src.push(v.reward) } src.extend(CONTEST_PLAQUES); src.extend(KEEPSAKES); src.push(150); src.extend(SPECIALS); src.extend(SEEDS); src.extend(FLOWERS); src.push(CAN); src.push(169); src.extend(FESTS.iter().map(|f| f.reward)); src.extend(KIOSK_ITEMS.iter().map(|x| x.0)); src.extend([60, 61, 62]);
     let missing: Vec<&str> = DEFS.iter().filter(|d| !src.contains(&d.id)).map(|d| d.name).collect(); assert!(missing.is_empty(), "no acquisition path: {missing:?}");
     // the islet offers every non-native fruit over consecutive days
     let mut g = g; let mut seen = vec![]; for k in 0..3 { g.w.day += 1; g.refresh_islet(); let _ = k; seen.extend(g.w.iground.iter().map(|i| i.def).filter(|d| FRUITS.contains(d))) } for f in FRUITS { if f != g.w.native { assert!(seen.contains(&f), "fruit {f} never on Gullrock") } }
 }
 #[test] fn pell_reward_not_lost_with_full_pockets() {
     let mut g = g0(at(11, 12, 0, 0)); g.me.scene = Scene::Islet; let (d, n, _) = islet_task(g.w.day);
-    g.w.p.inv = vec![Slot { def: d, qty: n, uid: 0 }]; g.w.p.inv.extend((1..INV_CAP).map(|_| Slot { def: 20, qty: STACK, uid: 0 })); let m0 = g.w.p.mail.len();
+    g.w.p.inv = vec![Slot { size_mm: 0, def: d, qty: n, uid: 0 }]; g.w.p.inv.extend((1..INV_CAP).map(|_| Slot { size_mm: 0, def: 20, qty: STACK, uid: 0 })); let m0 = g.w.p.mail.len();
     g.pell(); let glass: u16 = g.w.p.inv.iter().filter(|s| s.def == 85).map(|s| s.qty).sum(); assert_eq!(glass as usize + g.w.p.mail.len() - m0, 3);
 }
 #[test] #[ignore] fn migrate_real_save_copy() {
@@ -530,7 +574,7 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     assert!(!g.walk_tile(STALL.0, STALL.1)); assert!(!g.art_open());
     g.activate(1); assert!(g.fest_claim().is_err()); g.activate(0); // other player still needs to do it
     g.mo = 1; g.dom = 1; assert!(g.fest_claim().is_err()); for n in &mut g.w.p.npcs { n.talked = true } assert_eq!(g.fest_claim(), Ok("Sunrise Banner"));
-    g.mo = 7; g.dom = 24; g.w.p.inv.clear(); g.add(10); g.w.p.inv.extend((1..INV_CAP).map(|_| Slot { def: 20, qty: STACK, uid: 0 })); assert_eq!(g.fest_claim(), Ok("Paper Boat Model")); assert!(!g.w.p.inv.iter().any(|s| s.def == 10)); // the fish frees the slot for the keepsake
+    g.mo = 7; g.dom = 24; g.w.p.inv.clear(); g.add(10); g.w.p.inv.extend((1..INV_CAP).map(|_| Slot { size_mm: 0, def: 20, qty: STACK, uid: 0 })); assert_eq!(g.fest_claim(), Ok("Paper Boat Model")); assert!(!g.w.p.inv.iter().any(|s| s.def == 10)); // the fish frees the slot for the keepsake
     let g2 = reload(&g, "fest"); assert_eq!(g2.w.p.fest_years.len(), 3); g.yr += 1; g.mo = 4; g.dom = 10; g.w.p.inv.clear(); for _ in 0..2 { g.add(g.w.native); } assert!(g.fest_claim().is_ok()); // next year again
 }
 
@@ -545,7 +589,7 @@ fn two(t: NaiveDateTime) -> Game { let mut g = g0(t); g.join("P2"); for n in &mu
     let (f0, c0) = (g.w.p.npcs[2].friend, g.w.p.money); g.w.p.npcs[1].req = None; g.talk(1); assert!(g.w.p.inv.iter().any(|s| s.def == 150)); // wrong resident keeps it
     g.w.p.npcs[2].req = None; g.talk(2); assert!(!g.w.p.inv.iter().any(|s| s.def == 150)); assert_eq!(g.w.p.money, c0 + RETURN_COINS); assert!(g.w.p.npcs[2].friend >= f0 + 4); assert_eq!(g.w.p.lost_owner, None);
     // drifting gift -> furniture; full pockets leave it in place
-    g.w.surprise = Some(Surprise { kind: 2, x: 6, z: 20, owner: 0, day: g.w.day }); g.w.p.inv = (0..INV_CAP).map(|_| Slot { def: 20, qty: STACK, uid: 0 }).collect(); g.take_surprise(); assert!(g.w.surprise.is_some());
+    g.w.surprise = Some(Surprise { kind: 2, x: 6, z: 20, owner: 0, day: g.w.day }); g.w.p.inv = (0..INV_CAP).map(|_| Slot { size_mm: 0, def: 20, qty: STACK, uid: 0 }).collect(); g.take_surprise(); assert!(g.w.surprise.is_some());
     g.w.p.inv.clear(); g.take_surprise(); assert!(g.w.surprise.is_none() && g.w.p.inv.iter().any(|s| def(s.def).k == K::Furn));
 }
 

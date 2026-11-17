@@ -30,7 +30,7 @@ const fn fu(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32), fp: (i3
 const fn cl(id: u16, name: &'static str, buy: u32, col: (f32, f32, f32)) -> D { D { buy, ..b(id, name, K::Cloth, buy / 4, col) } }
 const fn tl(id: u16, name: &'static str, buy: u32) -> D { D { buy, ..b(id, name, K::Tool, 0, (0.6, 0.45, 0.3)) } }
 
-pub static DEFS: [D; 130] = [
+pub static DEFS: [D; 132] = [
     cr(0, "Cabbage White", K::Bug, 90, (1., 1., 0.95), 0.2, 0, 3, 10, 6, 17), cr(1, "Honeybee", K::Bug, 160, (1., 0.85, 0.2), 0.2, 0, 3, 7, 8, 17),
     cr(2, "Ladybug", K::Bug, 120, (0.9, 0.15, 0.1), 0.2, 0, 3, 6, 8, 17), cr(3, "Dragonfly", K::Bug, 230, (0.3, 0.8, 0.9), 0.2, 0, 5, 10, 8, 19),
     cr(4, "Cicada", K::Bug, 300, (0.4, 0.6, 0.3), 0.2, 0, 7, 8, 8, 17), cr(5, "Firefly", K::Bug, 450, (0.8, 1., 0.3), 0.2, 0, 6, 7, 19, 4),
@@ -94,6 +94,8 @@ pub static DEFS: [D; 130] = [
     b(80, "Branch", K::Material, 20, (0.55, 0.4, 0.25)), b(81, "Stone", K::Material, 30, (0.6, 0.6, 0.62)),
     cl(67, "Straw Hat", 350, (0.9, 0.8, 0.45)), cl(68, "Beanie", 350, (0.3, 0.42, 0.8)), cl(69, "Flower Crown", 350, (0.95, 0.6, 0.72)),
     cl(63, "Sky Tee", 400, (0.45, 0.7, 0.95)), cl(64, "Sunflower Tee", 400, (0.98, 0.82, 0.3)), cl(65, "Forest Hoodie", 650, (0.25, 0.5, 0.32)), cl(66, "Berry Sweater", 650, (0.75, 0.25, 0.45)),
+    fu(170, "Riverglass Plaque", 1800, (0.28, 0.68, 0.82), (1, 1), false, true, Act::None),
+    fu(171, "Leafprint Plaque", 1800, (0.42, 0.72, 0.38), (1, 1), false, true, Act::None),
     tl(60, "Net", 0), tl(61, "Fishing Rod", 400), tl(62, "Shovel", 500),
 ];
 pub const FRUITS: [u16; 4] = [20, 21, 22, 23];
@@ -101,7 +103,7 @@ pub const FURN_IDS: [u16; 20] = [50, 51, 52, 53, 54, 55, 56, 57, 90, 91, 92, 93,
 /// Furniture collections: (name, members). Completing one in your home shows a note.
 pub const SETS: [(&str, [u16; 6]); 2] = [("Meadow collection", [90, 91, 92, 110, 111, 112]), ("Harbor collection", [93, 94, 95, 113, 114, 115])];
 /// Base model drawn for a furniture id (collections reuse a model with their own colors and accents).
-pub fn model(d: u16) -> u16 { match d { 90 => 50, 91 => 52, 92 | 95 => 54, 93 => 51, 94 => 55, 110 | 115 => 53, 111 | 124 => 56, 112 | 120 | 123 | 130 => 57, 113 | 121 => 58, 114 => 59, 122 | 125 | 131 => 54, 126 | 133 => 55, 127 => 52, 132 => 51, 140..=145 | 149 | 169 => 57, 146 | 148 | 152 => 54, 147 => 52, 151 => 50, 153 => 55, _ => d } }
+pub fn model(d: u16) -> u16 { match d { 90 => 50, 91 => 52, 92 | 95 => 54, 93 => 51, 94 => 55, 110 | 115 => 53, 111 | 124 => 56, 112 | 120 | 123 | 130 => 57, 113 | 121 => 58, 114 => 59, 122 | 125 | 131 => 54, 126 | 133 => 55, 127 => 52, 132 => 51, 140..=145 | 149 | 169 | 170 | 171 => 57, 146 | 148 | 152 => 54, 147 => 52, 151 => 50, 153 => 55, _ => d } }
 pub const ARTS: [u16; 8] = [100, 101, 102, 103, 104, 105, 106, 107];
 /// Weekly art stall: open on Saturdays (when the fair isn't on) at STALL; price per painting (provisional).
 pub const ART_PRICE: u32 = 2500;
@@ -342,7 +344,7 @@ pub const HELP_KEYS: [&str; 10] = ["Move: WASD or arrows   Run: hold Shift", "In
 pub const HELP_PAD: [&str; 10] = ["Move: left stick or d-pad   Run: hold LT or RT", "Interact / confirm / next: A   Cancel / close: B", "Use tool / dive: X   Cycle tools: RB",
     "Pockets: Y   Journal: Menu (Start)", "Gift during a chat: LB", "Furniture: View move, LB pick up, RB rotate", "Menu or A on a new pad: join as P2", "Hold View + press Menu: switch pad P1 <-> P2",
     "Journal pages: RB next page", "Xbox names; PlayStation: Cross = A, Circle = B"];
-pub const GUIDE: [&str; 12] = [
+pub const GUIDE: [&str; 13] = [
     "Home: expand at the General Store counter. Each expansion adds an interest-free balance to pay off whenever you like; pay it off before the next one.",
     "Projects: residents propose material projects at the notice board; the town leader (Player 1) starts coin-funded projects at Hazel's desk. Fully funded = built next morning.",
     "Policies: Player 1 can enact one policy at Hazel's desk (fee shown first): earlier store hours, later hours, or fewer weeds.",
@@ -352,6 +354,7 @@ pub const GUIDE: [&str; 12] = [
     "Home Society: every Monday a letter scores your home (furniture, variety, collections, lamps, wall items, decor, size) with tips; reaching a new rating pays a reward. Hazel can repaint your house outside.",
     "Gardening: buy seeds and a watering can from Mr. Tumble, plant on grass, water daily (rain counts). Blooms can be picked; different colours side by side may cross. He also upgrades tools.",
     "Museum: donate fish, bugs, fossils and paintings. The art stall opens on Saturdays (not during festivals).",
+    "Monthly surveys (Mara at plaza): fish on 2nd Wednesday, bugs on 4th Sunday. Register/enter 09-17; prizes 17-22. Measured catches score by relative size and rarity. Improved entries are released. Old unsized stacks stay usable but cannot enter.",
     "Calendar: First Light Jan 1-2, Blossom Picnic Apr 10-12, Starlit Regatta Jul 24-26, Harvest Fair Nov 13-16, Frost Lantern Festival Dec 20-24. Visit the plaza host.",
     "Days change at 6:00 real time. The game saves every 15 seconds, at each new day, and when you close it.",
     "Two players: F2 or a second controller adds Player 2 with their own home, pockets, coins and tasks."];

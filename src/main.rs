@@ -8,6 +8,7 @@ mod save;
 #[cfg(test)]
 mod tests;
 mod world;
+mod events;
 
 use chrono::{Datelike, Local, Timelike};
 use clock::Clock;
@@ -541,6 +542,21 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         go(g, c, door_stand(HOME), 0.12).await; face(g, c, door_face(HOME)).await; press(g, c, KeyCode::E).await; tickn!(300, &[], &[]); log!("scene={:?} variant={:?}", g.me.scene, audio::variant(g));
         press(g, c, KeyCode::J).await; press(g, c, KeyCode::X).await; tickn!(10, &[], &[]); log!("after mute: muted={} applied={:.2}", g.muted, m.applied);
         press(g, c, KeyCode::X).await; press(g, c, KeyCode::Left).await; press(g, c, KeyCode::Down).await; tickn!(10, &[], &[]); log!("after unmute/-music/-sfx: music_vol={:.1} sfx_vol={:.1} applied={:.2} dirty={}", g.music_vol, g.sfx_vol, m.applied, g.settings_dirty);
+    } else if phase == "41" {
+        // Fixture catches; registration, entry selection and prize claim use the real input layer.
+        g.join("Survey partner");
+        let sp = vec2(events::CONTEST_SPOT.0, events::CONTEST_SPOT.1);
+        for id in [0, 1] { g.activate(id); g.me.pos = sp + vec2(if id == 0 { -0.8 } else { 0.8 }, 0.7); g.me.cam = g.me.pos; g.me.face = (sp - g.me.pos).normalize(); }
+        g.activate(0);
+        if g.hr < 17 {
+            g.add_catch(if g.contest_kind() == Some(0) { 16 } else { 7 });
+            press(g, c, KeyCode::E).await; shot!("m3_registration"); press(g, c, KeyCode::Escape).await;
+            press(g, c, KeyCode::E).await; shot!("m3_entry_menu"); press(g, c, KeyCode::Enter).await;
+            log!("P1 best={:?}; P2={:?}", g.w.p.contests, g.w.others[0].contests); shot!("m3_best_entry");
+        } else {
+            g.w.p.contests.push(events::ContestEntry { day: g.w.day, kind: g.contest_kind().unwrap(), best: 130, specimen: Some(16), size_mm: 500, claimed: false });
+            press(g, c, KeyCode::E).await; log!("prize received: money={} records={:?}", g.w.p.money, g.w.p.contests); shot!("m3_prize");
+        }
     } else if phase == "40" {
         // Visual tour for presentation work (no gameplay changes): fixed viewpoints, compare before/after.
         shot!("v_start"); go(g, c, vec2(13.5, 17.5), 0.15).await; face(g, c, vec2(13.5, 10.)).await; shot!("v_plaza_north");

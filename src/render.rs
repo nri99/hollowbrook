@@ -555,6 +555,12 @@ fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(V
     { let b = tc(BOARD); r.cube(vec3(b.x - 0.35, 0.6, b.y), vec3(0.04, 0.6, 0.04), WOOD); r.cube(vec3(b.x + 0.35, 0.6, b.y), vec3(0.04, 0.6, 0.04), WOOD); r.cube(vec3(b.x, 0.95, b.y), vec3(0.45, 0.3, 0.04), Color::new(0.5, 0.35, 0.22, 1.));
         for (k, c) in [WHITE, Color::new(1., 0.9, 0.6, 1.), Color::new(0.8, 0.9, 1., 1.)].iter().enumerate() { r.cube(vec3(b.x - 0.25 + k as f32 * 0.25, 0.97, b.y + 0.045), vec3(0.09, 0.12, 0.005), *c) } }
     for bt in &g.w.built { draw_project(r, bt.kind, bt.x, bt.z, lt.night, false) }
+    if g.contest_host_open() {
+        let (x, z) = crate::events::CONTEST_SPOT;
+        r.disc(vec3(x, 0.02, z), vec2(0.28, 0.23), Color::new(0., 0., 0., 0.2));
+        human(r, 1, (None, Some(67), 0), vec3(x, 0., z), 0., 0., 0., 0, None, t, 0.);
+        if g.me.pos.distance(vec2(x, z)) < 5. { labels.push((vec3(x, 1.5, z), crate::events::CONTEST_HOST.into(), WHITE)); }
+    }
     if let Some(m) = &g.w.mproject { let p = tc((m.x, m.z)); r.cube(vec3(p.x, 0.45, p.y + 0.35), vec3(0.04, 0.45, 0.04), WOOD); r.cube(vec3(p.x, 0.85, p.y + 0.35), vec3(0.3, 0.18, 0.03), Color::new(0.95, 0.85, 0.5, 1.)); r.alpha = 0.35; draw_project(r, MPROJECTS[m.idx].2, m.x, m.z, 0., true); r.alpha = 1.;
         if g.me.pos.distance(p) < 4. { labels.push((vec3(p.x, 1.4, p.y + 0.35), format!("{} {}/{}c", MPROJECTS[m.idx].0, m.funded, MPROJECTS[m.idx].1), Color::new(1., 0.95, 0.6, 1.))) } }
     if let Some(idx) = g.me.mplace { let t = tile_of(g.me.pos + g.me.face); let mut gc = Game::from_world(g.w.clone(), g.map.clone()); gc.me.pos = g.me.pos; gc.me.face = g.me.face; let ok = gc.mp_site_ok(t);
@@ -729,7 +735,7 @@ fn room(r: &mut R, g: &Game, b: usize, lt: &Light, labels: &mut Vec<(Vec3, Strin
 fn txt(s: &str, x: f32, y: f32, z: f32, c: Color) { draw_text(s, x, y, z, c); }
 fn panel(x: f32, y: f32, w: f32, h: f32) { draw_rectangle(x, y, w, h, Color::new(0.99, 0.96, 0.88, 0.97)); draw_rectangle_lines(x, y, w, h, 3., Color::new(0.45, 0.3, 0.2, 1.)) }
 fn wrap_txt(s: &str, n: usize) -> Vec<String> { let mut o = vec![String::new()]; for w in s.split(' ') { if o.last().unwrap().len() + w.len() > n { o.push(String::new()) } let l = o.last_mut().unwrap(); if !l.is_empty() { l.push(' ') } l.push_str(w) } o }
-fn slot_name(s: &Slot) -> String { if s.qty > 1 { format!("{} x{}", def(s.def).name, s.qty) } else { def(s.def).name.to_string() } }
+fn slot_name(s: &Slot) -> String { if s.size_mm > 0 { format!("{}  {} mm", def(s.def).name, s.size_mm) } else if s.qty > 1 { format!("{} x{}", def(s.def).name, s.qty) } else { def(s.def).name.to_string() } }
 fn list(items: &[String], sel: Option<usize>, x: f32, y: f32) { for (k, s) in items.iter().enumerate() { let on = sel == Some(k); if on { draw_rectangle(x - 6., y + k as f32 * 26. - 19., 330., 25., Color::new(1., 0.85, 0.4, 0.6)) } txt(s, x, y + k as f32 * 26., 22., BLACK) } }
 fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
     let (sw, sh) = (vw(), vh());
@@ -752,6 +758,18 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
     draw_rectangle(4., sh - 34., measure_text(hint, None, 19, 1.).width + 24., 28., Color::new(0., 0., 0., 0.4)); txt(hint, 12., sh - 14., 19., WHITE);
     match &g.me.ui {
         Ui::Play => {}
+        Ui::Contest(sel) => {
+            let pw = (sw - 24.).min(620.); let x = (sw - pw) / 2.;
+            panel(x, 95., pw, 490.);
+            txt(g.contest_kind().map_or("Survey", |k| crate::events::CONTEST_NAMES[k]), x + 16., 128., 26., BLACK);
+            let best = g.contest_entry().map_or(0, |e| e.best);
+            txt(&format!("Best: {best} points. Entries close 17:00."), x + 16., 158., 19., DARKGRAY);
+            let items: Vec<String> = g.contest_slots().iter().map(|&i| { let s = &g.w.p.inv[i]; format!("{} / {} pt", slot_name(s), crate::events::catch_score(s.def, s.size_mm)) }).collect();
+            if items.is_empty() { txt("No measured catches of today's kind.", x + 16., 195., 19., DARKGRAY); }
+            list(&items, Some(*sel), x + 16., 195.);
+            txt("Improved entries are released. Others return.", x + 16., 539., 18., DARKGRAY);
+            txt(if g.me.pad { "Up/Down choose   A enter   B close" } else { "W/S choose   Enter enter catch   Esc close" }, x + 16., 570., 18., DARKGRAY);
+        }
         Ui::Talk { who, lines, i, .. } => { let pw = (sw - 24.).min(860.); let x0 = sw / 2. - pw / 2.; panel(x0, sh - 200., pw, 140.); txt(who, x0 + 20., sh - 168., 26., Color::new(0.55, 0.3, 0.15, 1.)); for (k, l) in wrap_txt(lines.get(*i).map_or("", |s| s.as_str()), ((pw - 40.) / 12.5) as usize).iter().take(2).enumerate() { txt(l, x0 + 20., sh - 128. + k as f32 * 26., 24., BLACK) } if let Ui::Talk { npc: Some(j), .. } = g.me.ui { let mv = g.w.moving.get(j).is_some_and(|&m| m != 0); txt(&format!("{}{}", if g.me.pad { "[LB] give gift" } else { "[G] give gift" }, if mv { if g.me.pad { "   [Y] ask to stay" } else { "   [X] ask to stay" } } else { "" }), x0 + 20., sh - 75., 20., GRAY) }
             txt(if g.me.pad { "[A] next" } else { "[E] next" }, x0 + pw - 100., sh - 72., 20., Color::new(0.45, 0.3, 0.2, 1.)) }
         Ui::Inv(s) | Ui::Sell(s) => { let sell = matches!(g.me.ui, Ui::Sell(_)); panel(sw / 2. - 260., 90., 520., 520.);
@@ -860,7 +878,10 @@ fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
                     if g.w.p.keepsakes.contains(&(ch as u8)) { txt("Keepsake portrait received", 95., y - 6., 15., Color::new(0.4, 0.55, 0.4, 1.)); y += 12. } }
                 let (sc, tips) = Game::home_score(&g.w.p); txt(&format!("Your home: {sc} points ({})  -  best rating rewarded: {}", HOME_TIERS[Game::home_tier(sc)].1, HOME_TIERS[g.w.p.home_best as usize].1), 80., y + 6., 19., Color::new(0.3, 0.3, 0.55, 1.)); if let Some(t) = tips.first() { txt(&format!("Tip: {t}"), 95., y + 30., 16., DARKGRAY) } }
             if g.me.jpage == 3 { let mut y = 168.; txt("Keyboard", 80., y, 22., BLACK); y += 26.; for l in HELP_KEYS { txt(l, 90., y, 17., BLACK); y += 21. } y += 8.; txt("Gamepad", 80., y, 22., BLACK); y += 26.; for l in HELP_PAD { txt(l, 90., y, 17., BLACK); y += 21. } }
-            if g.me.jpage == 4 { let mut y = 168.; let wch = ((sw - 200.) / 9.5) as usize; for l in GUIDE { for w in wrap(l, wch.max(40)) { txt(&w, 80., y, 17., BLACK); y += 20. } y += 6. } } }
+            if g.me.jpage == 4 { let mut y = 195.; let wch = ((sw - 180.) / 9.5).max(20.) as usize; let topic = (g.me.jcol as usize).min(GUIDE.len() - 1);
+                txt(&format!("Topic {}/{}   Up/Down: topics", topic + 1, GUIDE.len()), 80., 170., 18., DARKGRAY);
+                for w in wrap(GUIDE[topic], wch) { txt(&w, 80., y, 17., BLACK); y += 22.; }
+            } }
     }
     if let Some(src) = dbg {
         let lines = [format!("[{src} clock] {}", now.format("%a %Y-%m-%d %H:%M:%S")), format!("gameplay day {} last processed {}", crate::clock::day_id(now), g.w.day),

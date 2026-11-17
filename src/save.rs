@@ -20,6 +20,15 @@ pub fn upgrade(mut v: serde_json::Value) -> serde_json::Value {
             o.insert("p".into(), serde_json::Value::Object(p)); o.insert("others".into(), serde_json::json!([])); o.insert("version".into(), 4.into());
         }
     }
+    // v4 -> v5: measured catches and per-player contest records are additive.
+    // Missing measurements stay zero; legacy pocket/storage quantities are never split or removed.
+    if v.get("version").and_then(|x| x.as_u64()) == Some(4) {
+        for key in ["p", "others"] {
+            if key == "p" { if let Some(p) = v.get_mut(key).and_then(|p| p.as_object_mut()) { p.entry("contests").or_insert(serde_json::json!([])); } }
+            else if let Some(ps) = v.get_mut(key).and_then(|p| p.as_array_mut()) { for p in ps { if let Some(p) = p.as_object_mut() { p.entry("contests").or_insert(serde_json::json!([])); } } }
+        }
+        v["version"] = 5.into();
+    }
     v
 }
 pub const BACKUPS: &str = "save_backups";
@@ -58,7 +67,7 @@ pub fn migrate(path: &str, map: &[u8]) -> Option<World> {
     let mut w = World::fresh(l[1].to_string(), l[2].parse().ok()?, map);
     w.p.money = l[3].parse().ok()?; w.p.home = l[4].parse().ok()?; w.native = l[5].parse::<u16>().ok().filter(|f| FRUITS.contains(f)).unwrap_or(20);
     for id in l[8].split(',').filter_map(|x| x.parse::<u16>().ok()).filter(|&i| is_def(i)) {
-        if let Some(s) = w.p.inv.iter_mut().find(|s| s.def == id && s.qty < STACK) { s.qty += 1 } else if w.p.inv.len() < INV_CAP { w.p.inv.push(Slot { def: id, qty: 1, uid: 0 }) }
+        if let Some(s) = w.p.inv.iter_mut().find(|s| s.def == id && s.qty < STACK) { s.qty += 1 } else if w.p.inv.len() < INV_CAP { w.p.inv.push(Slot { size_mm: 0, def: id, qty: 1, uid: 0 }) }
     }
     w.p.seen = l[9].bytes().enumerate().filter(|(_, b)| *b == b'1').map(|(i, _)| i as u16).filter(|&i| is_def(i)).collect();
     for i in 0..4 { let v: Vec<f64> = l[11 + i].split(' ').filter_map(|x| x.parse().ok()).collect();

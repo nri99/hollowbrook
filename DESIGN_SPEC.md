@@ -1,5 +1,14 @@
 # Hollowbrook — Design Specification
 
+## M3 monthly surveys (original provisional rules)
+
+All schedules, sizes, scoring constants, limits, fees, rewards, item values, and presentation measurements added for M3 are **provisional** original design choices, not reference-game rules.
+- River Measure: second Wednesday monthly; Wing & Leaf Survey: fourth Sunday monthly, in every season. Mara Vale stands in the plaza at (13.5, 17.5) from 09:00 until 22:00. Registration and entries 09:00–17:00; prizes 17:00–22:00. A calendar/guide topic and the notice board announce these rules.
+- Every newly caught fish/bug takes one pocket slot, with size in millimetres preserved through storage/reload. Base size = definition size × 500 (fish) or × 100 (bug), rounded, at least 1 mm; capture size = 65–135% of base (integer truncation, at least 1 mm). Existing unmeasured stacks are kept unchanged and remain usable/sellable, but cannot enter surveys. Save v4 migrates additively to v5; v1–v3 migration continues through it.
+- Score = floor(mm × 80 / base mm) + rarity band × 7. Rarity band = 1 + min(4, floor(species sell value / 400)). Thus size is relative to species; valuable rarer species receive a modest bonus. A better entry is released/consumed only after successful validation; a worse or wrong entry is returned. Best entry and prize receipt persist independently for each player and contest day.
+- Score tiers at 68 / 93 / 116 award 120 / 350 / 950 / 1750 coins (field / copper / silver / laurel); laurel also awards a Riverglass or Leafprint Plaque (catalog value 1800, wall furniture). Full-pocket plaques go to mail. Unclaimed prizes are mailed at the next daily refresh, even after multiple missed days; no duplicate payout on reload or repeated input.
+- Measurements are visible in pockets, storage, gifting, and the survey menu. The guide uses selectable topics so new calendar information remains readable in split-screen. Network protocol 2 refuses older clients rather than sending them unknown menu states.
+
 Original real-time village-life game in Rust (macroquad). All names, characters, art and dialogue are original.
 Status tags: **[IMPL]** implemented & verified (see PROGRESS.md for evidence type) · **[PART]** partially implemented ·
 **[TODO]** required, not built · **[PROV]** provisional invented rule (not a verified requirement) ·
