@@ -277,3 +277,26 @@ fn quick_draw_standoff() {
     g.frontier_tick(0.02);
     assert_eq!(g.me.standoff, 0., "standoff cancelled out of range");
 }
+
+#[test]
+fn fresh_bounties_after_all_three_are_brought_in() {
+    let mut g = g0(at(11, 10, 0, 0));
+    to_frontier(&mut g);
+    let first: Vec<&str> = g.bounty_offers().iter().map(|o| o.name).collect();
+    for round in 0..2 {
+        for k in 0..3u8 {
+            assert!(!g.bounty_done_today(k), "round {round}: offer {k} is open");
+            g.take_bounty(k).unwrap();
+            g.detain(0);
+            g.deliver().unwrap();
+            g.turn_in().unwrap();
+        }
+        assert_eq!(g.bounty_batch(g.w.day), round + 1);
+    }
+    let third: Vec<&str> = g.bounty_offers().iter().map(|o| o.name).collect();
+    assert_ne!(first, third, "a new set of targets");
+    assert!((0..3).all(|k| !g.bounty_done_today(k)), "all three of the new set are open");
+    assert_eq!(g.w.p.bounties_done, 6);
+    let g2 = reload(&g, "batches");
+    assert_eq!(g2.bounty_batch(g2.w.day), 2);
+}

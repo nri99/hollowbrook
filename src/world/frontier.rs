@@ -258,10 +258,15 @@ pub fn rank_of(done: u32) -> &'static str {
 
 impl Game {
     /// Today's three bounties for the active player (same list all day; different for each player).
+    /// Which set of three bounties is up on `day`: a new set appears each time all three are brought in.
+    pub fn bounty_batch(&self, day: i64) -> u8 {
+        (self.w.p.bounty_log.iter().filter(|&&(d, _)| d == day).count() / 3) as u8
+    }
     pub fn bounty_offers(&self) -> Vec<Offer> {
+        let batch = self.bounty_batch(self.w.day) as u64;
         (0..3u8)
             .map(|k| {
-                let h = mix(self.w.day as u64 * 7 + k as u64, self.w.p.id as u64 + 11);
+                let h = mix(self.w.day as u64 * 7 + k as u64 + batch * 131, self.w.p.id as u64 + 11);
                 Offer {
                     name: NAMES[(h % NAMES.len() as u64) as usize],
                     crime: CRIMES[((h >> 8) % CRIMES.len() as u64) as usize],
@@ -273,7 +278,8 @@ impl Game {
             .collect()
     }
     pub fn bounty_done_today(&self, k: u8) -> bool {
-        self.w.p.bounty_log.iter().any(|&(d, o)| d == self.w.day && o == k)
+        let code = k + 3 * self.bounty_batch(self.w.day); // log entries store offer + 3 * set number
+        self.w.p.bounty_log.iter().any(|&(d, o)| d == self.w.day && o == code)
     }
     /// Accept offer `k`. One bounty at a time; each offer once per day.
     pub fn take_bounty(&mut self, k: u8) -> Result<String, &'static str> {
@@ -341,12 +347,19 @@ impl Game {
         let before = rank_of(self.w.p.bounties_done);
         self.w.p.money = self.w.p.money.saturating_add(reward);
         self.w.p.bounties_done += 1;
-        self.w.p.bounty_log.push((b.day, b.offer));
+        let set_done = {
+            let batch = self.bounty_batch(b.day);
+            self.w.p.bounty_log.push((b.day, b.offer + 3 * batch));
+            self.bounty_batch(b.day) > batch
+        };
         self.w.p.bounty_log.retain(|&(d, _)| d + 7 >= self.w.day);
         self.w.p.bounty = None;
         self.snd.push(Snd::Coin);
         let after = rank_of(self.w.p.bounties_done);
         self.note(format!("Bounty paid: {reward} coins."));
+        if set_done && b.day == self.w.day {
+            self.note("The guild master pins three fresh bounties to the board.");
+        }
         if before != after {
             self.note(format!("The guild names you {after}!"))
         }

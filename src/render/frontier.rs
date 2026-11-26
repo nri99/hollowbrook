@@ -779,6 +779,76 @@ fn frontier_life(r: &mut R, g: &Game, t: f32, labels: &mut Vec<(Vec3, String, Co
             labels.push((vec3(p.x, 1.9, p.y), LOCALS[i].1.into(), Color::new(1., 0.9, 0.75, 1.)));
         }
     }
+    // a blue hologram of your current target flickering above the bounty board
+    if let Some(b) = g.w.p.bounty.as_ref().filter(|b| !b.caught) {
+        let (bx, bz) = (F_BOARD.0 as f32 + 0.5, F_BOARD.1 as f32 + 0.5);
+        let (a, u) = (r.alpha, r.unlit);
+        r.unlit = true;
+        r.alpha = 0.45 + 0.15 * (t * 9.).sin().abs() * if (t * 3.).fract() < 0.08 { 0. } else { 1. };
+        let holo = Color::new(0.45, 0.8, 1., 1.);
+        r.disc(vec3(bx, 1.45, bz + 0.2), vec2(0.28, 0.2), holo); // projector beam base
+        r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(t * 0.8), vec3(bx, 1.5, bz + 0.2)), |r| {
+            r.sphere(vec3(0., 0.62, 0.), vec3(0.13, 0.13, 0.13), holo); // head
+            r.cube(vec3(0., 0.36, 0.), vec3(0.12, 0.13, 0.08), holo); // body
+            r.cube(vec3(0., 0.1, 0.), vec3(0.08, 0.13, 0.06), holo); // legs
+            if b.tier == 2 {
+                r.cube(vec3(0., 0.5, 0.), vec3(0.14, 0.03, 0.1), Color::new(1., 0.5, 0.5, 1.));
+                // the tell-tale scarf
+            }
+        });
+        for k in 0..4 {
+            let y = 1.5 + ((t * 0.7 + k as f32 * 0.25) % 1.) * 0.85;
+            r.quad(
+                vec3(bx - 0.22, y, bz + 0.2),
+                vec3(bx + 0.22, y, bz + 0.2),
+                vec3(bx + 0.22, y + 0.012, bz + 0.2),
+                vec3(bx - 0.22, y + 0.012, bz + 0.2),
+                Vec3::Z,
+                holo,
+            ); // scan lines
+        }
+        r.alpha = a;
+        r.unlit = u;
+    }
+    // the Longhouse band: three alien musicians with a horn, a drum and a long-necked lute
+    let skins = [Color::new(0.45, 0.7, 0.5, 1.), Color::new(0.6, 0.5, 0.75, 1.), Color::new(0.85, 0.6, 0.4, 1.)];
+    for (k, x) in [24.7f32, 25.6, 26.5].iter().enumerate() {
+        let bob = ((t * 4. + k as f32 * 1.3).sin()).abs() * 0.06;
+        let p = vec3(*x, bob, 9.55 + (k % 2) as f32 * 0.3);
+        let skin = skins[k];
+        r.disc(vec3(p.x, 0.02, p.z), vec2(0.26, 0.2), Color::new(0., 0., 0., 0.18));
+        r.cube(p + vec3(0., 0.42, 0.), vec3(0.17, 0.28, 0.12), Color::new(0.35, 0.28, 0.24, 1.)); // robe
+        r.sphere(p + vec3(0., 0.85, 0.), vec3(0.2, 0.24, 0.2), skin); // big domed head
+        for sx in [-0.08, 0.08] {
+            r.sphere(p + vec3(sx, 0.9, 0.17), vec3(0.05, 0.06, 0.03), Color::new(0.08, 0.06, 0.1, 1.));
+            // large dark eyes
+        }
+        if k == 0 {
+            r.seg(p + vec3(0.1, 0.62, 0.15), p + vec3(0.32, 0.5, 0.35), 0.03, GOLD); // horn
+            r.cone(p + vec3(0.32, 0.5, 0.35), 0.09, -0.12, GOLD);
+        } else if k == 1 {
+            r.cyl(p + vec3(0., 0.15, 0.25), 0.16, 0.28, Color::new(0.6, 0.35, 0.2, 1.)); // drum
+            r.disc(p + vec3(0., 0.44, 0.25), vec2(0.15, 0.15), Color::new(0.92, 0.85, 0.7, 1.));
+        } else {
+            r.seg(p + vec3(-0.15, 0.4, 0.15), p + vec3(0.3, 0.95, 0.1), 0.02, Color::new(0.55, 0.36, 0.2, 1.)); // lute neck
+            r.sphere(p + vec3(-0.1, 0.42, 0.16), vec3(0.13, 0.13, 0.05), Color::new(0.65, 0.42, 0.24, 1.));
+        }
+    }
+    let lx = 25.6;
+    for k in 0..3 {
+        let ph = (t * 0.6 + k as f32 * 0.33) % 1.;
+        let u = r.unlit;
+        r.unlit = true;
+        r.sphere(
+            vec3(lx - 0.4 + k as f32 * 0.4 + (ph * 6.).sin() * 0.1, 1.3 + ph * 0.9, 9.6),
+            Vec3::splat(0.04 * (1. - ph)),
+            Color::new(1., 0.9, 0.5, 1.),
+        ); // drifting notes
+        r.unlit = u;
+    }
+    if g.me.ipos.distance(vec2(lx, 9.7)) < 3.5 {
+        labels.push((vec3(lx, 1.6, 9.7), "The Longhouse Trio".into(), Color::new(1., 0.9, 0.7, 1.)));
+    }
     // two shaggy pack beasts with saddle bags, walking the cross street
     for k in 0..2 {
         let ph = t * 0.045 + k as f32 * 3.1;

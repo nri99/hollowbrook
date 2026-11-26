@@ -2471,6 +2471,8 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         press(g, c, KeyCode::S).await;
         press(g, c, KeyCode::Enter).await;
         log!("bounty={:?}", g.w.p.bounty);
+        wait(g, c, 10).await;
+        shot!("f_holo");
         let p = g.w.p.bounty.as_ref().map(|b| b.pos[0]).unwrap_or([15., 15.]);
         g.me.ipos = vec2(p[0], p[1] + 2.4);
         g.me.cam = g.me.ipos;
