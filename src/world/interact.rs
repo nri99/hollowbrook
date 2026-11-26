@@ -432,6 +432,9 @@ impl Game {
 
     // ---- interaction ----
     pub fn interact(&mut self) {
+        if self.me.pose != Pose::Stand {
+            return self.stand_up(); // E while seated or lying down gets you up (never re-seats you)
+        }
         let Some(tg) = self.target() else { return };
         self.snd.push(Snd::Blip);
         match tg {
@@ -532,7 +535,7 @@ impl Game {
                 self.me.pos = tc((b.x, b.z));
                 self.me.face = vec2(0., 1.);
                 self.me.pose = Pose::Sit(0);
-                self.note("You sit on the bench. Move to stand up.")
+                self.note("You sit on the bench. Move or press E to stand up.")
             }
             Tg::Mailbox(o) => {
                 if o == self.me.id {

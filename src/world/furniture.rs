@@ -3,7 +3,7 @@ use super::*;
 
 impl Game {
     // ---- furniture ----
-    pub(super) fn use_furn(&mut self, uid: u32, d: u16) {
+    pub fn use_furn(&mut self, uid: u32, d: u16) {
         let df = def(d);
         if uid == 0 {
             return self.note(format!("A cozy {}. Better not touch someone else's things.", df.name.to_lowercase()));
@@ -21,7 +21,7 @@ impl Game {
                     .unwrap();
                 self.me.face = dir(f.rot);
                 self.me.pose = Pose::Sit(uid);
-                self.note("You sit down. Move to stand up.")
+                self.note("You sit down. Move or press E to stand up.")
             }
             Act::Bed => {
                 self.me.stand_from = self.me.ipos;

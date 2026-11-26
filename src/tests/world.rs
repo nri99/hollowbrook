@@ -122,3 +122,40 @@ fn north_meadow_reachable_and_lake_feeds_river() {
     assert!((4..37).any(|x| (-12..0).any(|z| tile_at(&g.map, x, z) == FLOWER)));
     assert_eq!(meadow_tile(20, 2), None, "the existing town is unchanged");
 }
+
+#[test]
+fn bench_never_traps_the_player() {
+    let mut g = g0(at(11, 10, 0, 0));
+    for n in &mut g.npcs {
+        n.inside = true
+    }
+    let (bx, bz) = (12, 14);
+    g.w.built.push(Built { kind: 0, x: bx, z: bz, day: 0 });
+    let start = vec2(bx as f32 + 0.5, bz as f32 + 1.4);
+    g.me.pos = start;
+    g.me.face = vec2(0., -1.);
+    g.interact(); // sit
+    assert!(matches!(g.me.pose, Pose::Sit(_)));
+    g.interact(); // E again: stand up (this used to re-seat you and make the bench tile your stand-up spot)
+    assert_eq!(g.me.pose, Pose::Stand);
+    assert_eq!(g.me.pos, start, "back where you sat down from");
+    // even if the remembered spot is blocked (old saves / other paths), standing up lands on open ground
+    g.interact();
+    g.me.stand_from = tc((bx, bz));
+    g.step_move(vec2(0., 1.), false, 0.05);
+    assert_eq!(g.me.pose, Pose::Stand);
+    assert!(g.free(g.me.pos), "standing on open ground, not inside the bench: {:?}", g.me.pos);
+    let p0 = g.me.pos;
+    for _ in 0..10 {
+        g.step_move(vec2(0., 1.), false, 0.05)
+    }
+    assert!(g.me.pos.distance(p0) > 0.5, "can walk away");
+    // the same for a chair at home
+    home(&mut g);
+    g.w.p.room.push(Furn { uid: 501, def: 51, x: 1, z: 1, rot: 0, on: false });
+    g.me.ipos = vec2(1.5, 2.6);
+    g.use_furn(501, 51);
+    g.me.stand_from = vec2(1.5, 1.5); // the chair's own tile
+    g.interact();
+    assert!(g.me.pose == Pose::Stand && g.free(g.me.ipos), "off the chair onto open floor");
+}

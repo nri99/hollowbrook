@@ -96,6 +96,14 @@ fn random_input_stress_keeps_invariants() {
             g.update_player(&Inp::keys(&down, &pressed), 0.05);
             let bad = g.check();
             assert!(bad.is_empty(), "frame {frame}, player {id}: {bad:?}");
+            if g.me.pose == Pose::Stand && g.me.trans.is_none() {
+                assert!(
+                    g.free(g.ppos()),
+                    "frame {frame}, player {id} stuck inside something at {:?} in {:?}",
+                    g.ppos(),
+                    g.me.scene
+                );
+            }
         }
     }
     g.activate(0);
@@ -170,7 +178,7 @@ fn random_input_stress_new_worlds() {
             g.update_player(&Inp::keys(&down, &pressed), 0.05);
             let bad = g.check();
             assert!(bad.is_empty(), "frame {frame}, player {id}: {bad:?}");
-            if g.me.flight.is_none() && g.me.trans.is_none() && g.me.scene != Scene::Town {
+            if g.me.flight.is_none() && g.me.trans.is_none() && g.me.pose == Pose::Stand {
                 assert!(
                     g.free(g.ppos()),
                     "frame {frame}, player {id} stuck in a wall at {:?} in {:?}",

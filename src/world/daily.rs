@@ -442,15 +442,38 @@ impl Game {
             }
         })
     }
+    /// Get up from a seat or bed: back to where you sat down from, or the nearest open spot if that is blocked
+    /// (so you can never end up standing inside the furniture).
+    pub fn stand_up(&mut self) {
+        if self.me.pose == Pose::Stand {
+            return;
+        }
+        self.me.pose = Pose::Stand;
+        let seat = self.ppos();
+        let mut at = self.me.stand_from;
+        if !self.free(at) || at.distance(seat) > 3. {
+            at = seat;
+            'search: for ring in 1..=8 {
+                let r = ring as f32 * 0.35;
+                for k in 0..16 {
+                    let a = k as f32 / 16. * std::f32::consts::TAU;
+                    let p = seat + vec2(a.sin(), a.cos()) * r; // starts straight down (towards the camera)
+                    if self.free(p) {
+                        at = p;
+                        break 'search;
+                    }
+                }
+            }
+        }
+        self.set_ppos(at);
+    }
     pub fn step_move(&mut self, d: Vec2, run: bool, dt: f32) {
         self.me.spd = 0.;
         if d == Vec2::ZERO {
             return;
         }
         if self.me.pose != Pose::Stand {
-            self.me.pose = Pose::Stand;
-            let sf = self.me.stand_from;
-            self.set_ppos(sf);
+            self.stand_up();
             return;
         }
         if self.me.fish.is_some() {
