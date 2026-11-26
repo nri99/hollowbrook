@@ -99,7 +99,8 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
                 }
             }
             let inside = (0..FW).contains(&x) && (0..FH).contains(&z);
-            if c == ROCK && !structure(x, z) {
+            let arch = z == F_ARCH.1 && (x == F_ARCH.0 || x == F_ARCH.0 + 2);
+            if c == ROCK && !structure(x, z) && !arch {
                 let k = hash(x, z);
                 let edge = !inside || x == 0 || z == 0 || x == FW - 1 || z == FH - 1;
                 // the camera looks north, so cliffs only rise on the far sides; the south rim stays low rubble
@@ -124,6 +125,50 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
                 mesa(r, fx, fz, 3.0 + (hash(x, z) % 4) as f32 * 0.6, hash(x, z));
             }
         }
+    }
+    // the stone arch over the oasis trail: two banded pillars and a weathered span
+    let (ax, az) = (F_ARCH.0 as f32, F_ARCH.1 as f32);
+    for px in [ax, ax + 2.] {
+        mesa(r, px, az, 2.4, hash(px as i32, 7));
+    }
+    r.cube(vec3(ax + 1.5, 2.55, az + 0.5), vec3(1.55, 0.22, 0.42), sh(ROCK_C, 0.95));
+    r.cube(vec3(ax + 1.5, 2.36, az + 0.5), vec3(1.2, 0.06, 0.38), sh(ROCK_C, 0.8));
+    // the oasis: a soft oval of wet sand, deep teal water with a lighter shallow ring, drifting glints
+    let (ox, oz, rx, rz) = F_OASIS;
+    r.disc(vec3(ox, 0.006, oz), vec2(rx + 0.55, rz + 0.5), Color::new(0.66, 0.52, 0.36, 1.));
+    r.disc(vec3(ox, 0.012, oz), vec2(rx + 0.05, rz + 0.05), Color::new(0.3, 0.72, 0.72, 1.));
+    let ripple = (t * 1.1).sin() * 0.04;
+    r.disc(vec3(ox, 0.018, oz), vec2(rx * 0.72 + ripple, rz * 0.7 + ripple), Color::new(0.15, 0.52, 0.6, 1.));
+    let u = r.unlit;
+    r.unlit = true;
+    for k in 0..6 {
+        let a = t * 0.25 + k as f32 * 1.05;
+        let p = vec3(ox + a.cos() * rx * 0.55, 0.024, oz + (a * 1.3).sin() * rz * 0.5);
+        r.disc(p, vec2(0.16, 0.035), Color::new(0.88, 0.98, 1., 0.55));
+    }
+    r.unlit = u;
+    // palms, reeds and a few flowers round the oasis
+    for k in 0..7 {
+        let a = k as f32 / 7. * std::f32::consts::TAU + 0.4;
+        let (px, pz) = (ox + a.cos() * (rx + 0.9), oz + a.sin() * (rz + 0.9));
+        if k % 2 == 0 {
+            palm(r, px, pz, t);
+        } else {
+            for j in 0..5 {
+                let b = j as f32 * 1.3;
+                let p = vec3(px + b.cos() * 0.12, 0., pz + b.sin() * 0.12);
+                r.seg(
+                    p,
+                    p + vec3(b.cos() * 0.08, 0.45 + (j % 2) as f32 * 0.12, b.sin() * 0.08),
+                    0.015,
+                    Color::new(0.38, 0.55, 0.28, 1.),
+                );
+            }
+            r.sphere(vec3(px + 0.25, 0.08, pz), vec3(0.06, 0.05, 0.06), Color::new(0.95, 0.55, 0.65, 1.));
+        }
+    }
+    if g.me.ipos.distance(vec2(ox, oz)) < 6. {
+        labels.push((vec3(ox, 1.2, oz), "Oasis".into(), Color::new(0.75, 0.95, 1., 1.)));
     }
     let night = lt.night;
     for &(kind, x, z, w, d) in &F_STRUCTS {

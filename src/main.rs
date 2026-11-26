@@ -2338,6 +2338,11 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         g.me.cam = g.me.ipos;
         wait(g, c, 20).await;
         shot!("f_market");
+        g.me.ipos = vec2(33.5, 25.2);
+        g.me.cam = g.me.ipos;
+        g.me.face = vec2(0., 1.);
+        wait(g, c, 20).await;
+        shot!("f_oasis");
     } else if phase == "44" {
         // Home stories: main floor with both stairways, then basement and upstairs.
         g.w.p.home = 4;

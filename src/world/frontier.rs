@@ -4,16 +4,19 @@
 //! All names, rules and numbers here are original and provisional.
 use super::*;
 
-pub const FW: i32 = 30;
-pub const FH: i32 = 24;
+pub const FW: i32 = 40;
+pub const FH: i32 = 30;
 /// Where players appear when they come through the gate, and the gate back to Hollowbrook.
-pub const F_SPAWN: (f32, f32) = (15.5, 20.5);
-pub const F_GATE: (i32, i32) = (15, 22);
+pub const F_SPAWN: (f32, f32) = (15.5, 26.5);
+pub const F_GATE: (i32, i32) = (15, 28);
+/// The oasis pond (centre, radii in tiles) and the natural stone arch (left pillar; the right one is 2 tiles east).
+pub const F_OASIS: (f32, f32, f32, f32) = (33.5, 21.5, 2.6, 1.9);
+pub const F_ARCH: (i32, i32) = (32, 14);
 /// The Guild Post bounty board and the broker who stands beside it.
 pub const F_BOARD: (i32, i32) = (13, 9);
 pub const F_BROKER: (f32, f32) = (14.6, 9.6);
 /// Structures: (kind, x, z, w, d). 0 Guild Post, 1 Longhouse, 2 market tent, 3 water tower, 4 wreck, 5 dome hut.
-pub const F_STRUCTS: [(u8, i32, i32, i32, i32); 11] = [
+pub const F_STRUCTS: [(u8, i32, i32, i32, i32); 15] = [
     (0, 11, 5, 5, 4),
     (1, 18, 5, 6, 4),
     (2, 6, 12, 2, 2),
@@ -25,9 +28,13 @@ pub const F_STRUCTS: [(u8, i32, i32, i32, i32); 11] = [
     (5, 22, 19, 2, 2),
     (5, 26, 9, 2, 2),
     (5, 7, 7, 2, 2),
+    (5, 34, 5, 2, 2),
+    (5, 28, 25, 2, 2),
+    (2, 28, 6, 2, 2),
+    (3, 7, 23, 2, 2),
 ];
 /// Hiding spots and how the broker describes them.
-pub const F_SPOTS: [((i32, i32), &str); 8] = [
+pub const F_SPOTS: [((i32, i32), &str); 11] = [
     ((6, 6), "by the old wreck in the northwest"),
     ((26, 3), "among the red rocks in the northeast"),
     ((8, 15), "behind the market tents"),
@@ -36,6 +43,9 @@ pub const F_SPOTS: [((i32, i32), &str); 8] = [
     ((27, 21), "past the huts in the southeast"),
     ((22, 9), "round the back of the Longhouse"),
     ((2, 11), "along the western ridge"),
+    ((29, 21), "resting by the oasis"),
+    ((37, 3), "under the far north mesas"),
+    ((33, 15), "beneath the stone arch"),
 ];
 const NAMES: [&str; 12] = [
     "Corvin Slake",
@@ -132,10 +142,38 @@ pub fn frontier_map() -> Vec<u8> {
         set(15, z, PATH);
         set(16, z, PATH)
     } // main street from the gate to the Guild Post
-    for x in 4..27 {
+    for x in 4..38 {
         set(x, 10, PATH)
-    } // cross street
-    for &(x, z) in &[(25, 2), (26, 2), (27, 4), (1, 9), (12, 18), (19, 16), (28, 14), (9, 21)] {
+    } // cross street, now running out to the arch and the oasis
+    for z in 11..18 {
+        set(33, z, PATH)
+    } // a trail south under the arch to the oasis
+    let (ox, oz, rx, rz) = F_OASIS;
+    for z in 0..FH {
+        for x in 0..FW {
+            let (dx, dz) = ((x as f32 + 0.5 - ox) / rx, (z as f32 + 0.5 - oz) / rz);
+            if dx * dx + dz * dz < 1. {
+                set(x, z, SEA)
+            }
+        }
+    }
+    set(F_ARCH.0, F_ARCH.1, ROCK);
+    set(F_ARCH.0 + 2, F_ARCH.1, ROCK);
+    for &(x, z) in &[
+        (25, 2),
+        (26, 2),
+        (27, 4),
+        (1, 9),
+        (12, 18),
+        (19, 16),
+        (28, 14),
+        (9, 21),
+        (37, 25),
+        (22, 25),
+        (38, 9),
+        (24, 20),
+        (3, 26),
+    ] {
         set(x, z, ROCK)
     }
     for &(_, x, z, w, d) in &F_STRUCTS {

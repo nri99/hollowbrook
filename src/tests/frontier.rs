@@ -12,6 +12,11 @@ fn bounty_offers_take_detain_turn_in_once() {
     let town_pos = g.me.pos;
     to_frontier(&mut g);
     assert_eq!(g.me.ipos, vec2(F_SPAWN.0, F_SPAWN.1));
+    for &((x, z), _) in &F_SPOTS {
+        assert!(f_walk(&g.fmap, x, z), "hiding spot {x},{z} on open ground");
+    }
+    assert!(!f_walk(&g.fmap, F_OASIS.0 as i32, F_OASIS.1 as i32), "the oasis is water");
+    assert!(f_walk(&g.fmap, F_ARCH.0 + 1, F_ARCH.1), "you can walk under the arch");
     let offers = g.bounty_offers();
     assert_eq!(offers.len(), 3);
     assert_eq!(
