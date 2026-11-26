@@ -2270,6 +2270,61 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
             m.applied,
             g.settings_dirty
         );
+    } else if phase == "occl" {
+        // Occlusion sweep (needs HOLLOWBROOK_MARK_PLAYER): stand on every 2nd walkable tile of each outdoor scene,
+        // render, and check the magenta marker on the player is visible. Prints "OCCLUDED <scene> <x> <z>".
+        let mut bad = 0;
+        let mut total = 0;
+        for scene in [Scene::Town, Scene::Frontier, Scene::Islet] {
+            if scene != Scene::Town {
+                g.swap(scene);
+            } else if g.me.scene != Scene::Town {
+                g.swap(Scene::Town);
+            }
+            g.me.scene = scene;
+            let (x0, x1, z0, z1) = match scene {
+                Scene::Town => (-8, W as i32, -13, H as i32),
+                Scene::Frontier => (0, FW, 0, FH),
+                _ => (0, IW as i32, 0, IH as i32),
+            };
+            for z in (z0..z1).step_by(2) {
+                for x in (x0..x1).step_by(2) {
+                    let p = vec2(x as f32 + 0.5, z as f32 + 0.5);
+                    let ok = match scene {
+                        Scene::Town => g.walk_tile(x, z),
+                        Scene::Frontier => f_walk(&g.fmap, x, z),
+                        _ => matches!(tile_at_i(&g.imap, x, z), GRASS | SAND | BRIDGE),
+                    };
+                    if !ok {
+                        continue;
+                    }
+                    if scene == Scene::Town {
+                        g.me.pos = p
+                    } else {
+                        g.me.ipos = p
+                    }
+                    g.me.cam = p;
+                    g.me.face = vec2(0., 1.);
+                    let now = c.now();
+                    g.update(&Inp::none(), 1. / 60., now);
+                    g.me.cam = p;
+                    render::draw(g, now, None);
+                    let img = get_screen_data();
+                    let seen = img
+                        .bytes
+                        .chunks(4)
+                        .filter(|px| px[0] > 170 && px[2] > 140 && (px[1] as u16) + 90 < px[0].min(px[2]) as u16)
+                        .count();
+                    total += 1;
+                    if seen < 4 {
+                        bad += 1;
+                        log!("OCCLUDED {:?} {} {}", scene, p.x, p.y);
+                    }
+                    next_frame().await;
+                }
+            }
+        }
+        log!("occlusion sweep: {bad} hidden of {total} spots");
     } else if phase == "view" {
         // Reproduce a reported view: HOLLOWBROOK_VIEW="<Town|Frontier|Islet|Room:N> <x> <z> [facing degrees]".
         // Use the scene and pos from the F12 debug overlay of a bug screenshot (see tools/view.sh).

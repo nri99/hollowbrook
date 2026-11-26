@@ -21,6 +21,8 @@ Rust + macroquad 0.4, one binary, no engine. Run the full check before every com
 | `src/clock.rs` | Real-time clock, overridable with `HOLLOWBROOK_DEV_TIME`. |
 | `src/tests.rs` + `src/tests/*.rs` | Headless tests by topic; shared helpers in `tests.rs`; `quality.rs` holds the stress test and guards. |
 | `tools/check.sh` | fmt check + clippy correctness + tests (run before every commit). |
+| `tools/glitchcheck.sh` | All guards: `check.sh` + `occlusion.sh` (player never hidden behind solid scenery) + `shots.sh check`. |
+| `tools/occlusion.sh` | Player-visibility sweep over every walkable spot in each outdoor world (phase `occl`). |
 | `tools/shots.sh check` / `save` | Visual regression check: screenshots of phases 1, 30, 40, 44, 45, 48 (fixed randomness) compared with a saved baseline; changed images get before/after/difference strips in `test_output/shots_diff/`. |
 | `tools/view.sh <scene> <x> <z> [time] [facing]` | Render any spot (numbers from the F12 overlay of a bug screenshot) into `test_output/quickshot/view.png`, with the target logged. |
 | `tools/audit_pages.py <dir>` | After `tools/ui_audit.sh <dir>` (all 47 phases), labelled overview pages to scan every screenshot at once. |
@@ -165,4 +167,7 @@ The camera looks north from the south, so anything drawn south of the player can
 objects AND draws them after the player (fading alone is not enough: an earlier-drawn object still hides the player):
 - Hollowbrook: `fade_b` in `render/scene.rs` (buildings) plus tree fading.
 - Dustreach: `draw_struct` + the `blocks` test and `faded_rocks` in `render/frontier.rs`, and the gate.
-New tall objects must join one of these lists. Check with `bash tools/view.sh <scene> <x> <z>` standing just north of it.
+New tall objects must join one of these lists. `bash tools/occlusion.sh` enforces this: with HOLLOWBROOK_MARK_PLAYER a
+magenta marker is drawn on the player (`render::mark_player`), faded scenery is skipped (`render::marking`), and
+every 2nd walkable tile of Hollowbrook (incl. North Meadow), Dustreach and the islet is rendered; any spot where the
+marker is not visible fails. Reproduce a reported spot with `bash tools/view.sh <scene> <x> <z>`.

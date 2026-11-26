@@ -2,6 +2,7 @@
 
 Code map: read `ARCHITECTURE.md` first (state ownership, the `activate` gotcha, how-tos, autotest phase index).
 Fast loop for small changes: `bash tools/quick.sh [filter]` (tests, ~2-6 s) and `bash tools/quickshot.sh <phase>` (screenshots, ~25 s).
+All glitch guards at once: `bash tools/glitchcheck.sh` (tests + player-visibility sweep + screenshot comparison).
 Visual regressions: `bash tools/shots.sh check` compares key screenshots with the saved baseline (`save` after an intended visual change you have looked at).
 When fixing a bug, first add a failing test (or a `Game::check()` rule) that reproduces it, then fix it.
 Before every commit run `bash tools/check.sh` (fmt, clippy correctness, all tests incl. the random-input stress test).

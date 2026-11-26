@@ -339,3 +339,23 @@ pub fn draw_tool(r: &mut R, t: u16) {
         }
     }
 }
+
+/// Occlusion test marker (only with HOLLOWBROOK_MARK_PLAYER): a small pure-magenta dot on the camera side of the
+/// player's head, drawn right after the player so anything opaque in front hides it. tools/occlusion.sh sweeps
+/// every walkable spot and fails where the dot is not visible (the player would be hidden).
+/// True in occlusion-test mode: faded (see-through) scenery is skipped so only solid things can hide the marker.
+pub fn marking() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var("HOLLOWBROOK_MARK_PLAYER").is_ok())
+}
+pub fn mark_player(r: &mut R, p: Vec3) {
+    if !marking() {
+        return;
+    }
+    let (u, a) = (r.unlit, r.alpha);
+    r.unlit = true;
+    r.alpha = 1.;
+    r.sphere(p + vec3(0., 1.0, 0.42), Vec3::splat(0.07), Color::new(1., 0., 1., 1.));
+    r.unlit = u;
+    r.alpha = a;
+}

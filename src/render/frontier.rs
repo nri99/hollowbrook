@@ -155,11 +155,11 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
     }
     // the stone arch over the oasis trail: two banded pillars and a weathered span
     let (ax, az) = (F_ARCH.0 as f32, F_ARCH.1 as f32);
-    for px in [ax, ax + 2.] {
-        mesa(r, px, az, 2.4, hash(px as i32, 7));
+    let arch_blocks =
+        g.me.ipos.x > ax - 0.6 && g.me.ipos.x < ax + 3.6 && g.me.ipos.y > az - 3.2 && g.me.ipos.y < az + 0.9;
+    if !arch_blocks {
+        draw_arch(r);
     }
-    r.cube(vec3(ax + 1.5, 2.55, az + 0.5), vec3(1.55, 0.22, 0.42), sh(ROCK_C, 0.95));
-    r.cube(vec3(ax + 1.5, 2.36, az + 0.5), vec3(1.2, 0.06, 0.38), sh(ROCK_C, 0.8));
     // the oasis: a soft oval of wet sand, deep teal water with a lighter shallow ring, drifting glints
     let (ox, oz, rx, rz) = F_OASIS;
     r.disc(vec3(ox, 0.006, oz), vec2(rx + 0.55, rz + 0.5), Color::new(0.66, 0.52, 0.36, 1.));
@@ -355,14 +355,18 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
         t,
         g.me.swing,
     );
+    mark_player(r, vec3(g.me.ipos.x, if g.me.riding { 0.34 } else { 0. }, g.me.ipos.y));
     // structures and rocks that block the view, faded, after the player so the player shows through
     let a_view = r.alpha;
-    r.alpha = 0.3;
+    r.alpha = if marking() { 0. } else { 0.3 };
     for (kind, x, z, w, d) in faded {
         draw_struct(r, kind, x, z, w, d, t, night, labels);
     }
     for (fx, fz, h, k) in faded_rocks {
         mesa(r, fx, fz, h, k);
+    }
+    if arch_blocks {
+        draw_arch(r);
     }
     r.alpha = a_view;
     // drawn last so that, when faded, the player behind it still shows through
@@ -373,7 +377,7 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
     let behind = g.me.ipos.y < gz && g.me.ipos.y > gz - 4. && (g.me.ipos.x - gx).abs() < 2.5;
     let a0 = r.alpha;
     if behind {
-        r.alpha = 0.3;
+        r.alpha = if marking() { 0. } else { 0.3 };
     }
     for px in [gx - 1.05, gx + 1.05] {
         r.cube(vec3(px, 1.3, gz), vec3(0.12, 1.3, 0.12), BEAM);
@@ -1070,4 +1074,14 @@ pub(super) fn frontier_wilds(r: &mut R, t: f32) {
     r.sphere(c + vec3(2.5, 0.35, 0.), vec3(0.45, 0.32, 0.38), bone); // skull
     r.sphere(c + vec3(2.75, 0.4, 0.18), Vec3::splat(0.09), Color::new(0.25, 0.2, 0.18, 1.));
     r.seg(c + vec3(2.7, 0.55, 0.2), c + vec3(3.2, 1.0, 0.45), 0.05, bone); // horn
+}
+
+/// The natural stone arch over the oasis trail (faded and drawn after the player when it is in the way).
+fn draw_arch(r: &mut R) {
+    let (ax, az) = (F_ARCH.0 as f32, F_ARCH.1 as f32);
+    for px in [ax, ax + 2.] {
+        mesa(r, px, az, 2.4, hash(px as i32, 7));
+    }
+    r.cube(vec3(ax + 1.5, 2.55, az + 0.5), vec3(1.55, 0.22, 0.42), sh(ROCK_C, 0.95));
+    r.cube(vec3(ax + 1.5, 2.36, az + 0.5), vec3(1.2, 0.06, 0.38), sh(ROCK_C, 0.8));
 }

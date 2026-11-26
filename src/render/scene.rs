@@ -227,6 +227,7 @@ pub(super) fn islet_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(Vec
         t,
         g.me.swing,
     );
+    mark_player(r, vec3(g.me.ipos.x, sy, g.me.ipos.y));
     others(r, g, t);
     if g.me.pos.distance(Vec2::ZERO) >= 0. && g.me.ipos.distance(st) < 3.5 {
         labels.push((vec3(st.x, 1.7, st.y), "Sea Glass stall".into(), Color::new(0.7, 1., 0.95, 1.)))
@@ -1393,6 +1394,7 @@ pub(super) fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: 
         t,
         g.me.swing,
     );
+    mark_player(r, vec3(g.me.pos.x, sy, g.me.pos.y));
     others(r, g, t);
     for b in &g.bugs {
         let c = rgb(def(b.0).col);
@@ -1410,7 +1412,7 @@ pub(super) fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: 
         let tip = g.me.pos + g.me.face * 0.75;
         r.seg(vec3(tip.x, 1.05, tip.y), vec3(f.bob.x, y + 0.05, f.bob.y), 0.004, Color::new(0.95, 0.95, 0.95, 1.))
     }
-    r.alpha = 0.32;
+    r.alpha = if marking() { 0. } else { 0.2 }; // trees overlap in layers, so they fade further than buildings
     for z in (pp.y as i32)..(pp.y as i32 + 3) {
         for x in (pp.x as i32 - 1)..=(pp.x as i32 + 1) {
             let (px, pz) = (x as f32 + 0.5, z as f32 + 0.5);
@@ -1422,6 +1424,7 @@ pub(super) fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: 
     for &i in &fade_t {
         tree_at(r, i)
     }
+    r.alpha = if marking() { 0. } else { 0.32 };
     for &bi in &fade_b {
         let b = &BLDS[bi];
         let paint = if let BK::Home(o) = b.kind {
