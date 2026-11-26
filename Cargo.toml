@@ -14,3 +14,13 @@ gilrs = "0.11"
 [profile.release]
 lto = "fat"
 codegen-units = 1
+
+# Fast iteration: `bash tools/quick.sh` (incremental, light optimisation; dependencies optimised once).
+[profile.quick]
+inherits = "dev"
+opt-level = 1
+debug = false
+incremental = true
+
+[profile.quick.package."*"]
+opt-level = 2

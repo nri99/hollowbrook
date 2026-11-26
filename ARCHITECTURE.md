@@ -20,7 +20,8 @@ Rust + macroquad 0.4, one binary, no engine. Run the full check before every com
 | `src/audio.rs` | Procedural music and sound effects. |
 | `src/clock.rs` | Real-time clock, overridable with `HOLLOWBROOK_DEV_TIME`. |
 | `src/tests.rs` + `src/tests/*.rs` | Headless tests by topic; shared helpers in `tests.rs`; `quality.rs` holds the stress test and guards. |
-| `tools/check.sh` | fmt check + clippy correctness + tests. |
+| `tools/check.sh` | fmt check + clippy correctness + tests (run before every commit). |
+| `tools/quick.sh`, `tools/quickshot.sh` | Seconds-fast loop: incremental `quick` profile tests (optional name filter) / one autotest phase screenshot into `test_output/quickshot/`. |
 | `tools/ui_audit.sh` | Screenshots of every autotest phase as contact sheets (run from `test_output/`). |
 
 ## State: who owns what
