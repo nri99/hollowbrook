@@ -825,7 +825,10 @@ pub(super) fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: 
     if smoky {
         let ua = r.alpha;
         r.alpha = 0.5;
-        for b in BLDS.iter().filter(|b| matches!(b.kind, BK::Home(_) | BK::Res(_))) {
+        // no smoke over a house that is faded out of the way (it would float in mid-air)
+        for (_, b) in
+            BLDS.iter().enumerate().filter(|(i, b)| matches!(b.kind, BK::Home(_) | BK::Res(_)) && !fade_b.contains(i))
+        {
             let (cx, cz) = (b.x as f32 + b.w as f32 / 2. + b.w as f32 / 2. - 0.6, b.z as f32 + b.d as f32 / 2. - 0.25);
             if !near(cx, cz) {
                 continue;
