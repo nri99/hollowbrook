@@ -8,16 +8,18 @@ Rust + macroquad 0.4, one binary, no engine. Run the full check before every com
 | File | What lives there |
 |---|---|
 | `src/main.rs` | Window setup, title screen, the frame loop, saving, and all scripted autotest phases (the dev bot). |
-| `src/world.rs` | All game state and rules: `World`, `Profile`, `Player`, `Game`; movement, interaction, menus' logic, economy, furniture, residents, wildlife, daily rollover, `Game::check()`. |
+| `src/world.rs` | Core state types (`World`, `Profile`, `Player`, `Game`, `Tg`, `Ui`), constants, `activate`, saving glue, `Game::check()`, movement and scenes. |
+| `src/world/*.rs` | `impl Game` split by system: `daily` (rollover), `interact` (targets, prompts, talk), `housing`, `furniture`, `shop` (+ museum), `tools` (+ fishing, diving), `home_garden`, `festivals`, `projects`, `islet`, `extras` (campground, initiatives, surprises), `sim` (residents, wildlife, paths), `input` (update/tick, menus, placement). |
 | `src/events.rs` | M3 activities: monthly contests ("surveys"), resident invitations, hide-and-seek ("Trail Seek"). |
-| `src/data.rs` | Static content: item table `DEFS`, buildings `BLDS`, residents, rooms, dialogue, guide/help text. |
-| `src/render.rs` | Everything drawn: the CPU mesh builder `R`, models, outdoor/indoor scenes, HUD and menus. Never changes state. |
+| `src/data.rs` | Static content: item table `DEFS` and named ids `data::id`, buildings `BLDS`, residents, rooms, dialogue, guide/help text. |
+| `src/render.rs` | Colours, the CPU mesh builder `R`, lighting. Never changes state. |
+| `src/render/*.rs` | `characters`, `models` (furniture, buildings), `scene` (viewport `draw`, town, islet), `interior` (`room`), `hud` (all 2D menus). |
 | `src/save.rs` | JSON save/load, backups, corrupt-save handling, version upgrades (`upgrade`), legacy text-save migration. |
 | `src/pad.rs` | Gamepads (gilrs) mapped onto the same virtual keys as the keyboard. |
 | `src/net.rs` | LAN play: the host simulates, the friend sends input and receives snapshots. |
 | `src/audio.rs` | Procedural music and sound effects. |
 | `src/clock.rs` | Real-time clock, overridable with `HOLLOWBROOK_DEV_TIME`. |
-| `src/tests.rs` | Headless tests (`cargo test --release`). |
+| `src/tests.rs` + `src/tests/*.rs` | Headless tests by topic; shared helpers in `tests.rs`; `quality.rs` holds the stress test and guards. |
 | `tools/check.sh` | fmt check + clippy correctness + tests. |
 | `tools/ui_audit.sh` | Screenshots of every autotest phase as contact sheets (run from `test_output/`). |
 
