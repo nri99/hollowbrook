@@ -2,17 +2,17 @@
 //! the broker, bounty targets with their scarves, plus the bounty HUD panel and the board menu.
 use super::*;
 
-const SAND_C: Color = Color::new(0.87, 0.62, 0.42, 1.);
-const PATH_C: Color = Color::new(0.68, 0.49, 0.35, 1.);
-const ROCK_C: Color = Color::new(0.66, 0.36, 0.26, 1.);
-const ADOBE: Color = Color::new(0.84, 0.66, 0.5, 1.);
+const SAND_C: Color = Color::new(0.8, 0.66, 0.5, 1.); // muted, sun-bleached sand
+const PATH_C: Color = Color::new(0.62, 0.52, 0.42, 1.);
+const ROCK_C: Color = Color::new(0.58, 0.42, 0.33, 1.);
+const ADOBE: Color = Color::new(0.77, 0.68, 0.58, 1.); // weathered plaster
 const BEAM: Color = Color::new(0.42, 0.28, 0.18, 1.);
 pub const TIER_NAMES: [&str; 3] = ["Easy", "Runner", "Lookalikes"];
 
 /// Warm, dusty version of the day's light for the outpost.
 pub(super) fn dusty(lt: &Light) -> Light {
     let mix = |a: f32, b: f32| a * 0.45 + b * 0.55;
-    let warm = Color::new(0.98, 0.74, 0.52, 1.);
+    let warm = Color::new(0.9, 0.8, 0.66, 1.); // pale, dusty haze
     let k = 1. - lt.night * 0.75;
     Light {
         sky: Color::new(mix(lt.sky.r, warm.r * k), mix(lt.sky.g, warm.g * k), mix(lt.sky.b, warm.b * k), 1.),
