@@ -1178,3 +1178,34 @@ fn draw_arch(r: &mut R) {
     r.cube(vec3(ax + 1.5, 2.55, az + 0.5), vec3(1.55, 0.22, 0.42), sh(ROCK_C, 0.95));
     r.cube(vec3(ax + 1.5, 2.36, az + 0.5), vec3(1.2, 0.06, 0.38), sh(ROCK_C, 0.8));
 }
+
+/// Armour pieces (bit per ARMOR piece) on any player at `p` facing `yaw`, so everyone sees everyone's armour.
+pub(super) fn armor_on(r: &mut R, p: Vec3, yaw: f32, a: u8) {
+    let plate = Color::new(0.58, 0.62, 0.68, 1.);
+    let trim = Color::new(0.8, 0.55, 0.3, 1.);
+    r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(yaw), p), |r| {
+        if a & 1 != 0 {
+            r.sphere(vec3(0., 1.07, 0.), vec3(0.33, 0.31, 0.33), plate); // helmet shell
+            r.cube(vec3(0., 1.05, 0.29), vec3(0.22, 0.05, 0.04), Color::new(0.12, 0.14, 0.18, 1.)); // visor slit
+            r.cube(vec3(0., 1.36, 0.), vec3(0.03, 0.05, 0.22), trim); // crest
+        }
+        if a & 2 != 0 {
+            r.cube(vec3(0., 0.6, 0.06), vec3(0.2, 0.13, 0.12), plate); // chest plate
+            r.cube(vec3(0., 0.6, 0.19), vec3(0.12, 0.02, 0.01), trim);
+            for sx in [-0.22, 0.22] {
+                r.sphere(vec3(sx, 0.72, 0.), vec3(0.09, 0.06, 0.09), sh(plate, 0.9));
+                // shoulder pads
+            }
+        }
+        if a & 4 != 0 {
+            for sx in [-0.24, 0.24] {
+                r.cube(vec3(sx, 0.48, 0.03), vec3(0.05, 0.07, 0.05), plate); // gauntlets
+            }
+        }
+        if a & 8 != 0 {
+            for sx in [-0.09, 0.09] {
+                r.cube(vec3(sx, 0.07, 0.02), vec3(0.07, 0.07, 0.09), plate); // boots
+            }
+        }
+    });
+}

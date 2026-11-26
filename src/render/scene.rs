@@ -1594,6 +1594,10 @@ pub(super) fn others(r: &mut R, g: &Game, t: f32) {
             0.
         };
         human(r, o.id, shirt, vec3(p.x, sy, p.y), yaw_of(o.face), o.anim, o.spd, pose, tool, t, o.swing);
+        if matches!(o.scene, Scene::Frontier | Scene::Planet(_)) && pose == 0 {
+            let a = g.w.others.iter().find(|pr| pr.id == o.id).map_or(0, |pr| pr.armor);
+            armor_on(r, vec3(p.x, if o.riding { 0.34 } else { sy }, p.y), yaw_of(o.face), a);
+        }
     }
 }
 
