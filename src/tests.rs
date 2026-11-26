@@ -2782,3 +2782,19 @@ fn random_input_stress_keeps_invariants() {
     assert_eq!((&g2.w.p.inv, &g2.w.p.storage, g2.w.p.money), (&g.w.p.inv, &g.w.p.storage, g.w.p.money));
     assert!(g2.check().is_empty());
 }
+
+/// Named ids in `data::id` must keep pointing at the same items (saves store ids).
+#[test]
+fn named_item_ids_match_defs() {
+    use crate::data::id;
+    for (i, n) in [(id::CABBAGE_WHITE, "Cabbage White"), (id::CARP, "Carp"), (id::TROUT, "Trout")] {
+        assert_eq!(def(i).name, n);
+    }
+    let src = include_str!("data.rs");
+    let m = &src[src.find("pub mod id {").unwrap()..];
+    for line in m.lines().filter(|l| l.contains("pub const")) {
+        let num: u16 = line.split('=').nth(1).unwrap().split(';').next().unwrap().trim().parse().unwrap();
+        let name = line.split("// ").nth(1).unwrap().trim();
+        assert_eq!(def(num).name, name, "id constant out of sync: {line}");
+    }
+}

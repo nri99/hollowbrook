@@ -66,7 +66,9 @@ any you forget. Menus are the `Ui` enum on `me.ui`; their input lives in `update
 
 ## How to…
 
-- **Add an item:** append to `DEFS` in data.rs (ids are indexes; never reorder or reuse an id, saves store ids).
+- **Add an item:** append to `DEFS` in data.rs with a new id (never renumber or reuse an id; saves store ids), then add
+  its named constant to `data::id` (`id::CARP` instead of `14`). Older code still uses bare numbers; prefer `id::` in new code.
+  `named_item_ids_match_defs` fails if a constant and the table drift apart.
 - **Add something to press E on:** new `Tg` variant + `target`, `tg_pos`, `tg_label`, `interact`.
 - **Add a menu:** new `Ui` variant, input handling in `update_player`, drawing in `render.rs`; keep it inside a
   640-px split-screen half (`ui_text_budgets` test guards the fixed text tables).
