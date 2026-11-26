@@ -106,3 +106,19 @@ fn legacy_v2_migrates() {
     let g = Game::from_world(w, map);
     assert_eq!(g.w.stock.len(), 5);
 }
+
+#[test]
+fn north_meadow_reachable_and_lake_feeds_river() {
+    let g = g0(at(11, 10, 0, 0));
+    for z in -10..=1 {
+        assert!(g.walk_tile(17, z), "meadow path walkable at 17,{z}");
+    }
+    assert_eq!(tile_at(&g.map, 24, -6), RIVER);
+    assert!(!g.walk_tile(24, -6), "the lake is water");
+    for z in -4..=1 {
+        assert_eq!(tile_at(&g.map, 24, z), RIVER, "river channel continuous at z={z}");
+    }
+    assert_eq!(tile_at(&g.map, 20, -13), PINE, "meadow is ringed by pines");
+    assert!((4..37).any(|x| (-12..0).any(|z| tile_at(&g.map, x, z) == FLOWER)));
+    assert_eq!(meadow_tile(20, 2), None, "the existing town is unchanged");
+}

@@ -501,6 +501,7 @@ pub(super) fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: 
     let t = g.t;
     woods_door(r, g, lt, labels);
     ambience::town_ambience(r, g, lt, now);
+    ambience::meadow(r, g, labels);
     let (grass, fol) = season(now.month());
     let (cx, cz) = (g.me.cam.x, g.me.cam.y);
     let rad = 22i32;
@@ -509,6 +510,8 @@ pub(super) fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: 
     let ext = |x: i32, z: i32| {
         if WOODS_PATH.contains(&(x, z)) {
             PATH
+        } else if let Some(c) = meadow_tile(x, z) {
+            c
         } else if x >= 0 && z >= 0 && x < W as i32 && z < H as i32 {
             g.map[z as usize * W + x as usize]
         } else if z >= 26 {

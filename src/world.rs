@@ -736,9 +736,36 @@ pub fn tile_at_i(map: &[u8], x: i32, z: i32) -> u8 {
 pub const WOODS_PATH: [(i32, i32); 10] =
     [(0, 17), (-1, 17), (-2, 17), (-2, 16), (-3, 16), (-4, 16), (-5, 16), (-5, 17), (-6, 17), (-7, 17)];
 pub const WOODS_DOOR: (i32, i32) = (-8, 17);
+/// North Meadow: a new area beyond the northern pines (z < 0), reached through a gap at x 17-18. It lies outside
+/// the generated town map, so saves are unaffected. The lake feeds the town river.
+pub const MEADOW_LAKE: (f32, f32, f32, f32) = (24.5, -6.5, 5.5, 3.2);
+pub fn meadow_tile(x: i32, z: i32) -> Option<u8> {
+    if !(-13..=-1).contains(&z) || !(3..=37).contains(&x) {
+        return None;
+    }
+    if x == 3 || x == 37 || z == -13 {
+        return Some(PINE);
+    }
+    let (cx, cz, rx, rz) = MEADOW_LAKE;
+    let (dx, dz) = ((x as f32 + 0.5 - cx) / rx, (z as f32 + 0.5 - cz) / rz);
+    if dx * dx + dz * dz < 1. || ((24..=25).contains(&x) && z >= -4) {
+        return Some(RIVER);
+    }
+    if ((17..=18).contains(&x) && z >= -10) || (z == -10 && (17..=33).contains(&x)) {
+        return Some(PATH);
+    }
+    if [(8, -4), (11, -9), (33, -3), (6, -11), (30, -12)].contains(&(x, z)) {
+        return Some(ROCK);
+    }
+    let h = (x.wrapping_mul(73_856_093) ^ z.wrapping_mul(19_349_663)) as u32;
+    Some(if h % 7 == 0 { FLOWER } else { GRASS })
+}
 pub fn tile_at(map: &[u8], x: i32, z: i32) -> u8 {
     if WOODS_PATH.contains(&(x, z)) {
         return PATH;
+    }
+    if let Some(c) = meadow_tile(x, z) {
+        return c;
     }
     if x < 0 || z < 0 || x >= W as i32 || z >= H as i32 {
         PINE

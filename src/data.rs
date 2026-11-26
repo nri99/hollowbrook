@@ -866,6 +866,13 @@ pub fn town() -> Vec<u8> {
             }
         }
     }
+    // openings in the northern pines: the path to North Meadow and the river flowing in from its lake
+    for x in [17, 18] {
+        put(&mut m, x, 0, PATH);
+    }
+    for x in [24, 25] {
+        put(&mut m, x, 0, RIVER);
+    }
     m
 }
 
