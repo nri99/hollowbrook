@@ -643,7 +643,7 @@ fn sand_hopper(r: &mut R, p: Vec2, t: f32, alert: bool) {
 
 /// Armour pieces the player has earned, the wrist tracker, and stars while dazed.
 fn hunter_gear(r: &mut R, g: &Game, t: f32) {
-    let p = vec3(g.me.ipos.x, 0., g.me.ipos.y);
+    let p = vec3(g.me.ipos.x, if g.me.riding { 0.34 } else { 0. }, g.me.ipos.y); // ride height, like the body
     let yaw = yaw_of(g.me.face);
     let plate = Color::new(0.58, 0.62, 0.68, 1.);
     let trim = Color::new(0.8, 0.55, 0.3, 1.);
