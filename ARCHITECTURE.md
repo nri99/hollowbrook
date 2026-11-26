@@ -134,6 +134,7 @@ any you forget. Menus are the `Ui` enum on `me.ui`; their input lives in `update
 | 43 | Hide-and-seek: start, finds, completion, timeout (Nov 13 12:00 / 16:00) |
 | 44 | Home stories: main floor, basement, upstairs |
 | 45 | Dustreach: arrival at the gate, bounty board menu, lookalike bounty, market (day and dusk) |
+| 46 | Dustreach gear: buy at the board, stun pistol shot at a runner, stunned target |
 
 ## Glossary of short names
 

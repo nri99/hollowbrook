@@ -79,6 +79,26 @@ pub struct Bounty {
     /// Seconds left of the current run; negative while the target catches its breath.
     #[serde(default)]
     pub run: f32,
+    /// Seconds the target stays stunned by gear.
+    #[serde(default)]
+    pub stun: f32,
+}
+/// Frontier gear (original designs, non-lethal, works only in Dustreach): item id, price, what it does.
+pub const GEAR: [(u16, u32, &str); 3] = [
+    (172, 1500, "Snaps a stun bolt across the street. Stops a runner for a few seconds."),
+    (173, 2500, "Fires weighted cords that tangle a target's legs. Longer stun, slower to reload."),
+    (174, 1000, "A charged staff for close work. Stuns anyone right in front of you."),
+];
+pub fn is_gear(d: u16) -> bool {
+    GEAR.iter().any(|g| g.0 == d)
+}
+/// A shot in flight (runtime only): position, velocity, seconds left, kind (0 stun bolt, 1 tangle cords).
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct Bolt {
+    pub pos: Vec2,
+    pub vel: Vec2,
+    pub life: f32,
+    pub kind: u8,
 }
 pub struct Offer {
     pub name: &'static str,
@@ -180,7 +200,8 @@ impl Game {
                 pos.push([t.0 as f32 + 0.5, t.1 as f32 + 0.5]);
             }
         }
-        self.w.p.bounty = Some(Bounty { day: self.w.day, offer: k, tier: o.tier, pos, caught: false, run: 0. });
+        self.w.p.bounty =
+            Some(Bounty { day: self.w.day, offer: k, tier: o.tier, pos, caught: false, run: 0., stun: 0. });
         Ok(format!("Bounty taken: {}. Last seen {}.", o.name, F_SPOTS[o.spot].1))
     }
     pub fn drop_bounty(&mut self) {
@@ -239,13 +260,104 @@ impl Game {
         }
     }
     /// Per-player frame update in the outpost: runners flee when the hunter gets close.
+    /// Buy gear `k` at the Guild Post. One of each; equips it straight away.
+    pub fn buy_gear(&mut self, k: usize) -> Result<(), &'static str> {
+        let (d, price, _) = GEAR[k];
+        if self.w.p.tools.contains(&d) {
+            return Err("You already carry one.");
+        }
+        if self.w.p.money < price {
+            return Err("Not enough coins.");
+        }
+        self.w.p.money -= price;
+        self.w.p.tools.push(d);
+        self.w.p.equip = Some(d);
+        self.snd.push(Snd::Coin);
+        self.note(format!("Bought the {}. Space to use it, Tab to switch.", def(d).name));
+        Ok(())
+    }
+    /// Use the equipped gear (called from use_tool). Gear stays holstered outside Dustreach.
+    pub(super) fn use_gear(&mut self, d: u16) {
+        if self.me.scene != Scene::Frontier {
+            return self.note("Hollowbrook is peaceful. Your gear stays holstered here.");
+        }
+        if self.me.swing > 0. {
+            return;
+        }
+        let f = self.me.face.normalize_or_zero();
+        let at = self.me.ipos + f * 0.5;
+        self.snd.push(Snd::Blip);
+        match d {
+            172 => {
+                self.me.swing = 0.3;
+                self.me.bolts.push(Bolt { pos: at, vel: f * 14., life: 0.6, kind: 0 });
+            }
+            173 => {
+                self.me.swing = 0.9;
+                self.me.bolts.push(Bolt { pos: at, vel: f * 8., life: 0.9, kind: 1 });
+            }
+            _ => {
+                self.me.swing = 0.45;
+                self.fx.push((vec3(at.x + f.x * 0.4, 0.7, at.y + f.y * 0.4), 0., 2));
+                let me = self.me.ipos;
+                let mut stunned = false;
+                if let Some(b) = self.w.p.bounty.as_mut().filter(|b| !b.caught) {
+                    let p = vec2(b.pos[0][0], b.pos[0][1]);
+                    if p.distance(me) < 1.6 && (p - me).normalize_or_zero().dot(f) > 0.3 {
+                        b.stun = 3.;
+                        b.run = b.run.min(0.);
+                        stunned = true;
+                    }
+                }
+                if stunned {
+                    self.note("Stunned! Detain them now.");
+                }
+            }
+        }
+    }
     pub fn frontier_tick(&mut self, dt: f32) {
         if self.me.scene != Scene::Frontier {
+            self.me.bolts.clear();
             return;
         }
         let me = self.me.ipos;
+        // shots in flight: walls stop them; the real target is stunned, lookalikes just flinch
+        let mut bolts = std::mem::take(&mut self.me.bolts);
+        let mut hit = false;
+        let fmap = &self.fmap;
+        let bounty = &mut self.w.p.bounty;
+        bolts.retain_mut(|s| {
+            s.pos += s.vel * dt;
+            s.life -= dt;
+            let t = tile_of(s.pos);
+            if s.life <= 0. || !matches!(ftile(fmap, t.0, t.1), SAND | PATH) {
+                return false;
+            }
+            if let Some(b) = bounty.as_mut().filter(|b| !b.caught) {
+                if let Some(i) = b.pos.iter().position(|p| vec2(p[0], p[1]).distance(s.pos) < 0.45) {
+                    if i == 0 {
+                        b.stun = if s.kind == 1 { 5. } else { 2.5 };
+                        b.run = b.run.min(0.);
+                        hit = true;
+                    }
+                    return false;
+                }
+            }
+            true
+        });
+        self.me.bolts = bolts;
+        if hit {
+            self.note("Stunned! Detain them now.");
+        }
         let Some(b) = self.w.p.bounty.as_mut() else { return };
-        if b.caught || b.tier == 0 {
+        if b.caught {
+            return;
+        }
+        if b.stun > 0. {
+            b.stun -= dt;
+            return;
+        }
+        if b.tier == 0 {
             return;
         }
         let p = vec2(b.pos[0][0], b.pos[0][1]);

@@ -281,7 +281,7 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
         let looks = [(Some(63), Some(67), 1), (Some(65), Some(67), 1), (Some(64), Some(67), 1)];
         for (i, p) in b.pos.iter().enumerate() {
             let pos = vec3(p[0], 0., p[1]);
-            let running = i == 0 && b.run > 0.;
+            let running = i == 0 && b.run > 0. && b.stun <= 0.;
             let face = if running { vec2(p[0], p[1]) - g.me.ipos } else { g.me.ipos - vec2(p[0], p[1]) };
             r.disc(vec3(pos.x, 0.02, pos.z), vec2(0.3, 0.24), Color::new(0., 0., 0., 0.18));
             human(
@@ -297,6 +297,19 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
                 t,
                 0.,
             );
+            if i == 0 && b.stun > 0. {
+                let u = r.unlit;
+                r.unlit = true;
+                for k in 0..3 {
+                    let a = t * 5. + k as f32 * 2.1;
+                    r.sphere(
+                        pos + vec3(a.cos() * 0.28, 1.5, a.sin() * 0.28),
+                        Vec3::splat(0.05),
+                        Color::new(1., 0.92, 0.35, 1.),
+                    );
+                }
+                r.unlit = u;
+            }
             let sc = SCARVES[i % 3].1;
             let scol = Color::new(sc.0, sc.1, sc.2, 1.);
             let fwd = face.normalize_or_zero();
@@ -305,6 +318,27 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
             r.cube(tail, vec3(0.06, 0.13, 0.06), sh(scol, 0.85)); // loose end hanging at the front
         }
     }
+    // gear shots in flight
+    let u = r.unlit;
+    r.unlit = true;
+    for s in &g.me.bolts {
+        let yaw = s.vel.x.atan2(s.vel.y);
+        let at = vec3(s.pos.x, 0.8, s.pos.y);
+        if s.kind == 0 {
+            r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(yaw), at), |r| {
+                r.cube(Vec3::ZERO, vec3(0.03, 0.03, 0.24), Color::new(0.65, 0.97, 1., 1.));
+                r.cube(Vec3::ZERO, vec3(0.06, 0.06, 0.14), Color::new(0.4, 0.85, 1., 0.5));
+            });
+        } else {
+            let a = t * 14.;
+            let off = vec3(a.cos() * 0.22, 0., a.sin() * 0.22);
+            r.seg(at - off, at + off, 0.012, Color::new(0.85, 0.8, 0.6, 1.));
+            for p in [at - off, at + off] {
+                r.sphere(p, Vec3::splat(0.05), Color::new(0.25, 0.25, 0.28, 1.));
+            }
+        }
+    }
+    r.unlit = u;
     // tumbleweeds rolling down the cross street
     for k in 0..2 {
         let x = ((t * 1.3 + k as f32 * 13.) % 32.) - 1.;
@@ -324,7 +358,7 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
         g.me.anim,
         g.me.spd,
         0,
-        None,
+        g.w.p.equip,
         t,
         g.me.swing,
     );
@@ -356,7 +390,7 @@ pub(super) fn bounty_hud(g: &Game, sw: f32) {
 pub(super) fn bounty_menu(g: &Game, sel: usize, sw: f32) {
     let pw = (sw - 40.).min(700.);
     let x0 = sw / 2. - pw / 2.;
-    panel(x0, 70., pw, 430.);
+    panel(x0, 70., pw, 500.);
     txt("Guild Post  -  bounties", x0 + 20., 105., 24., Color::new(0.45, 0.3, 0.2, 1.));
     txt(
         &format!("Rank: {}   ({} brought in)", rank_of(g.w.p.bounties_done), g.w.p.bounties_done),
@@ -381,6 +415,10 @@ pub(super) fn bounty_menu(g: &Game, sel: usize, sw: f32) {
         Some(_) => "Drop current bounty".into(),
         None => "-".into(),
     });
+    for &(d, price, _) in &GEAR {
+        let owned = if g.w.p.tools.contains(&d) { "  (owned)" } else { "" };
+        items.push(format!("Gear: {}  -  {price}c{owned}", def(d).name));
+    }
     items.push("Close".into());
     list(&items, Some(sel), x0 + 30., 175.);
     if let Some(o) = offers.get(sel) {
@@ -396,8 +434,13 @@ pub(super) fn bounty_menu(g: &Game, sel: usize, sw: f32) {
         .iter()
         .enumerate()
         {
-            txt(l, x0 + 30., 345. + k as f32 * 22., 18., DARKGRAY);
+            txt(l, x0 + 30., 405. + k as f32 * 22., 18., DARKGRAY);
+        }
+    } else if let Some(gear) = sel.checked_sub(4).and_then(|k| GEAR.get(k)) {
+        let extra = " Works only in Dustreach: Space to use, Tab to switch tools.";
+        for (k, l) in wrap_txt(&format!("{}{extra}", gear.2), ((pw - 60.) / 10.) as usize).iter().enumerate() {
+            txt(l, x0 + 30., 405. + k as f32 * 22., 18., DARKGRAY);
         }
     }
-    txt("W/S choose   Enter take   Esc close", x0 + 30., 480., 18., Color::new(0.45, 0.3, 0.2, 1.));
+    txt("W/S choose   Enter take / buy   Esc close", x0 + 30., 550., 18., Color::new(0.45, 0.3, 0.2, 1.));
 }

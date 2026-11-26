@@ -80,3 +80,41 @@ fn bounties_are_personal_and_saved() {
     assert_eq!(rank_of(0), "Drifter");
     assert_eq!(rank_of(8), "Hunter");
 }
+
+#[test]
+fn gear_buy_stun_and_holstered_in_town() {
+    let mut g = g0(at(11, 10, 0, 0));
+    g.w.p.money = 6000;
+    assert!(g.buy_gear(0).is_ok());
+    assert_eq!((g.w.p.money, g.w.p.equip), (4500, Some(crate::data::id::STUN_PISTOL)));
+    assert_eq!(g.buy_gear(0), Err("You already carry one."));
+    g.use_tool(); // in Hollowbrook: holstered, nothing fired
+    assert!(g.me.bolts.is_empty());
+    to_frontier(&mut g);
+    g.take_bounty(1).unwrap(); // runner
+    let p = g.w.p.bounty.as_ref().unwrap().pos[0];
+    g.me.ipos = vec2(p[0], p[1] + 4.);
+    g.me.face = vec2(0., -1.);
+    g.w.p.bounty.as_mut().unwrap().pos[0] = [g.me.ipos.x, g.me.ipos.y - 4.];
+    g.use_tool();
+    assert_eq!(g.me.bolts.len(), 1);
+    for _ in 0..20 {
+        g.frontier_tick(0.02);
+    }
+    let b = g.w.p.bounty.as_ref().unwrap();
+    assert!(b.stun > 0. && b.run <= 0., "bolt stuns the runner: {b:?}");
+    let before = b.pos[0];
+    g.me.ipos = vec2(before[0], before[1] + 1.5); // walk right up: stunned, so no fleeing
+    for _ in 0..20 {
+        g.frontier_tick(0.02);
+    }
+    assert_eq!(g.w.p.bounty.as_ref().unwrap().pos[0], before);
+    // the staff stuns at arm's length
+    g.buy_gear(2).unwrap();
+    g.w.p.bounty.as_mut().unwrap().stun = 0.;
+    g.me.swing = 0.;
+    g.me.ipos = vec2(before[0], before[1] + 1.0);
+    g.use_tool();
+    assert!(g.w.p.bounty.as_ref().unwrap().stun > 2.);
+    assert!(g.check().is_empty());
+}

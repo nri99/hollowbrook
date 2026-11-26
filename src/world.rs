@@ -758,6 +758,9 @@ pub struct Player {
     /// journal page (0 collection, 1 initiatives, 2 settings, 3 controls, 4 guide) and collection column in split view
     pub jpage: u8,
     pub jcol: u8,
+    /// Dustreach gear shots in flight (never saved).
+    #[serde(default)]
+    pub bolts: Vec<Bolt>,
 }
 impl Player {
     pub fn new(id: usize, pos: Vec2) -> Player {
@@ -784,6 +787,7 @@ impl Player {
             mplace: None,
             jpage: 0,
             jcol: 0,
+            bolts: vec![],
         }
     }
 }

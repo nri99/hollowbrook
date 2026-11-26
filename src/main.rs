@@ -2267,6 +2267,37 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
             m.applied,
             g.settings_dirty
         );
+    } else if phase == "46" {
+        // Dustreach gear: buy through the board menu, fire the stun pistol at a runner, then the staff up close.
+        g.w.p.money = 9000; // logged FIXTURE so the purchases are affordable
+        g.swap(Scene::Frontier);
+        g.me.scene = Scene::Frontier;
+        g.me.ipos = vec2(13.6, 10.7);
+        g.me.cam = g.me.ipos;
+        g.me.face = vec2(0., -1.);
+        wait(g, c, 20).await;
+        press(g, c, KeyCode::E).await;
+        for _ in 0..4 {
+            press(g, c, KeyCode::S).await;
+        }
+        shot!("g_gear_menu");
+        press(g, c, KeyCode::Enter).await;
+        for _ in 0..3 {
+            press(g, c, KeyCode::W).await;
+        }
+        press(g, c, KeyCode::Enter).await; // take the runner
+        log!("equip={:?} money={} bounty={:?}", g.w.p.equip, g.w.p.money, g.w.p.bounty);
+        let p = g.w.p.bounty.as_ref().map(|b| b.pos[0]).unwrap_or([15., 15.]);
+        g.me.ipos = vec2(p[0], p[1] - 3.5);
+        g.me.cam = g.me.ipos;
+        g.me.face = vec2(0., 1.);
+        wait(g, c, 20).await;
+        press(g, c, KeyCode::Space).await;
+        wait(g, c, 4).await;
+        shot!("g_pistol_shot");
+        wait(g, c, 20).await;
+        shot!("g_stunned");
+        log!("after shot: {:?}", g.w.p.bounty);
     } else if phase == "45" {
         // Dustreach: arrival, the street, the board menu through the real input path, a lookalike bounty up close.
         g.swap(Scene::Frontier);

@@ -288,6 +288,37 @@ pub fn draw_tool(r: &mut R, t: u16) {
             r.seg(vec3(0., -0.05, 0.14), vec3(0., 0.02, 0.3), 0.015, c);
             r.seg(vec3(0., 0.02, -0.02), vec3(0., 0.05, 0.12), 0.012, c)
         }
+        172 => {
+            // Stun Pistol: gunmetal body, copper coil, a cyan emitter
+            let metal = Color::new(0.34, 0.36, 0.4, 1.);
+            r.cube(vec3(0., -0.05, 0.), vec3(0.022, 0.06, 0.03), Color::new(0.25, 0.18, 0.13, 1.));
+            r.cube(vec3(0., 0.02, 0.09), vec3(0.03, 0.035, 0.11), metal);
+            r.cube(vec3(0., 0.02, 0.12), vec3(0.037, 0.042, 0.016), Color::new(0.82, 0.52, 0.26, 1.));
+            let u = r.unlit;
+            r.unlit = true;
+            r.sphere(vec3(0., 0.02, 0.21), Vec3::splat(0.022), Color::new(0.55, 0.95, 1., 1.));
+            r.unlit = u;
+        }
+        173 => {
+            // Tangle Launcher: olive tube with two cord weights at the muzzle
+            r.seg(vec3(0., 0.0, -0.06), vec3(0., 0.06, 0.32), 0.036, Color::new(0.45, 0.43, 0.3, 1.));
+            r.cube(vec3(0., -0.05, 0.02), vec3(0.02, 0.05, 0.025), Color::new(0.25, 0.18, 0.13, 1.));
+            for x in [-0.035, 0.035] {
+                r.sphere(vec3(x, 0.07, 0.34), Vec3::splat(0.024), Color::new(0.2, 0.2, 0.22, 1.));
+            }
+        }
+        174 => {
+            // Shock Staff: a long dark staff with leather wraps and a glowing blue tip
+            r.seg(vec3(0., -0.42, -0.12), vec3(0., 0.58, 0.26), 0.018, Color::new(0.24, 0.2, 0.18, 1.));
+            for k in 0..3 {
+                let p = vec3(0., -0.05 + k as f32 * 0.07, 0.02 + k as f32 * 0.027);
+                r.sphere(p, vec3(0.026, 0.02, 0.026), Color::new(0.5, 0.33, 0.2, 1.));
+            }
+            let u = r.unlit;
+            r.unlit = true;
+            r.sphere(vec3(0., 0.62, 0.28), Vec3::splat(0.045), Color::new(0.5, 0.75, 1., 1.));
+            r.unlit = u;
+        }
         60 => {
             r.seg(vec3(0., 0.05, 0.), vec3(0., 0.3, 0.45), 0.014, WOOD);
             for k in 0..10 {

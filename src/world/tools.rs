@@ -51,6 +51,12 @@ impl Game {
         }
     }
     pub fn use_tool(&mut self) {
+        if let Some(d) = self.w.p.equip.filter(|&d| is_gear(d)) {
+            return self.use_gear(d);
+        }
+        if self.me.scene == Scene::Frontier {
+            return self.note("Hollowbrook tools aren't much use out here.");
+        }
         if self.swimming() {
             return self.dive();
         }

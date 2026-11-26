@@ -573,9 +573,13 @@ impl Game {
                 }
             }
             Ui::Bounty(s) => {
-                let s = mv(s, 5);
+                let s = mv(s, 8);
                 self.me.ui = Ui::Bounty(s);
-                if esc || (ok && s == 4) {
+                if ok && (4..7).contains(&s) {
+                    if let Err(e) = self.buy_gear(s - 4) {
+                        self.note(e)
+                    }
+                } else if esc || (ok && s == 7) {
                     self.me.ui = Ui::Play
                 } else if ok && s < 3 {
                     match self.take_bounty(s as u8) {
