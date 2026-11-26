@@ -2741,3 +2741,44 @@ fn ui_text_budgets() {
         assert!(d.name.len() <= 24, "item name too long for menus: {}", d.name)
     }
 }
+
+/// Stress test: two players mash random keys for thousands of frames while game time races through several days.
+/// After every frame the world invariants (`Game::check`) must hold, nothing may panic, and a save/reload must keep
+/// both players' possessions. Deterministic: a fixed LCG seed picks the keys.
+#[test]
+fn random_input_stress_keeps_invariants() {
+    use KeyCode::*;
+    const KEYS: [KeyCode; 18] =
+        [W, A, S, D, Up, Down, Left, Right, E, Enter, Escape, Space, Tab, I, J, F, G, LeftShift];
+    let mut seed: u64 = 0x5eed_1234;
+    let mut rnd = move |n: usize| {
+        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        ((seed >> 33) as usize) % n
+    };
+    let mut g = two(at(11, 8, 0, 0));
+    g.w.p.money = 99_999; // let random presses actually buy things
+    let mut now = at(11, 8, 0, 0);
+    let mut held: [Vec<KeyCode>; 2] = [vec![], vec![]];
+    g.activate(1);
+    g.swap(Scene::Room(g.home())); // start player 2 indoors so both scenes are exercised
+    g.me.scene = Scene::Room(g.home());
+    for frame in 0..40000 {
+        now += chrono::Duration::seconds(7); // ~3.2 game days in total
+        g.tick(0.05, now);
+        for id in 0..2 {
+            if frame % 6 == 0 {
+                held[id] = (0..rnd(3)).map(|_| KEYS[rnd(4)]).collect();
+            } // keep walking in one direction for a while
+            let pressed: Vec<KeyCode> = if rnd(3) == 0 { vec![KEYS[rnd(KEYS.len())]] } else { vec![] };
+            let down: Vec<KeyCode> = held[id].iter().chain(pressed.iter()).copied().collect();
+            g.activate(id);
+            g.update_player(&Inp::keys(&down, &pressed), 0.05);
+            let bad = g.check();
+            assert!(bad.is_empty(), "frame {frame}, player {id}: {bad:?}");
+        }
+    }
+    g.activate(0);
+    let g2 = reload(&g, "stress");
+    assert_eq!((&g2.w.p.inv, &g2.w.p.storage, g2.w.p.money), (&g.w.p.inv, &g.w.p.storage, g.w.p.money));
+    assert!(g2.check().is_empty());
+}

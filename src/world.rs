@@ -998,6 +998,44 @@ impl Game {
         self.w.uid
     }
     /// Snapshot for saving: an object being moved is still owned by the room; resume point is outdoors.
+    /// Invariants that must hold after every frame (tests and the stress test call this).
+    /// Returns a description of each broken rule; empty means the world is consistent.
+    pub fn check(&self) -> Vec<String> {
+        let mut bad = vec![];
+        let mut uids: Vec<u32> = self.w.ground.iter().map(|g| g.uid).collect();
+        for p in std::iter::once(&self.w.p).chain(self.w.others.iter()) {
+            let who = &p.name;
+            if p.inv.len() > INV_CAP {
+                bad.push(format!("{who}: {} pocket slots > {INV_CAP}", p.inv.len()))
+            }
+            if p.storage.len() > STORE_CAP {
+                bad.push(format!("{who}: {} storage slots > {STORE_CAP}", p.storage.len()))
+            }
+            for s in p.inv.iter().chain(p.storage.iter()) {
+                if s.qty == 0 || s.qty > STACK {
+                    bad.push(format!("{who}: stack of {} x{}", def(s.def).name, s.qty))
+                }
+            }
+            if p.story > 2 || (p.story != 0 && p.stories.get(p.story as usize).is_some_and(|v| !v.is_empty())) {
+                bad.push(format!("{who}: story {} has furniture in two places", p.story))
+            }
+            uids.extend(p.inv.iter().chain(p.storage.iter()).map(|s| s.uid).filter(|&u| u != 0));
+            uids.extend(p.room.iter().chain(p.stories.iter().flatten()).map(|f| f.uid));
+        }
+        uids.extend(self.me.placing.iter().map(|pl| pl.f.uid));
+        uids.sort();
+        for w in uids.windows(2) {
+            if w[0] == w[1] && w[0] != 0 {
+                bad.push(format!("item uid {} exists twice (duplication)", w[0]))
+            }
+        }
+        let mut don: Vec<u16> = self.w.donated.iter().map(|d| d.0).collect();
+        don.sort();
+        if don.windows(2).any(|w| w[0] == w[1]) {
+            bad.push("a museum donation is recorded twice".into())
+        }
+        bad
+    }
     pub fn persist(&self) -> World {
         let mut w = self.w.clone();
         for pl in std::iter::once(&self.me).chain(self.others.iter()) {
