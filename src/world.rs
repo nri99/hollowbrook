@@ -999,6 +999,7 @@ impl Game {
     }
     /// Snapshot for saving: an object being moved is still owned by the room; resume point is outdoors.
     /// Invariants that must hold after every frame (tests and the stress test call this).
+    #[cfg_attr(not(test), allow(dead_code))]
     /// Returns a description of each broken rule; empty means the world is consistent.
     pub fn check(&self) -> Vec<String> {
         let mut bad = vec![];
@@ -4485,7 +4486,7 @@ impl Game {
                 if tile_at_i(&self.imap, t.0, t.1) == GRASS {
                     let av = Self::islet_bug_pool(self.mo, self.hr);
                     if !av.is_empty() {
-                        self.ibugs.push((av[gen_range(0, av.len())], tc(t), gen_range(0., 6.28)))
+                        self.ibugs.push((av[gen_range(0, av.len())], tc(t), gen_range(0., std::f32::consts::TAU)))
                     }
                 }
             }
@@ -4560,7 +4561,7 @@ impl Game {
             if matches!(tile_at(map, tt.0, tt.1), GRASS | FLOWER) {
                 let av = Self::bug_pool(rainy(self.w.day), mo, hr);
                 if !av.is_empty() {
-                    self.bugs.push((av[gen_range(0, av.len())], tc(tt), gen_range(0., 6.28)))
+                    self.bugs.push((av[gen_range(0, av.len())], tc(tt), gen_range(0., std::f32::consts::TAU)))
                 }
             }
         }
