@@ -1,6 +1,7 @@
 # Hollowbrook — notes for Claude
 
 Code map: read `ARCHITECTURE.md` first (state ownership, the `activate` gotcha, how-tos, autotest phase index).
+Fast loop for small changes: `bash tools/quick.sh [filter]` (tests, ~2-6 s) and `bash tools/quickshot.sh <phase>` (screenshots, ~25 s).
 Before every commit run `bash tools/check.sh` (fmt, clippy correctness, all tests incl. the random-input stress test).
 
 When resuming work, first read `DESIGN_SPEC.md`, `BACKLOG.md`, `PROGRESS.md`, `RELEASE_CHECKLIST.md` (and `MORNING_REPORT.md` if present).
@@ -21,7 +22,6 @@ Take the highest-priority unblocked backlog item, finish and verify it, then upd
 - Work only inside this project and `test_output/`. Run autotests only in `test_output/`, never in the root (player save lives there).
 - Back up saves before migrations. Never reset the town or remove possessions.
 - Never send desktop-wide synthetic keyboard/mouse input. Never push/publish. No destructive git. No paid services.
-- Keep the game original: no names, art, music or signature systems from existing commercial games.
 - Mark invented numbers/rules as provisional in DESIGN_SPEC.md.
 
 ## Build
