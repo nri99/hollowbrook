@@ -48,7 +48,8 @@ window closes. A backup is copied to `save_backups/` on every launch. Audio sett
 
 ## Project documents
 - `RELEASE_NOTES.md` - what is in the current release.
-- `RELEASE_1.md` - release scope and acceptance criteria.
+- `ARCHITECTURE.md` - code map: files, state ownership, frame loop, saving, how-tos, autotest phases.
+- `docs/archive/` - finished release scope (`RELEASE_1.md`) and the earlier autonomous run report.
 - `DESIGN_SPEC.md` - design and (provisional) balance values.
 - `HUMAN_VERIFICATION.md` - checks that need a person (physical controllers, listening, playtesting).
 

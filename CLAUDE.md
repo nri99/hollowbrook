@@ -1,5 +1,8 @@
 # Hollowbrook — notes for Claude
 
+Code map: read `ARCHITECTURE.md` first (state ownership, the `activate` gotcha, how-tos, autotest phase index).
+Before every commit run `bash tools/check.sh` (fmt, clippy correctness, all tests incl. the random-input stress test).
+
 When resuming work, first read `DESIGN_SPEC.md`, `BACKLOG.md`, `PROGRESS.md`, `RELEASE_CHECKLIST.md` (and `MORNING_REPORT.md` if present).
 Take the highest-priority unblocked backlog item, finish and verify it, then update `PROGRESS.md`, `BACKLOG.md`, `RELEASE_CHECKLIST.md`.
 
