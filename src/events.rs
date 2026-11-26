@@ -15,112 +15,269 @@ pub const CONTEST_PLAQUES: [u16; 2] = [170, 171];
 /// One player's registration, best entry, and prize receipt for a contest day.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct ContestEntry {
-    pub day: i64, pub kind: usize, pub best: u32, pub specimen: Option<u16>, pub size_mm: u16, pub claimed: bool,
+    pub day: i64,
+    pub kind: usize,
+    pub best: u32,
+    pub specimen: Option<u16>,
+    pub size_mm: u16,
+    pub claimed: bool,
 }
 /// Per-player invitation. State: 0 offered, 1 accepted, 2 completed, 3 missed, 4 declined.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub struct SocialInvite { pub day: i64, pub slot: usize, pub character: usize, pub kind: u8, pub hour: u32, pub state: u8 }
+pub struct SocialInvite {
+    pub day: i64,
+    pub slot: usize,
+    pub character: usize,
+    pub kind: u8,
+    pub hour: u32,
+    pub state: u8,
+}
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub struct HidingFriend { pub slot: usize, pub character: usize, pub tile: (i32, i32) }
+pub struct HidingFriend {
+    pub slot: usize,
+    pub character: usize,
+    pub tile: (i32, i32),
+}
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub struct Seek { pub day: i64, pub deadline_ms: i64, pub spots: Vec<HidingFriend>, pub found: Vec<usize>, pub done: bool, pub failed: bool }
+pub struct Seek {
+    pub day: i64,
+    pub deadline_ms: i64,
+    pub spots: Vec<HidingFriend>,
+    pub found: Vec<usize>,
+    pub done: bool,
+    pub failed: bool,
+}
 /// Second Wednesday (fish), fourth Sunday (bugs), every month, including winter.
 pub fn contest_on(day: i64) -> Option<usize> {
     let d = NaiveDate::from_num_days_from_ce_opt(i32::try_from(day).ok()?)?;
-    match (d.weekday().num_days_from_monday(), (d.day() - 1) / 7) { (2, 1) => Some(0), (6, 3) => Some(1), _ => None }
+    match (d.weekday().num_days_from_monday(), (d.day() - 1) / 7) {
+        (2, 1) => Some(0),
+        (6, 3) => Some(1),
+        _ => None,
+    }
 }
-pub fn catch_base(d: u16) -> u16 { (def(d).size * if def(d).k == K::Fish { 500. } else { 100. }).round().max(1.) as u16 }
-pub fn catch_score(d: u16, mm: u16) -> u32 { mm as u32 * 80 / catch_base(d) as u32 + (1 + (def(d).sell / 400).min(4)) * 7 }
-pub fn contest_tier(score: u32) -> usize { [68, 93, 116].iter().filter(|&&s| score >= s).count() }
+pub fn catch_base(d: u16) -> u16 {
+    (def(d).size * if def(d).k == K::Fish { 500. } else { 100. }).round().max(1.) as u16
+}
+pub fn catch_score(d: u16, mm: u16) -> u32 {
+    mm as u32 * 80 / catch_base(d) as u32 + (1 + (def(d).sell / 400).min(4)) * 7
+}
+pub fn contest_tier(score: u32) -> usize {
+    [68, 93, 116].iter().filter(|&&s| score >= s).count()
+}
 
 impl Game {
     /// Every new fish/bug gets its own measured pocket slot. Legacy stacks remain intact.
     pub fn add_catch(&mut self, d: u16) -> bool {
-        if self.w.p.inv.len() >= INV_CAP { self.note("Your pockets are full; the catch was released."); return false }
+        if self.w.p.inv.len() >= INV_CAP {
+            self.note("Your pockets are full; the catch was released.");
+            return false;
+        }
         let mm = (catch_base(d) as u32 * gen_range(65u32, 136) / 100).max(1) as u16;
         self.w.p.inv.push(Slot { def: d, qty: 1, uid: 0, size_mm: mm });
-        if !self.w.p.seen.contains(&d) { self.w.p.seen.push(d) }
-        self.note(format!("Caught {}: {mm} mm!", def(d).name)); true
+        if !self.w.p.seen.contains(&d) {
+            self.w.p.seen.push(d)
+        }
+        self.note(format!("Caught {}: {mm} mm!", def(d).name));
+        true
     }
-    pub fn contest_kind(&self) -> Option<usize> { contest_on(self.w.day) }
-    pub fn contest_host_open(&self) -> bool { self.contest_kind().is_some() && (9..22).contains(&self.hr) }
-    pub fn contest_entry(&self) -> Option<&ContestEntry> { self.w.p.contests.iter().find(|e| e.day == self.w.day && Some(e.kind) == self.contest_kind()) }
+    pub fn contest_kind(&self) -> Option<usize> {
+        contest_on(self.w.day)
+    }
+    pub fn contest_host_open(&self) -> bool {
+        self.contest_kind().is_some() && (9..22).contains(&self.hr)
+    }
+    pub fn contest_entry(&self) -> Option<&ContestEntry> {
+        self.w.p.contests.iter().find(|e| e.day == self.w.day && Some(e.kind) == self.contest_kind())
+    }
     pub fn contest_slots(&self) -> Vec<usize> {
         let Some(k) = self.contest_kind() else { return vec![] };
-        self.w.p.inv.iter().enumerate().filter(|(_, s)| s.qty > 0 && s.size_mm > 0 && def(s.def).k == if k == 0 { K::Fish } else { K::Bug }).map(|(i, _)| i).collect()
+        self.w
+            .p
+            .inv
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.qty > 0 && s.size_mm > 0 && def(s.def).k == if k == 0 { K::Fish } else { K::Bug })
+            .map(|(i, _)| i)
+            .collect()
     }
     pub fn contest_talk(&mut self) {
         let Some(k) = self.contest_kind().filter(|_| self.contest_host_open()) else { return };
         let lines = if self.hr >= 17 {
-            match self.contest_claim() { Ok(s) => vec![s], Err(e) => vec![e.into()] }
+            match self.contest_claim() {
+                Ok(s) => vec![s],
+                Err(e) => vec![e.into()],
+            }
         } else if self.contest_entry().is_none() {
-            self.w.p.contests.push(ContestEntry { day: self.w.day, kind: k, best: 0, specimen: None, size_mm: 0, claimed: false });
-            vec![format!("You're registered for {}! Entries close at 17:00.", CONTEST_NAMES[k]), "Bring measured catches. Size relative to species and rarity earn points.".into(), "Talk again to enter one catch. An improved entry is released; others return to you.".into(), "Prizes from 17:00 to 22:00. Missed prizes arrive by post next morning.".into()]
-        } else { self.me.ui = Ui::Contest(0); return };
+            self.w.p.contests.push(ContestEntry {
+                day: self.w.day,
+                kind: k,
+                best: 0,
+                specimen: None,
+                size_mm: 0,
+                claimed: false,
+            });
+            vec![
+                format!("You're registered for {}! Entries close at 17:00.", CONTEST_NAMES[k]),
+                "Bring measured catches. Size relative to species and rarity earn points.".into(),
+                "Talk again to enter one catch. An improved entry is released; others return to you.".into(),
+                "Prizes from 17:00 to 22:00. Missed prizes arrive by post next morning.".into(),
+            ]
+        } else {
+            self.me.ui = Ui::Contest(0);
+            return;
+        };
         self.me.ui = Ui::Talk { npc: None, who: CONTEST_HOST.into(), lines, i: 0 };
     }
     pub fn contest_submit(&mut self, slot: usize) -> Result<u32, &'static str> {
-        if !self.contest_host_open() || self.hr >= 17 { return Err("Entries are open 09:00-17:00 on contest days.") }
+        if !self.contest_host_open() || self.hr >= 17 {
+            return Err("Entries are open 09:00-17:00 on contest days.");
+        }
         let Some(e) = self.contest_entry() else { return Err("Talk to Mara to register first.") };
-        if !self.contest_slots().contains(&slot) { return Err("Bring a measured catch of today's kind.") }
-        let s = self.w.p.inv[slot]; let score = catch_score(s.def, s.size_mm);
-        if score <= e.best { return Err("That does not beat your best; your catch was returned.") }
-        let day = self.w.day; let k = self.contest_kind().unwrap();
+        if !self.contest_slots().contains(&slot) {
+            return Err("Bring a measured catch of today's kind.");
+        }
+        let s = self.w.p.inv[slot];
+        let score = catch_score(s.def, s.size_mm);
+        if score <= e.best {
+            return Err("That does not beat your best; your catch was returned.");
+        }
+        let day = self.w.day;
+        let k = self.contest_kind().unwrap();
         let e = self.w.p.contests.iter_mut().find(|e| e.day == day && e.kind == k).unwrap();
-        e.best = score; e.specimen = Some(s.def); e.size_mm = s.size_mm;
-        self.w.p.inv[slot].qty -= 1; if self.w.p.inv[slot].qty == 0 { self.w.p.inv.remove(slot); }
-        self.snd.push(Snd::Blip); Ok(score)
+        e.best = score;
+        e.specimen = Some(s.def);
+        e.size_mm = s.size_mm;
+        self.w.p.inv[slot].qty -= 1;
+        if self.w.p.inv[slot].qty == 0 {
+            self.w.p.inv.remove(slot);
+        }
+        self.snd.push(Snd::Blip);
+        Ok(score)
     }
     pub fn contest_claim(&mut self) -> Result<String, &'static str> {
-        if !self.contest_host_open() || self.hr < 17 { return Err("Prizes are available after entries close at 17:00.") }
+        if !self.contest_host_open() || self.hr < 17 {
+            return Err("Prizes are available after entries close at 17:00.");
+        }
         let day = self.w.day;
-        let Some(e) = self.w.p.contests.iter_mut().find(|e| e.day == day) else { return Err("You did not register for today's contest.") };
-        if e.claimed { return Err("You already received this contest's prize.") }
-        if e.best == 0 { return Err("No entry was recorded. Come enter next month's survey!") }
+        let Some(e) = self.w.p.contests.iter_mut().find(|e| e.day == day) else {
+            return Err("You did not register for today's contest.");
+        };
+        if e.claimed {
+            return Err("You already received this contest's prize.");
+        }
+        if e.best == 0 {
+            return Err("No entry was recorded. Come enter next month's survey!");
+        }
         e.claimed = true;
-        let tier = contest_tier(e.best); let item = (tier == 3).then_some(CONTEST_PLAQUES[e.kind]); let coins = CONTEST_PRIZES[tier];
+        let tier = contest_tier(e.best);
+        let item = (tier == 3).then_some(CONTEST_PLAQUES[e.kind]);
+        let coins = CONTEST_PRIZES[tier];
         self.w.p.money += coins;
-        if let Some(d) = item { self.event_gift(CONTEST_HOST, "Your survey plaque.", d); }
+        if let Some(d) = item {
+            self.event_gift(CONTEST_HOST, "Your survey plaque.", d);
+        }
         self.snd.push(Snd::Coin);
-        Ok(format!("{} prize: {coins} coins{}!", ["Field", "Copper", "Silver", "Laurel"][tier], if item.is_some() { " and a plaque" } else { "" }))
+        Ok(format!(
+            "{} prize: {coins} coins{}!",
+            ["Field", "Copper", "Silver", "Laurel"][tier],
+            if item.is_some() { " and a plaque" } else { "" }
+        ))
     }
     /// Complete missed contest payouts without discarding them when a day is skipped/offline.
     pub fn settle_contests(&mut self) {
         let p = &mut self.w.p;
         for e in &mut p.contests {
             if e.day < self.w.day && !e.claimed && e.best > 0 {
-                let tier = contest_tier(e.best); e.claimed = true;
-                p.mail.push(Letter { from: CONTEST_HOST.into(), text: format!("Your {} prize from {}.", CONTEST_NAMES[e.kind], e.day), coins: CONTEST_PRIZES[tier], item: (tier == 3).then_some(CONTEST_PLAQUES[e.kind]), read: false, claimed: false });
+                let tier = contest_tier(e.best);
+                e.claimed = true;
+                p.mail.push(Letter {
+                    from: CONTEST_HOST.into(),
+                    text: format!("Your {} prize from {}.", CONTEST_NAMES[e.kind], e.day),
+                    coins: CONTEST_PRIZES[tier],
+                    item: (tier == 3).then_some(CONTEST_PLAQUES[e.kind]),
+                    read: false,
+                    claimed: false,
+                });
             }
         }
     }
     pub fn event_gift(&mut self, who: &str, text: &str, d: u16) {
-        let ok = if self.w.p.inv.len() < INV_CAP { if def(d).k == K::Furn { self.add_furn(d) } else { self.add(d) } } else { false };
-        if !ok { self.w.p.mail.push(Letter { from: who.into(), text: text.into(), coins: 0, item: Some(d), read: false, claimed: false }); self.note("Your gift is safe in your mailbox."); }
+        let ok = if self.w.p.inv.len() < INV_CAP {
+            if def(d).k == K::Furn {
+                self.add_furn(d)
+            } else {
+                self.add(d)
+            }
+        } else {
+            false
+        };
+        if !ok {
+            self.w.p.mail.push(Letter {
+                from: who.into(),
+                text: text.into(),
+                coins: 0,
+                item: Some(d),
+                read: false,
+                claimed: false,
+            });
+            self.note("Your gift is safe in your mailbox.");
+        }
     }
     pub fn contest_notice(&self) -> String {
-        if let Some(k) = self.contest_kind() { format!("Today: {}. Plaza entries 09-17; prizes 17-22.", CONTEST_NAMES[k]) }
-        else { "Fish: 2nd Wed; bugs: 4th Sun. Plaza entries 09-17; prizes 17-22.".into() }
+        if let Some(k) = self.contest_kind() {
+            format!("Today: {}. Plaza entries 09-17; prizes 17-22.", CONTEST_NAMES[k])
+        } else {
+            "Fish: 2nd Wed; bugs: 4th Sun. Plaza entries 09-17; prizes 17-22.".into()
+        }
     }
     /// A nearby friend initiates an offer without interrupting movement or existing dialogue.
     pub fn maybe_social_offer(&mut self) {
-        if self.me.scene != Scene::Town || self.me.ui != Ui::Play || !(9..17).contains(&self.hr) || self.w.p.social_day == self.w.day { return }
+        if self.me.scene != Scene::Town
+            || self.me.ui != Ui::Play
+            || !(9..17).contains(&self.hr)
+            || self.w.p.social_day == self.w.day
+        {
+            return;
+        }
         // Personal cycle: home visit, Trail Seek, then a quiet day.
         let kind = (self.w.day + self.me.id as i64).rem_euclid(3) as u8;
-        if kind == 2 || self.w.p.invitation.as_ref().is_some_and(|v| v.day == self.w.day) { return }
-        let slot = (0..4).filter(|&i| self.w.p.npcs[i].friend >= 5 && !self.npcs[i].inside && self.npcs[i].pos.distance(self.me.pos) < 2.8 && (kind == 1 || self.seek_hide_position(i).is_none()))
+        if kind == 2 || self.w.p.invitation.as_ref().is_some_and(|v| v.day == self.w.day) {
+            return;
+        }
+        let slot = (0..4)
+            .filter(|&i| {
+                self.w.p.npcs[i].friend >= 5
+                    && !self.npcs[i].inside
+                    && self.npcs[i].pos.distance(self.me.pos) < 2.8
+                    && (kind == 1 || self.seek_hide_position(i).is_none())
+            })
             .min_by(|&a, &b| self.npcs[a].pos.distance(self.me.pos).total_cmp(&self.npcs[b].pos.distance(self.me.pos)));
         if let Some(slot) = slot {
             self.w.p.social_day = self.w.day;
-            self.w.p.invitation = Some(SocialInvite { day: self.w.day, slot, character: self.w.roster[slot], kind, hour: self.hr + (kind == 0) as u32, state: 0 });
+            self.w.p.invitation = Some(SocialInvite {
+                day: self.w.day,
+                slot,
+                character: self.w.roster[slot],
+                kind,
+                hour: self.hr + (kind == 0) as u32,
+                state: 0,
+            });
             self.note(format!("{} has an invitation for you. Talk to them!", self.res(slot).name));
         }
     }
     pub fn refresh_social(&mut self) {
-        if let Some(s) = &mut self.w.p.seek { if s.day < self.w.day && !s.done { s.done = true; s.failed = true; } }
+        if let Some(s) = &mut self.w.p.seek {
+            if s.day < self.w.day && !s.done {
+                s.done = true;
+                s.failed = true;
+            }
+        }
         if let Some(v) = self.w.p.invitation.clone() {
             if v.day < self.w.day {
-                if v.kind == 0 && v.state == 1 { self.w.p.missed_visit = Some((v.slot, v.character, v.day)); }
+                if v.kind == 0 && v.state == 1 {
+                    self.w.p.missed_visit = Some((v.slot, v.character, v.day));
+                }
                 self.w.p.invitation = None;
             }
         }
@@ -128,111 +285,251 @@ impl Game {
     pub fn social_tick(&mut self) {
         self.refresh_social();
         if self.w.p.seek.as_ref().is_some_and(|s| !s.done && self.clock_ms >= s.deadline_ms) {
-            let s = self.w.p.seek.as_mut().unwrap(); s.done = true; s.failed = true;
-            if let Some(v) = &mut self.w.p.invitation { if v.kind == 1 { v.state = 3; } }
+            let s = self.w.p.seek.as_mut().unwrap();
+            s.done = true;
+            s.failed = true;
+            if let Some(v) = &mut self.w.p.invitation {
+                if v.kind == 1 {
+                    v.state = 3;
+                }
+            }
             self.note("Trail Seek is over. Nothing lost; thanks for playing!");
         }
         if let Some(v) = self.w.p.invitation.clone() {
-            if self.w.roster.get(v.slot) != Some(&v.character) { self.w.p.invitation = None; }
-            else if v.kind == 0 && v.state == 1 && self.hr > v.hour {
-                self.w.p.missed_visit = Some((v.slot, v.character, v.day)); self.w.p.invitation.as_mut().unwrap().state = 3;
+            if self.w.roster.get(v.slot) != Some(&v.character) {
+                self.w.p.invitation = None;
+            } else if v.kind == 0 && v.state == 1 && self.hr > v.hour {
+                self.w.p.missed_visit = Some((v.slot, v.character, v.day));
+                self.w.p.invitation.as_mut().unwrap().state = 3;
+            } else if v.state == 0 && self.hr > v.hour {
+                self.w.p.invitation.as_mut().unwrap().state = 4;
             }
-            else if v.state == 0 && self.hr > v.hour { self.w.p.invitation.as_mut().unwrap().state = 4; }
         }
-        if self.w.p.missed_visit.is_some_and(|(s, c, _)| self.w.roster.get(s) != Some(&c)) { self.w.p.missed_visit = None; }
+        if self.w.p.missed_visit.is_some_and(|(s, c, _)| self.w.roster.get(s) != Some(&c)) {
+            self.w.p.missed_visit = None;
+        }
         self.maybe_social_offer();
     }
     pub fn invited_home(&self, slot: usize) -> bool {
-        std::iter::once(&self.w.p).chain(self.w.others.iter()).any(|p| p.invitation.as_ref().is_some_and(|v|
-            v.day == self.w.day && v.kind == 0 && v.slot == slot && self.w.roster.get(slot) == Some(&v.character) && (v.state == 1 || v.state == 2) && self.hr == v.hour))
+        std::iter::once(&self.w.p).chain(self.w.others.iter()).any(|p| {
+            p.invitation.as_ref().is_some_and(|v| {
+                v.day == self.w.day
+                    && v.kind == 0
+                    && v.slot == slot
+                    && self.w.roster.get(slot) == Some(&v.character)
+                    && (v.state == 1 || v.state == 2)
+                    && self.hr == v.hour
+            })
+        })
     }
     pub fn social_talk(&mut self, slot: usize) -> bool {
-        if self.seek_talk(slot) { return true }
+        if self.seek_talk(slot) {
+            return true;
+        }
         if let Some((s, c, day)) = self.w.p.missed_visit {
             if s == slot && self.w.roster[slot] == c && day < self.w.day {
                 self.w.p.missed_visit = None;
-                self.me.ui = Ui::Talk { npc: Some(slot), who: self.res(slot).name.into(), lines: vec!["I saved a chair for our visit. No worries; we can try another day.".into()], i: 0 }; return true
+                self.me.ui = Ui::Talk {
+                    npc: Some(slot),
+                    who: self.res(slot).name.into(),
+                    lines: vec!["I saved a chair for our visit. No worries; we can try another day.".into()],
+                    i: 0,
+                };
+                return true;
             }
         }
-        if self.w.p.invitation.as_ref().is_some_and(|v| v.slot == slot && v.day == self.w.day && self.w.roster[slot] == v.character && v.state == 0) {
-            self.me.ui = Ui::Invitation; return true
+        if self.w.p.invitation.as_ref().is_some_and(|v| {
+            v.slot == slot && v.day == self.w.day && self.w.roster[slot] == v.character && v.state == 0
+        }) {
+            self.me.ui = Ui::Invitation;
+            return true;
         }
         false
     }
     pub fn accept_social(&mut self) -> Result<(), &'static str> {
         let Some(v) = self.w.p.invitation.clone() else { return Err("There is no invitation waiting.") };
-        if v.day != self.w.day || v.state != 0 || self.hr > v.hour || self.w.roster.get(v.slot) != Some(&v.character) { return Err("That invitation has expired.") }
-        if v.kind == 1 { return self.start_seek() }
-        let hour = v.hour; let name = self.res(v.slot).name;
+        if v.day != self.w.day || v.state != 0 || self.hr > v.hour || self.w.roster.get(v.slot) != Some(&v.character) {
+            return Err("That invitation has expired.");
+        }
+        if v.kind == 1 {
+            return self.start_seek();
+        }
+        let hour = v.hour;
+        let name = self.res(v.slot).name;
         self.w.p.invitation.as_mut().unwrap().state = 1;
-        self.note(format!("Visit {name} at home today between {hour}:00 and {}:00.", hour + 1)); Ok(())
+        self.note(format!("Visit {name} at home today between {hour}:00 and {}:00.", hour + 1));
+        Ok(())
     }
     pub fn visit_arrival(&mut self) {
         let Some(v) = self.w.p.invitation.clone() else { return };
-        if v.kind != 0 || v.state != 1 || v.day != self.w.day || self.hr != v.hour || self.w.roster.get(v.slot) != Some(&v.character) || self.me.scene != Scene::Room(HOUSES[v.slot]) { return }
-        self.w.p.invitation.as_mut().unwrap().state = 2; self.w.p.npcs[v.slot].friend += 4;
+        if v.kind != 0
+            || v.state != 1
+            || v.day != self.w.day
+            || self.hr != v.hour
+            || self.w.roster.get(v.slot) != Some(&v.character)
+            || self.me.scene != Scene::Room(HOUSES[v.slot])
+        {
+            return;
+        }
+        self.w.p.invitation.as_mut().unwrap().state = 2;
+        self.w.p.npcs[v.slot].friend += 4;
         let name = self.res(v.slot).name;
         self.event_gift(name, "Thank you for coming to visit!", FLOWERS[v.slot]);
-        self.note(format!("{}: You made it! Friendship +4, and a flower for you.", name)); self.npcs[v.slot].happy = 2.;
+        self.note(format!("{}: You made it! Friendship +4, and a flower for you.", name));
+        self.npcs[v.slot].happy = 2.;
     }
     pub fn social_notice(&self) -> Option<String> {
-        if let Some(s) = self.w.p.seek.as_ref().filter(|s| self.seek_live(s)) { return Some(format!("Trail Seek: {}/3 found, {}s left. Look behind trees and buildings.", s.found.len(), (s.deadline_ms - self.clock_ms + 999) / 1000)) }
-        self.w.p.invitation.as_ref().filter(|v| v.day == self.w.day && v.kind == 0 && v.state <= 1).map(|v|
-            format!("{} invites you home {}:00-{}:00 today{}.", self.res(v.slot).name, v.hour, v.hour + 1, if v.state == 0 { " (talk to accept)" } else { " (accepted)" }))
+        if let Some(s) = self.w.p.seek.as_ref().filter(|s| self.seek_live(s)) {
+            return Some(format!(
+                "Trail Seek: {}/3 found, {}s left. Look behind trees and buildings.",
+                s.found.len(),
+                (s.deadline_ms - self.clock_ms + 999) / 1000
+            ));
+        }
+        self.w.p.invitation.as_ref().filter(|v| v.day == self.w.day && v.kind == 0 && v.state <= 1).map(|v| {
+            format!(
+                "{} invites you home {}:00-{}:00 today{}.",
+                self.res(v.slot).name,
+                v.hour,
+                v.hour + 1,
+                if v.state == 0 { " (talk to accept)" } else { " (accepted)" }
+            )
+        })
     }
-    pub fn seek_live(&self, s: &Seek) -> bool { !s.done && s.day == self.w.day && self.clock_ms > 0 && self.clock_ms < s.deadline_ms }
+    pub fn seek_live(&self, s: &Seek) -> bool {
+        !s.done && s.day == self.w.day && self.clock_ms > 0 && self.clock_ms < s.deadline_ms
+    }
     /// All participating players see the same real residents and positions. Progress is personal.
     pub fn seek_hide_position(&self, slot: usize) -> Option<Vec2> {
-        std::iter::once(&self.w.p).chain(self.w.others.iter()).filter_map(|p| p.seek.as_ref()).filter(|s| self.seek_live(s))
-            .flat_map(|s| s.spots.iter()).find(|h| h.slot == slot && self.w.roster.get(slot) == Some(&h.character)).map(|h| tc(h.tile))
+        std::iter::once(&self.w.p)
+            .chain(self.w.others.iter())
+            .filter_map(|p| p.seek.as_ref())
+            .filter(|s| self.seek_live(s))
+            .flat_map(|s| s.spots.iter())
+            .find(|h| h.slot == slot && self.w.roster.get(slot) == Some(&h.character))
+            .map(|h| tc(h.tile))
     }
-    pub fn seek_reserved(&self, tile: (i32, i32)) -> bool { (0..4).any(|i| self.seek_hide_position(i).is_some_and(|p| tile_of(p) == tile)) }
+    pub fn seek_reserved(&self, tile: (i32, i32)) -> bool {
+        (0..4).any(|i| self.seek_hide_position(i).is_some_and(|p| tile_of(p) == tile))
+    }
     fn start_seek(&mut self) -> Result<(), &'static str> {
-        if self.me.scene != Scene::Town || self.clock_ms == 0 { return Err("Start Trail Seek outside in the town.") }
-        if self.w.p.seek.as_ref().is_some_and(|s| s.day == self.w.day) { return Err("You already played Trail Seek today.") }
-        let existing = std::iter::once(&self.w.p).chain(self.w.others.iter()).filter_map(|p| p.seek.as_ref()).find(|s| self.seek_live(s)).map(|s| s.spots.clone());
-        let spots = if let Some(spots) = existing { spots } else {
-            let busy = |slot: usize| std::iter::once(&self.w.p).chain(self.w.others.iter()).any(|p| p.invitation.as_ref().is_some_and(|v|
-                v.kind == 0 && v.day == self.w.day && v.slot == slot && v.state <= 2 && v.hour >= self.hr && self.w.roster.get(slot) == Some(&v.character)));
-            let slots: Vec<usize> = (0..4).filter(|&i| !busy(i) && !self.visit.is_some_and(|v| v.0 == i)).collect(); if slots.len() < 3 { return Err("Too many friends have appointments. Try later.") }
-            let mut candidates: Vec<(i32, i32)> = self.w.trees.iter().map(|t| (t.x, t.z - 1)).chain(BLDS.iter().map(|b| (b.x + b.w / 2, b.z - 1))).collect();
-            let n = candidates.len(); if n == 0 { return Err("No safe hiding spots today.") }
+        if self.me.scene != Scene::Town || self.clock_ms == 0 {
+            return Err("Start Trail Seek outside in the town.");
+        }
+        if self.w.p.seek.as_ref().is_some_and(|s| s.day == self.w.day) {
+            return Err("You already played Trail Seek today.");
+        }
+        let existing = std::iter::once(&self.w.p)
+            .chain(self.w.others.iter())
+            .filter_map(|p| p.seek.as_ref())
+            .find(|s| self.seek_live(s))
+            .map(|s| s.spots.clone());
+        let spots = if let Some(spots) = existing {
+            spots
+        } else {
+            let busy = |slot: usize| {
+                std::iter::once(&self.w.p).chain(self.w.others.iter()).any(|p| {
+                    p.invitation.as_ref().is_some_and(|v| {
+                        v.kind == 0
+                            && v.day == self.w.day
+                            && v.slot == slot
+                            && v.state <= 2
+                            && v.hour >= self.hr
+                            && self.w.roster.get(slot) == Some(&v.character)
+                    })
+                })
+            };
+            let slots: Vec<usize> = (0..4).filter(|&i| !busy(i) && !self.visit.is_some_and(|v| v.0 == i)).collect();
+            if slots.len() < 3 {
+                return Err("Too many friends have appointments. Try later.");
+            }
+            let mut candidates: Vec<(i32, i32)> = self
+                .w
+                .trees
+                .iter()
+                .map(|t| (t.x, t.z - 1))
+                .chain(BLDS.iter().map(|b| (b.x + b.w / 2, b.z - 1)))
+                .collect();
+            let n = candidates.len();
+            if n == 0 {
+                return Err("No safe hiding spots today.");
+            }
             candidates.rotate_left((self.w.day as usize + self.me.id) % n);
             let mut spots: Vec<HidingFriend> = vec![];
             for t in candidates {
-                if !self.free(tc(t)) || self.w.holes.contains(&t) || self.w.weeds.contains(&t) || self.w.ground.iter().any(|g| tile_of(vec2(g.x, g.z)) == t)
-                    || self.w.garden.iter().any(|p| (p.x, p.z) == t) || self.w.mproject.as_ref().is_some_and(|p| (p.x, p.z) == t)
+                if !self.free(tc(t))
+                    || self.w.holes.contains(&t)
+                    || self.w.weeds.contains(&t)
+                    || self.w.ground.iter().any(|g| tile_of(vec2(g.x, g.z)) == t)
+                    || self.w.garden.iter().any(|p| (p.x, p.z) == t)
+                    || self.w.mproject.as_ref().is_some_and(|p| (p.x, p.z) == t)
                     || self.w.project.as_ref().is_some_and(|p| ptiles(p.kind, p.x, p.z).contains(&t))
-                    || spots.iter().any(|h| tc(h.tile).distance(tc(t)) < 3.) || self.bfs(tile_of(self.me.pos), t, true).is_none() { continue }
+                    || spots.iter().any(|h| tc(h.tile).distance(tc(t)) < 3.)
+                    || self.bfs(tile_of(self.me.pos), t, true).is_none()
+                {
+                    continue;
+                }
                 // The chosen resident must also be able to walk there from home.
-                let slot = slots[spots.len()]; if self.bfs(door_tile(HOUSES[slot]), t, true).is_none() { continue }
-                spots.push(HidingFriend { slot, character: self.w.roster[slot], tile: t }); if spots.len() == 3 { break }
+                let slot = slots[spots.len()];
+                if self.bfs(door_tile(HOUSES[slot]), t, true).is_none() {
+                    continue;
+                }
+                spots.push(HidingFriend { slot, character: self.w.roster[slot], tile: t });
+                if spots.len() == 3 {
+                    break;
+                }
             }
-            if spots.len() != 3 { return Err("No three reachable hiding spots today. Nothing spent.") }
+            if spots.len() != 3 {
+                return Err("No three reachable hiding spots today. Nothing spent.");
+            }
             spots
         };
         self.chats.retain(|c| !spots.iter().any(|h| h.slot == c.0 || h.slot == c.1));
-        self.w.p.seek = Some(Seek { day: self.w.day, deadline_ms: self.clock_ms + 240_000, spots, found: vec![], done: false, failed: false });
+        self.w.p.seek = Some(Seek {
+            day: self.w.day,
+            deadline_ms: self.clock_ms + 240_000,
+            spots,
+            found: vec![],
+            done: false,
+            failed: false,
+        });
         self.w.p.invitation.as_mut().unwrap().state = 1;
-        self.note("Trail Seek! Four minutes, three friends. Let them reach their hiding spots first."); Ok(())
+        self.note("Trail Seek! Four minutes, three friends. Let them reach their hiding spots first.");
+        Ok(())
     }
     fn seek_talk(&mut self, slot: usize) -> bool {
         let Some(s) = self.w.p.seek.as_ref().filter(|s| self.seek_live(s)) else { return false };
-        let Some(h) = s.spots.iter().find(|h| h.slot == slot && self.w.roster.get(slot) == Some(&h.character)) else { return false };
-        if self.me.scene != Scene::Town || self.npcs[slot].pos.distance(self.me.pos) > 1.7 { return false }
-        let line = if self.npcs[slot].pos.distance(tc(h.tile)) > 0.25 { "I'm still walking to my hiding spot. Give me a moment!".into() }
-        else if s.found.contains(&slot) { "You already found me. The others are still hiding!".into() }
-        else {
-            let s = self.w.p.seek.as_mut().unwrap(); s.found.push(slot);
-            if s.found.len() == 3 {
-                s.done = true; let friends = s.spots.clone();
-                if let Some(v) = &mut self.w.p.invitation { v.state = 2; }
-                self.w.p.money += 240;
-                for h in friends { self.w.p.npcs[h.slot].friend += 2; }
-                self.event_gift("Trail Seek friends", "Thanks for finding us!", 80);
-                self.snd.push(Snd::Coin); "That's everyone! 240 coins, a branch, and friendship +2 with each of us!".into()
-            } else { format!("You found me! {}/3 friends found.", s.found.len()) }
+        let Some(h) = s.spots.iter().find(|h| h.slot == slot && self.w.roster.get(slot) == Some(&h.character)) else {
+            return false;
         };
-        self.me.ui = Ui::Talk { npc: Some(slot), who: self.res(slot).name.into(), lines: vec![line], i: 0 }; true
+        if self.me.scene != Scene::Town || self.npcs[slot].pos.distance(self.me.pos) > 1.7 {
+            return false;
+        }
+        let line = if self.npcs[slot].pos.distance(tc(h.tile)) > 0.25 {
+            "I'm still walking to my hiding spot. Give me a moment!".into()
+        } else if s.found.contains(&slot) {
+            "You already found me. The others are still hiding!".into()
+        } else {
+            let s = self.w.p.seek.as_mut().unwrap();
+            s.found.push(slot);
+            if s.found.len() == 3 {
+                s.done = true;
+                let friends = s.spots.clone();
+                if let Some(v) = &mut self.w.p.invitation {
+                    v.state = 2;
+                }
+                self.w.p.money += 240;
+                for h in friends {
+                    self.w.p.npcs[h.slot].friend += 2;
+                }
+                self.event_gift("Trail Seek friends", "Thanks for finding us!", 80);
+                self.snd.push(Snd::Coin);
+                "That's everyone! 240 coins, a branch, and friendship +2 with each of us!".into()
+            } else {
+                format!("You found me! {}/3 friends found.", s.found.len())
+            }
+        };
+        self.me.ui = Ui::Talk { npc: Some(slot), who: self.res(slot).name.into(), lines: vec![line], i: 0 };
+        true
     }
 }
