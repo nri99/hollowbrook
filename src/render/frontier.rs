@@ -214,31 +214,6 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
             }
         }
     }
-    // the gate back to Hollowbrook: two posts, a crossbeam and a faint green shimmer
-    let gx = F_GATE.0 as f32 + 1.;
-    let gz = F_GATE.1 as f32 + 0.5;
-    for px in [gx - 1.05, gx + 1.05] {
-        r.cube(vec3(px, 1.3, gz), vec3(0.12, 1.3, 0.12), BEAM);
-    }
-    r.cube(vec3(gx, 2.6, gz), vec3(1.3, 0.1, 0.14), BEAM);
-    r.cube(vec3(gx, 2.32, gz + 0.12), vec3(0.6, 0.14, 0.02), Color::new(0.35, 0.55, 0.32, 1.));
-    let a = r.alpha;
-    r.alpha = 0.22 + 0.06 * (t * 1.7).sin();
-    let u = r.unlit;
-    r.unlit = true;
-    r.quad(
-        vec3(gx - 0.95, 0.02, gz),
-        vec3(gx + 0.95, 0.02, gz),
-        vec3(gx + 0.95, 2.5, gz),
-        vec3(gx - 0.95, 2.5, gz),
-        Vec3::Z,
-        Color::new(0.55, 0.95, 0.6, 1.),
-    );
-    r.unlit = u;
-    r.alpha = a;
-    if g.me.ipos.distance(vec2(gx, gz)) < 4. {
-        labels.push((vec3(gx, 3.0, gz), "To Hollowbrook".into(), Color::new(0.75, 1., 0.75, 1.)));
-    }
     // bounty board with one paper per open offer
     let (bx, bz) = (F_BOARD.0 as f32 + 0.5, F_BOARD.1 as f32 + 0.5);
     for px in [bx - 0.45, bx + 0.45] {
@@ -362,6 +337,39 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
         t,
         g.me.swing,
     );
+    // drawn last so that, when faded, the player behind it still shows through
+    // the gate back to Hollowbrook: two posts, a crossbeam and a faint green shimmer
+    let gx = F_GATE.0 as f32 + 1.;
+    let gz = F_GATE.1 as f32 + 0.5;
+    // the camera looks north, so the gate would hide a player standing just behind it: fade it while they are
+    let behind = g.me.ipos.y < gz && g.me.ipos.y > gz - 4. && (g.me.ipos.x - gx).abs() < 2.5;
+    let a0 = r.alpha;
+    if behind {
+        r.alpha = 0.3;
+    }
+    for px in [gx - 1.05, gx + 1.05] {
+        r.cube(vec3(px, 1.3, gz), vec3(0.12, 1.3, 0.12), BEAM);
+    }
+    r.cube(vec3(gx, 2.6, gz), vec3(1.3, 0.1, 0.14), BEAM);
+    r.cube(vec3(gx, 2.32, gz + 0.12), vec3(0.6, 0.14, 0.02), Color::new(0.35, 0.55, 0.32, 1.));
+    r.alpha = a0;
+    let a = r.alpha;
+    r.alpha = (0.22 + 0.06 * (t * 1.7).sin()) * if behind { 0.4 } else { 1. };
+    let u = r.unlit;
+    r.unlit = true;
+    r.quad(
+        vec3(gx - 0.95, 0.02, gz),
+        vec3(gx + 0.95, 0.02, gz),
+        vec3(gx + 0.95, 2.5, gz),
+        vec3(gx - 0.95, 2.5, gz),
+        Vec3::Z,
+        Color::new(0.55, 0.95, 0.6, 1.),
+    );
+    r.unlit = u;
+    r.alpha = a;
+    if g.me.ipos.distance(vec2(gx, gz)) < 4. {
+        labels.push((vec3(gx, 3.0, gz), "To Hollowbrook".into(), Color::new(0.75, 1., 0.75, 1.)));
+    }
 }
 
 /// The bounty panel under the messages while a hunt is on.
