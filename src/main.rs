@@ -2270,6 +2270,31 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
             m.applied,
             g.settings_dirty
         );
+    } else if phase == "49" {
+        // Feel pass: a quick-draw standoff in Dustreach at the DRAW! moment; a resident greeting in Hollowbrook.
+        g.swap(Scene::Frontier);
+        g.me.scene = Scene::Frontier;
+        g.take_bounty(2).ok();
+        let p = g.w.p.bounty.as_ref().map(|b| b.pos[0]).unwrap_or([15., 15.]);
+        g.me.ipos = vec2(p[0], p[1] + 2.5);
+        g.me.cam = g.me.ipos;
+        g.me.face = vec2(0., -1.);
+        for _ in 0..400 {
+            if g.me.standoff > 0. && g.me.standoff <= DRAW_WINDOW * 0.8 {
+                break;
+            }
+            step(g, c, &[], &[]).await;
+        }
+        shot!("s_draw");
+        log!("standoff={}", g.me.standoff);
+        g.swap(Scene::Town);
+        g.me.scene = Scene::Town;
+        let n = g.npcs.iter().position(|n| !n.inside).unwrap_or(0);
+        g.me.pos = g.npcs[n].pos + vec2(0., 1.6);
+        g.me.cam = g.me.pos;
+        g.me.face = vec2(0., -1.);
+        wait(g, c, 6).await;
+        shot!("s_greeting");
     } else if phase == "occl" {
         // Occlusion sweep (needs HOLLOWBROOK_MARK_PLAYER): stand on every 2nd walkable tile of each outdoor scene,
         // render, and check the magenta marker on the player is visible. Prints "OCCLUDED <scene> <x> <z>".

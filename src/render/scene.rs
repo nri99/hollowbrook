@@ -410,6 +410,33 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
     if g.me.scene == Scene::Frontier {
         hud_cam(vp);
         frontier_sky(g, &lt, vw(), vh());
+    } else if g.me.scene == Scene::Town && rainbow_now(g, now) {
+        hud_cam(vp);
+        let (w, h) = (vw(), vh());
+        let cols = [
+            (0.95, 0.35, 0.35),
+            (0.98, 0.65, 0.3),
+            (0.98, 0.92, 0.4),
+            (0.45, 0.85, 0.45),
+            (0.4, 0.6, 0.95),
+            (0.65, 0.45, 0.85),
+        ];
+        let (cx, cy, r0) = (w * 0.55, h * 0.62, h * 0.72); // a wide arc whose top shows in the sky above the rooftops
+        for (k, c) in cols.iter().enumerate() {
+            let rr = r0 - k as f32 * h * 0.012;
+            for s in 0..48 {
+                let (a0, a1) =
+                    (std::f32::consts::PI * (1. + s as f32 / 48.), std::f32::consts::PI * (1. + (s + 1) as f32 / 48.));
+                draw_line(
+                    cx + a0.cos() * rr,
+                    cy + a0.sin() * rr * 0.8,
+                    cx + a1.cos() * rr,
+                    cy + a1.sin() * rr * 0.8,
+                    h * 0.012,
+                    Color::new(c.0, c.1, c.2, 0.32),
+                );
+            }
+        }
     }
     set_camera(&cam);
     let mut r = R::new(curve, c0, &lt, if matches!(g.me.scene, Scene::Room(_)) { (100., 200.) } else { (12., 21.) });
@@ -1349,6 +1376,17 @@ pub(super) fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: 
             let hp = vec3(n.pos.x + 0.25, 1.55 + (t * 2.).sin() * 0.03, n.pos.y);
             draw_emote(r, e, hp, t, labels)
         }
+        // a friendly greeting the first time you pass a resident each day
+        if !g.w.p.npcs[i].talked && !n.inside && n.pos.distance(g.me.pos) < 2.4 && g.me.ui == Ui::Play {
+            let p = &g.w.p.name;
+            let hi = [
+                format!("Hi, {p}!"),
+                format!("Oh! Hey there, {p}."),
+                format!("Morning, {p}!"),
+                format!("Yo, {p}! Looking sharp."),
+            ];
+            labels.push((vec3(n.pos.x, 2.0, n.pos.y), hi[g.res(i).pers % 4].clone(), Color::new(1., 1., 0.92, 1.)));
+        }
         if !n.moving && !talking && g.seek_hide_position(i).is_none() && weather(g.w.day, now.month()) != Wx::Rain {
             hobby_prop(r, g.w.roster[i], vec3(n.pos.x, 0., n.pos.y), yaw, t)
         }
@@ -1511,4 +1549,11 @@ pub(super) fn others(r: &mut R, g: &Game, t: f32) {
         };
         human(r, o.id, shirt, vec3(p.x, sy, p.y), yaw_of(o.face), o.anim, o.spd, pose, tool, t, o.swing);
     }
+}
+
+/// A rainbow on the morning after a rainy day, while today is dry (7:00-11:59).
+pub(super) fn rainbow_now(g: &Game, now: NaiveDateTime) -> bool {
+    (7..12).contains(&g.hr)
+        && weather(g.w.day - 1, now.month()) == Wx::Rain
+        && weather(g.w.day, now.month()) == Wx::Clear
 }

@@ -232,3 +232,48 @@ fn informant_bike_and_townsfolk() {
     g.frontier_tick(0.02);
     assert!(!g.me.riding, "the bike stays in Dustreach");
 }
+
+#[test]
+fn quick_draw_standoff() {
+    let mut g = g0(at(11, 10, 0, 0));
+    to_frontier(&mut g);
+    g.take_bounty(2).unwrap();
+    let p = g.w.p.bounty.as_ref().unwrap().pos[0];
+    let start = vec2(p[0], p[1] + 2.5);
+    g.me.ipos = start;
+    g.frontier_tick(0.02);
+    assert!(g.me.standoff > DRAW_WINDOW, "standoff begins near the most wanted");
+    g.update_player(&Inp::keys(&[KeyCode::D], &[]), 0.1);
+    assert_eq!(g.me.ipos, start, "you hold still during a standoff");
+    g.standoff_press(); // too early
+    assert!(g.w.p.bounty.as_ref().unwrap().run > 0. && g.me.standoff == 0.);
+    // a fresh standoff, drawn in the window, stuns
+    g.drop_bounty();
+    g.take_bounty(2).unwrap();
+    g.me.ipos = start;
+    g.frontier_tick(0.02);
+    while g.me.standoff > DRAW_WINDOW * 0.5 {
+        g.frontier_tick(0.05);
+    }
+    g.standoff_press();
+    let b = g.w.p.bounty.as_ref().unwrap();
+    assert!(b.stun > 3. && b.run <= 0., "quick draw stuns: {b:?}");
+    // leaving Dustreach clears it; missing the window lets them run
+    g.drop_bounty();
+    g.take_bounty(2).unwrap();
+    g.me.ipos = start;
+    g.frontier_tick(0.02);
+    for _ in 0..200 {
+        g.frontier_tick(0.05);
+    }
+    assert!(g.me.standoff == 0. && g.w.p.bounty.as_ref().unwrap().ambushed);
+    // a standoff never lingers once you are far from the target
+    g.drop_bounty();
+    g.take_bounty(2).unwrap();
+    g.me.ipos = start;
+    g.frontier_tick(0.02);
+    assert!(g.me.standoff > 0.);
+    g.me.ipos = start + vec2(9., 0.);
+    g.frontier_tick(0.02);
+    assert_eq!(g.me.standoff, 0., "standoff cancelled out of range");
+}

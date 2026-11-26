@@ -409,6 +409,17 @@ pub(super) fn bounty_hud(g: &Game, sw: f32) {
     if g.me.scene != Scene::Frontier {
         return;
     }
+    if g.me.standoff > 0. {
+        let (msg, col) = if g.me.standoff <= DRAW_WINDOW {
+            ("DRAW!", Color::new(1., 0.3, 0.2, 1.))
+        } else {
+            ("steady...", Color::new(1., 0.92, 0.75, 1.))
+        };
+        let size = if g.me.standoff <= DRAW_WINDOW { 72. } else { 40. };
+        let w = measure_text(msg, None, size as u16, 1.).width;
+        draw_rectangle(sw / 2. - w / 2. - 18., 520., w + 36., size + 14., Color::new(0., 0., 0., 0.45)); // below the player, clear of the target
+        txt(msg, sw / 2. - w / 2., 520. + size, size, col);
+    }
     let Some(b) = g.w.p.bounty.as_ref().filter(|_| g.me.ui == Ui::Play) else { return }; // menus cover it
     let o = &g.bounty_offers()[b.offer as usize];
     let bw = (sw - 24.).min(520.);

@@ -823,6 +823,9 @@ pub struct Player {
     /// Riding the Dustreach hover-bike (runtime; parked automatically when leaving Dustreach).
     #[serde(default)]
     pub riding: bool,
+    /// Dustreach quick-draw standoff: seconds left (0 = none). The last DRAW_WINDOW seconds are the "DRAW!" window.
+    #[serde(default)]
+    pub standoff: f32,
 }
 impl Player {
     pub fn new(id: usize, pos: Vec2) -> Player {
@@ -854,6 +857,7 @@ impl Player {
             beep: 0.,
             pal_pos: Vec2::ZERO,
             riding: false,
+            standoff: 0.,
         }
     }
 }

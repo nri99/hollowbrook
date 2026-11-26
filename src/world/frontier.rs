@@ -70,6 +70,8 @@ pub fn bearing(a: Vec2, b: Vec2) -> &'static str {
     ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"]
         [((ang + 22.5) / 45.) as usize % 8]
 }
+/// Quick-draw window: press Space within this many seconds of "DRAW!".
+pub const DRAW_WINDOW: f32 = 0.6;
 pub const RUMOURS: [&str; 3] = [
     "They're worn out and won't run far.",
     "Word is they bolt the moment they see you. A stun pistol helps.",
@@ -416,6 +418,21 @@ impl Game {
         }
         self.note(format!("{name}: \"{line}\""))
     }
+    /// Space during a standoff: too early and the target bolts; in the DRAW window they are stunned.
+    pub fn standoff_press(&mut self) {
+        let early = self.me.standoff > DRAW_WINDOW;
+        self.me.standoff = 0.;
+        let Some(b) = self.w.p.bounty.as_mut().filter(|b| !b.caught) else { return };
+        if early {
+            b.run = 4.5;
+            self.note("Too early! They bolt for cover.");
+        } else {
+            b.stun = 4.;
+            b.run = 0.;
+            self.snd.push(Snd::Coin);
+            self.note("Quick draw! They're stunned. Detain them.");
+        }
+    }
     /// Climb on or off the hover-bike parked by your ship.
     pub fn toggle_bike(&mut self) {
         self.me.riding = !self.me.riding;
@@ -493,6 +510,7 @@ impl Game {
     pub fn frontier_tick(&mut self, dt: f32) {
         if self.me.scene != Scene::Frontier {
             self.me.bolts.clear();
+            self.me.standoff = 0.;
             self.me.riding = false; // the bike stays in Dustreach
             return;
         }
@@ -561,6 +579,27 @@ impl Game {
             return;
         }
         let p = vec2(b.pos[0][0], b.pos[0][1]);
+        // the most wanted (lookalike tier) face you down: a quick-draw standoff instead of an ambush
+        if b.tier == 2 && !b.ambushed && b.stun <= 0. && p.distance(me) < 3.2 {
+            b.ambushed = true;
+            let wait = 1.2 + (mix(self.w.day as u64, 7) % 13) as f32 * 0.1;
+            self.me.standoff = wait + DRAW_WINDOW;
+            self.note("Standoff... wait for it. Press Space the moment you see DRAW!");
+            return;
+        }
+        if self.me.standoff > 0. && p.distance(me) > 5. {
+            self.me.standoff = 0.; // out of range (e.g. moved away by a cutscene or a door): no standoff
+            return;
+        }
+        if self.me.standoff > 0. {
+            self.me.standoff -= dt;
+            if self.me.standoff <= 0. {
+                self.me.standoff = 0.;
+                b.run = 4.5;
+                self.note("Too slow! They got away from the standoff.");
+            }
+            return;
+        }
         if b.tier >= 1 && !b.ambushed && b.stun <= 0. && p.distance(me) < 1.4 {
             // the target throws a fistful of sand and makes a break for it; armour softens it
             b.ambushed = true;

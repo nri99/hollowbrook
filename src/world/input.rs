@@ -115,7 +115,7 @@ impl Game {
         if inp.d(D) || inp.d(Right) {
             d.x += 1.
         }
-        if self.me.dazed > 0. {
+        if self.me.dazed > 0. || self.me.standoff > 0. {
             d = Vec2::ZERO; // dazed by an ambush
         }
         self.step_move(d, inp.d(LeftShift) || inp.d(RightShift), dt);
@@ -126,7 +126,11 @@ impl Game {
             self.interact()
         }
         if inp.p(Space) {
-            self.use_tool()
+            if self.me.standoff > 0. {
+                self.standoff_press()
+            } else {
+                self.use_tool()
+            }
         }
         if inp.p(Tab) || inp.p(Q) {
             self.cycle_tool()
