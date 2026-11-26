@@ -6,6 +6,7 @@ use chrono::{Datelike, NaiveDateTime, Timelike};
 use macroquad::models::{draw_mesh, Mesh, Vertex};
 use macroquad::prelude::*;
 use std::f32::consts::{FRAC_PI_2, PI};
+mod ambience;
 mod characters;
 mod frontier;
 mod hud;

@@ -343,7 +343,7 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
     let (cam, curve, c0) = match g.me.scene {
         Scene::Town | Scene::Islet | Scene::Frontier => (
             Camera3D {
-                position: vec3(g.me.cam.x, 6.1, g.me.cam.y + 8.3), // lower, longer view for more depth
+                position: vec3(g.me.cam.x, 5.6, g.me.cam.y + 8.6), // low, long view for depth
                 target: vec3(g.me.cam.x, 0.8, g.me.cam.y - 0.8),
                 up: Vec3::Y,
                 fovy: 35f32.to_radians(),
@@ -500,6 +500,7 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
 pub(super) fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(Vec3, String, Color)>) {
     let t = g.t;
     woods_door(r, g, lt, labels);
+    ambience::town_ambience(r, g, lt, now);
     let (grass, fol) = season(now.month());
     let (cx, cz) = (g.me.cam.x, g.me.cam.y);
     let rad = 22i32;

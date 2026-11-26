@@ -216,6 +216,17 @@ pub(super) fn building(r: &mut R, bi: usize, night: f32, paint: Option<((f32, f3
     let hg = if civic { 2.0 } else { 1.5 };
     let (wall, roof) = paint.map_or((rgb(b.wall), rgb(b.roof)), |(w, r)| (rgb(w), rgb(r)));
     let c = vec3(x + w / 2., 0., z + d / 2.);
+    // soft contact shadow: two stacked translucent rings fading out from the walls
+    for (grow, a) in [(0.55, 0.1), (0.28, 0.12)] {
+        r.quad(
+            vec3(x - grow, 0.004, z - grow * 0.6),
+            vec3(x + w + grow, 0.004, z - grow * 0.6),
+            vec3(x + w + grow, 0.004, z + d + grow),
+            vec3(x - grow, 0.004, z + d + grow),
+            Vec3::Y,
+            Color::new(0.05, 0.06, 0.04, a),
+        );
+    }
     r.cube(c + vec3(0., 0.08, 0.), vec3(w / 2. + 0.04, 0.08, d / 2. + 0.04), Color::new(0.62, 0.6, 0.57, 1.));
     r.cube(c + vec3(0., hg / 2., 0.), vec3(w / 2. - 0.05, hg / 2., d / 2. - 0.05), wall);
     let (sid, trim) = (sh(wall, 0.9), sh(wall, 1.12));
@@ -232,7 +243,31 @@ pub(super) fn building(r: &mut R, bi: usize, night: f32, paint: Option<((f32, f3
     {
         r.cube(vec3(cx, hg / 2., cz), vec3(0.05, hg / 2., 0.05), trim)
     }
-    r.roof(c + vec3(0., hg, 0.), w / 2. + 0.25, d / 2. + 0.3, if civic { 1.0 } else { 0.85 }, roof);
+    let (rhw, rhd, rh) = (w / 2. + 0.25, d / 2. + 0.3, if civic { 1.0 } else { 0.85 });
+    r.roof(c + vec3(0., hg, 0.), rhw, rhd, rh, roof);
+    // shingle courses: darker strips laid parallel to the ridge on both slopes, just above the surface
+    // (skipped while the house is faded out of the camera's way, so no stripes cross the player)
+    for sz in if r.alpha > 0.99 { [-1f32, 1.].as_slice() } else { [].as_slice() } {
+        let sz = *sz;
+        let nrm = vec3(0., rhd, sz * rh).normalize();
+        for k in 1..5 {
+            let f = k as f32 / 5.;
+            let p = c + vec3(0., hg + rh * f, sz * rhd * (1. - f)) + nrm * 0.006;
+            let q = c + vec3(0., hg + rh * (f + 0.035), sz * rhd * (1. - f - 0.035)) + nrm * 0.006;
+            r.quad(
+                p - vec3(rhw, 0., 0.),
+                p + vec3(rhw, 0., 0.),
+                q + vec3(rhw, 0., 0.),
+                q - vec3(rhw, 0., 0.),
+                nrm,
+                sh(roof, 0.82),
+            );
+        }
+    }
+    if night > 0.4 && !civic {
+        // lamplight from the front windows spilling onto the ground in the evening
+        r.disc(vec3(c.x, 0.012, z + d + 0.75), vec2(w * 0.45, 0.6), Color::new(1., 0.82, 0.45, 0.14 * night));
+    }
     // Fascia beneath the existing overhang: the roof surface and silhouette stay intact.
     for sz in [-1f32, 1.] {
         r.cube(c + vec3(0., hg - 0.03, sz * (d / 2. + 0.26)), vec3(w / 2. + 0.24, 0.025, 0.04), trim);
