@@ -115,6 +115,9 @@ impl Game {
         if inp.d(D) || inp.d(Right) {
             d.x += 1.
         }
+        if self.me.dazed > 0. {
+            d = Vec2::ZERO; // dazed by an ambush
+        }
         self.step_move(d, inp.d(LeftShift) || inp.d(RightShift), dt);
         if self.me.trans.is_some() {
             return;
@@ -569,6 +572,17 @@ impl Game {
                             let lines = v.lines.iter().map(|l| l.to_string()).collect();
                             self.me.ui = Ui::Talk { npc: None, who, lines, i: 0 }
                         }
+                    }
+                }
+            }
+            Ui::Forge(s) => {
+                let s = mv(s, ARMOR.len() + 1);
+                self.me.ui = Ui::Forge(s);
+                if esc || (ok && s == ARMOR.len()) {
+                    self.me.ui = Ui::Play
+                } else if ok {
+                    if let Err(e) = self.forge(s) {
+                        self.note(e)
                     }
                 }
             }

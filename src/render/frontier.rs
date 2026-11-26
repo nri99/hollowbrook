@@ -251,6 +251,7 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
                 r.cube(c + vec3(1.2, 0.15, -1.1), vec3(0.3, 0.15, 0.2), Color::new(0.25, 0.22, 0.2, 1.));
                 // scorched panel
             }
+            6 => ship(r, fx + fw / 2., fz + fd / 2., t, night, labels),
             _ => {
                 let c = vec3(fx + 1., 0., fz + 1.);
                 r.sphere(c, vec3(0.95, 1.05, 0.95), ADOBE);
@@ -294,15 +295,20 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
         0.,
     );
     if g.me.ipos.distance(vec2(F_BROKER.0, F_BROKER.1)) < 3.5 {
-        labels.push((vec3(F_BROKER.0, 1.9, F_BROKER.1), "Broker Ines Varro".into(), Color::new(1., 0.9, 0.7, 1.)));
+        labels.push((vec3(F_BROKER.0, 1.9, F_BROKER.1), "Guild Master Varro".into(), Color::new(1., 0.9, 0.7, 1.)));
     }
     // the active player's bounty: target (and lookalikes), each with a scarf
-    if let Some(b) = g.w.p.bounty.as_ref().filter(|b| !b.caught) {
+    if let Some(b) = g.w.p.bounty.as_ref().filter(|b| !b.delivered) {
         let looks = [(Some(63), Some(67), 1), (Some(65), Some(67), 1), (Some(64), Some(67), 1)];
-        for (i, p) in b.pos.iter().enumerate() {
+        for (i, p) in b.pos.iter().enumerate().filter(|(i, _)| !b.caught || *i == 0) {
             let pos = vec3(p[0], 0., p[1]);
-            let running = i == 0 && b.run > 0. && b.stun <= 0.;
-            let face = if running { vec2(p[0], p[1]) - g.me.ipos } else { g.me.ipos - vec2(p[0], p[1]) };
+            let running =
+                i == 0 && ((b.run > 0. && b.stun <= 0.) || (b.caught && vec2(p[0], p[1]).distance(g.me.ipos) > 1.2));
+            let face = if running && !b.caught { vec2(p[0], p[1]) - g.me.ipos } else { g.me.ipos - vec2(p[0], p[1]) };
+            if b.caught {
+                // binders on the wrists
+                r.cube(vec3(p[0], 0.45, p[1]), vec3(0.16, 0.04, 0.12), Color::new(0.3, 0.32, 0.36, 1.));
+            }
             r.disc(vec3(pos.x, 0.02, pos.z), vec2(0.3, 0.24), Color::new(0., 0., 0., 0.18));
             human(
                 r,
@@ -367,6 +373,15 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
         r.sphere(p + vec3(0.05, 0.05, 0.), Vec3::splat(0.16), Color::new(0.5, 0.38, 0.22, 1.));
     }
     others(r, g, t);
+    if g.w.p.pal {
+        sand_hopper(r, g.me.pal_pos, t, g.bounty_dist().is_some_and(|d| d < 6.));
+    } else {
+        sand_hopper(r, vec2(F_PAL_SPOT.0, F_PAL_SPOT.1), t, false);
+        if g.me.ipos.distance(vec2(F_PAL_SPOT.0, F_PAL_SPOT.1)) < 3. {
+            labels.push((vec3(F_PAL_SPOT.0, 0.9, F_PAL_SPOT.1), "Sand-hopper".into(), Color::new(1., 0.9, 0.7, 1.)));
+        }
+    }
+    hunter_gear(r, g, t);
     let shc = Color::new(0., 0., 0., 0.2);
     r.disc(vec3(g.me.ipos.x, 0.02, g.me.ipos.y), vec2(0.32, 0.26), shc);
     human(
@@ -422,12 +437,14 @@ pub(super) fn bounty_hud(g: &Game, sw: f32) {
     if g.me.scene != Scene::Frontier {
         return;
     }
-    let Some(b) = g.w.p.bounty.as_ref() else { return };
+    let Some(b) = g.w.p.bounty.as_ref().filter(|_| g.me.ui == Ui::Play) else { return }; // menus cover it
     let o = &g.bounty_offers()[b.offer as usize];
     let bw = (sw - 24.).min(520.);
     draw_rectangle(12., 186., bw, 52., Color::new(0.3, 0.16, 0.08, 0.85));
-    let line = if b.caught {
-        format!("{} detained. Take them to the board.", o.name)
+    let line = if b.delivered {
+        format!("{} is in your holding pod. Collect the pay at the board.", o.name)
+    } else if b.caught {
+        format!("{} detained. Walk them to your ship's holding pod.", o.name)
     } else {
         format!("Bounty: {}   Tracker: {}", o.name, g.tracker_word())
     };
@@ -535,4 +552,182 @@ pub(super) fn woods_door(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(Vec3
     if g.me.pos.distance(vec2(x, z)) < 5. {
         labels.push((vec3(x, 2.5, z), "Dustreach".into(), Color::new(1., 0.82, 0.6, 1.)));
     }
+}
+
+/// Your ship: a weathered, patched-up freighter on stubby legs with a lowered ramp and a holding pod.
+fn ship(r: &mut R, cx: f32, cz: f32, t: f32, night: f32, labels: &mut Vec<(Vec3, String, Color)>) {
+    let hull = Color::new(0.62, 0.64, 0.66, 1.);
+    let rust = Color::new(0.55, 0.36, 0.24, 1.);
+    let c = vec3(cx, 1.05, cz);
+    for (dx, dz) in [(-2.0, -1.2), (2.0, -1.2), (-2.0, 1.2), (2.0, 1.2)] {
+        r.seg(c + vec3(dx, -0.2, dz), vec3(cx + dx * 1.08, 0., cz + dz * 1.1), 0.06, Color::new(0.35, 0.36, 0.38, 1.)); // landing legs
+        r.cyl(vec3(cx + dx * 1.08, 0., cz + dz * 1.1), 0.18, 0.05, Color::new(0.3, 0.3, 0.32, 1.));
+    }
+    r.sphere(c, vec3(2.9, 0.75, 1.55), hull); // main hull
+    r.cube(c + vec3(0., -0.2, 0.), vec3(2.1, 0.3, 1.05), sh(hull, 0.9)); // belly keel under the rounded hull
+    r.sphere(c + vec3(-1.2, 0.55, -0.3), vec3(0.7, 0.18, 0.5), rust); // patched plates
+    r.cube(c + vec3(1.1, 0.42, 0.9), vec3(0.45, 0.08, 0.32), sh(rust, 1.1));
+    r.cube(c + vec3(0.2, 0.62, -0.6), vec3(0.6, 0.05, 0.25), sh(hull, 0.8));
+    // cockpit at the front (+x), dark glass with a sky glint
+    r.sphere(c + vec3(2.45, 0.35, 0.), vec3(0.7, 0.45, 0.62), Color::new(0.18, 0.22, 0.28, 1.));
+    r.cube(c + vec3(2.7, 0.55, 0.25), vec3(0.18, 0.04, 0.12), Color::new(0.75, 0.85, 0.95, 1.));
+    // twin engines at the back with a soft glow
+    for dz in [-0.75, 0.75] {
+        r.with(
+            Mat4::from_rotation_translation(
+                Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
+                c + vec3(-2.6, 0.0, dz),
+            ),
+            |r| {
+                r.cyl(vec3(0., -0.6, 0.), 0.42, 1.2, sh(hull, 0.85));
+                r.cyl(vec3(0., -0.66, 0.), 0.32, 0.08, Color::new(0.25, 0.25, 0.27, 1.));
+            },
+        );
+        let u = r.unlit;
+        r.unlit = true;
+        let k = 0.7 + 0.3 * (t * 6. + dz).sin();
+        r.sphere(c + vec3(-3.25, 0.0, dz), Vec3::splat(0.26), Color::new(0.45 * k, 0.75 * k, 1. * k, 1.));
+        r.unlit = u;
+    }
+    r.cube(c + vec3(-0.6, 1.0, 0.), vec3(0.08, 0.32, 0.03), sh(hull, 0.8)); // antenna mast
+    r.cube(c + vec3(-0.6, 1.32, 0.), vec3(0.25, 0.03, 0.03), sh(hull, 0.8));
+    // lowered ramp to the holding pod, with a warm light inside
+    let ramp = Color::new(0.48, 0.5, 0.52, 1.);
+    r.quad(
+        vec3(cx - 0.5, 0.75, cz + 1.25),
+        vec3(cx + 0.5, 0.75, cz + 1.25),
+        vec3(cx + 0.5, 0.02, cz + 2.55),
+        vec3(cx - 0.5, 0.02, cz + 2.55),
+        vec3(0., 0.87, 0.5),
+        ramp,
+    );
+    for k in 0..4 {
+        let f = (k as f32 + 0.5) / 4.;
+        r.cube(vec3(cx, 0.75 - 0.73 * f + 0.01, cz + 1.25 + 1.3 * f), vec3(0.48, 0.008, 0.02), sh(ramp, 0.75));
+    }
+    let u = r.unlit;
+    r.unlit = true;
+    r.cube(vec3(cx, 1.05, cz + 1.28), vec3(0.42, 0.3, 0.02), Color::new(1., 0.8 + 0.1 * night, 0.5, 1.));
+    r.unlit = u;
+    labels.push((vec3(cx, 2.6, cz), "Your ship".into(), Color::new(0.85, 0.92, 1., 1.)));
+}
+
+/// The companion: a round little sand-hopper with long ears and glowing antenna tips. It hops, and its tips
+/// flash when the bounty is close.
+fn sand_hopper(r: &mut R, p: Vec2, t: f32, alert: bool) {
+    let hop = ((t * 5.).sin().abs()) * 0.12;
+    let base = vec3(p.x, hop, p.y);
+    let fur = Color::new(0.92, 0.66, 0.4, 1.);
+    r.disc(vec3(p.x, 0.015, p.y), vec2(0.16, 0.13), Color::new(0., 0., 0., 0.18));
+    r.sphere(base + vec3(0., 0.2, 0.), vec3(0.17, 0.16, 0.17), fur);
+    r.sphere(base + vec3(0., 0.17, 0.11), vec3(0.11, 0.09, 0.07), Color::new(0.98, 0.88, 0.72, 1.)); // pale belly
+    for sx in [-0.06, 0.06] {
+        r.sphere(base + vec3(sx, 0.26, 0.15), Vec3::splat(0.028), Color::new(0.1, 0.08, 0.08, 1.)); // eyes
+        r.seg(base + vec3(sx * 1.3, 0.32, 0.), base + vec3(sx * 2.6, 0.55, -0.05), 0.022, sh(fur, 0.9)); // ears
+        r.seg(
+            base + vec3(sx * 0.8, 0.34, 0.06),
+            base + vec3(sx * 1.4, 0.5, 0.12),
+            0.008,
+            Color::new(0.3, 0.2, 0.15, 1.),
+        );
+        let u = r.unlit;
+        r.unlit = true;
+        let glow =
+            if alert && (t * 8.).sin() > 0. { Color::new(1., 0.35, 0.3, 1.) } else { Color::new(0.6, 1., 0.8, 1.) };
+        r.sphere(base + vec3(sx * 1.4, 0.51, 0.12), Vec3::splat(0.025), glow); // antenna tips
+        r.unlit = u;
+    }
+    for sx in [-0.08, 0.08] {
+        r.sphere(base + vec3(sx, 0.04, 0.05), vec3(0.05, 0.035, 0.07), sh(fur, 0.85));
+        // feet
+    }
+}
+
+/// Armour pieces the player has earned, the wrist tracker, and stars while dazed.
+fn hunter_gear(r: &mut R, g: &Game, t: f32) {
+    let p = vec3(g.me.ipos.x, 0., g.me.ipos.y);
+    let yaw = yaw_of(g.me.face);
+    let plate = Color::new(0.58, 0.62, 0.68, 1.);
+    let trim = Color::new(0.8, 0.55, 0.3, 1.);
+    let a = g.w.p.armor;
+    let hunting = g.bounty_dist();
+    r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(yaw), p), |r| {
+        if a & 1 != 0 {
+            r.sphere(vec3(0., 1.07, 0.), vec3(0.33, 0.31, 0.33), plate); // helmet shell
+            r.cube(vec3(0., 1.05, 0.29), vec3(0.22, 0.05, 0.04), Color::new(0.12, 0.14, 0.18, 1.)); // visor slit
+            r.cube(vec3(0., 1.36, 0.), vec3(0.03, 0.05, 0.22), trim); // crest
+        }
+        if a & 2 != 0 {
+            r.cube(vec3(0., 0.6, 0.06), vec3(0.2, 0.13, 0.12), plate); // chest plate
+            r.cube(vec3(0., 0.6, 0.19), vec3(0.12, 0.02, 0.01), trim);
+            for sx in [-0.22, 0.22] {
+                r.sphere(vec3(sx, 0.72, 0.), vec3(0.09, 0.06, 0.09), sh(plate, 0.9));
+                // shoulder pads
+            }
+        }
+        if a & 4 != 0 {
+            for sx in [-0.24, 0.24] {
+                r.cube(vec3(sx, 0.48, 0.03), vec3(0.05, 0.07, 0.05), plate); // gauntlets
+            }
+        }
+        if a & 8 != 0 {
+            for sx in [-0.09, 0.09] {
+                r.cube(vec3(sx, 0.07, 0.02), vec3(0.07, 0.07, 0.09), plate); // boots
+            }
+        }
+        if let Some(d) = hunting {
+            // wrist tracker: a brass dial whose light blinks faster, and turns from amber to red, as you close in
+            r.cube(vec3(-0.25, 0.5, 0.06), vec3(0.04, 0.025, 0.05), Color::new(0.75, 0.6, 0.3, 1.));
+            let rate = (12. / d.max(0.5)).clamp(1.5, 14.);
+            if (t * rate).sin() > 0. {
+                let u = r.unlit;
+                r.unlit = true;
+                let c = if d < 6. { Color::new(1., 0.2, 0.15, 1.) } else { Color::new(1., 0.7, 0.2, 1.) };
+                r.sphere(vec3(-0.25, 0.53, 0.06), Vec3::splat(0.028), c);
+                r.unlit = u;
+            }
+        }
+    });
+    if g.me.dazed > 0. {
+        let u = r.unlit;
+        r.unlit = true;
+        for k in 0..3 {
+            let a = t * 6. + k as f32 * 2.1;
+            r.sphere(p + vec3(a.cos() * 0.3, 1.55, a.sin() * 0.3), Vec3::splat(0.05), Color::new(1., 0.9, 0.4, 1.));
+        }
+        r.unlit = u;
+    }
+}
+
+/// The guild master's forge: armour pieces for guild marks, with a rumour about your current target.
+pub(super) fn forge_menu(g: &Game, sel: usize, sw: f32) {
+    let pw = (sw - 40.).min(700.);
+    let x0 = sw / 2. - pw / 2.;
+    panel(x0, 70., pw, 420.);
+    txt("Guild Master Varro", x0 + 20., 105., 24., Color::new(0.45, 0.3, 0.2, 1.));
+    let rumour = match g.w.p.bounty.as_ref().filter(|b| !b.caught) {
+        Some(b) => format!("\"{}\"", RUMOURS[b.tier as usize]),
+        None => "\"Bring them in, and I'll make you armour worth wearing.\"".into(),
+    };
+    for (k, l) in wrap_txt(&rumour, ((pw - 50.) / 10.) as usize).iter().enumerate() {
+        txt(l, x0 + 20., 132. + k as f32 * 20., 17., DARKGRAY);
+    }
+    txt(&format!("Guild marks: {}", g.w.p.marks), x0 + 20., 190., 20., Color::new(0.45, 0.3, 0.2, 1.));
+    let mut items: Vec<String> = ARMOR
+        .iter()
+        .enumerate()
+        .map(
+            |(k, (n, c))| {
+                if g.w.p.armor & (1 << k) != 0 {
+                    format!("{n}  (worn)")
+                } else {
+                    format!("Forge {n}  -  {c} marks")
+                }
+            },
+        )
+        .collect();
+    items.push("Close".into());
+    list(&items, Some(sel), x0 + 30., 230.);
+    txt("Earn marks by bringing in bounties: 1 / 2 / 3 by difficulty.", x0 + 30., 400., 17., DARKGRAY);
+    txt("W/S choose   Enter forge   Esc close", x0 + 30., 470., 18., Color::new(0.45, 0.3, 0.2, 1.));
 }

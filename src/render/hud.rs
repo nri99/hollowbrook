@@ -210,6 +210,7 @@ pub(super) fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
     match &g.me.ui {
         Ui::Play => {}
         Ui::Bounty(sel) => bounty_menu(g, *sel, sw),
+        Ui::Forge(sel) => forge_menu(g, *sel, sw),
         Ui::Invitation => {
             let pw = (sw - 24.).min(620.);
             let x = (sw - pw) / 2.;

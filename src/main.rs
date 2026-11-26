@@ -2267,6 +2267,31 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
             m.applied,
             g.settings_dirty
         );
+    } else if phase == "48" {
+        // Dustreach hunter life: full armour, companion, a prisoner walking to the ship, the guild master's forge.
+        g.w.p.armor = 0b1111; // logged FIXTURE: all armour pieces
+        g.w.p.pal = true;
+        g.w.p.marks = 5;
+        g.swap(Scene::Frontier);
+        g.me.scene = Scene::Frontier;
+        g.take_bounty(0).ok();
+        if let Some(b) = g.w.p.bounty.as_mut() {
+            b.caught = true; // logged FIXTURE: target already detained
+            b.pos[0] = [F_RAMP.0 - 1.5, F_RAMP.1 - 2.5];
+        }
+        g.me.ipos = vec2(F_RAMP.0 - 1.0, F_RAMP.1 + 0.4);
+        g.me.pal_pos = g.me.ipos + vec2(0.8, 0.3);
+        g.me.cam = g.me.ipos;
+        g.me.face = vec2(0.3, 1.).normalize();
+        wait(g, c, 40).await;
+        shot!("h_ship");
+        g.me.ipos = vec2(13.6, 10.7);
+        g.me.cam = g.me.ipos;
+        g.me.face = vec2(0.6, -1.).normalize();
+        wait(g, c, 20).await;
+        press(g, c, KeyCode::E).await;
+        shot!("h_forge");
+        log!("ui={:?} target={:?}", g.me.ui, g.target());
     } else if phase == "47" {
         // The woods path and the door to Dustreach, then through it.
         g.me.pos = vec2(2.3, 17.5);

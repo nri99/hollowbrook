@@ -283,6 +283,13 @@ pub struct Profile {
     pub bounties_done: u32,
     #[serde(default)]
     pub bounty_log: Vec<(i64, u8)>,
+    /// Dustreach: guild marks to spend on armour, armour pieces worn (bit per ARMOR piece), companion adopted.
+    #[serde(default)]
+    pub marks: u32,
+    #[serde(default)]
+    pub armor: u8,
+    #[serde(default)]
+    pub pal: bool,
     pub npcs: Vec<NpcS>,
     pub seen: Vec<u16>,
     pub tools: Vec<u16>,
@@ -362,6 +369,9 @@ impl Profile {
             bounty: None,
             bounties_done: 0,
             bounty_log: vec![],
+            marks: 0,
+            armor: 0,
+            pal: false,
             stories: vec![],
             id,
             name,
@@ -588,6 +598,9 @@ pub enum Tg {
     Stairs(u8),
     BountyBoard,
     WoodsDoor,
+    Ship,
+    GuildMaster,
+    Pal,
     Fugitive(usize),
     FGate,
 }
@@ -621,6 +634,7 @@ pub enum Ui {
     Camp(usize),
     Kiosk(usize),
     Bounty(usize),
+    Forge(usize),
     Title(usize),
     Help,
 }
@@ -770,6 +784,13 @@ pub struct Player {
     /// Dustreach gear shots in flight (never saved).
     #[serde(default)]
     pub bolts: Vec<Bolt>,
+    /// Dustreach runtime: seconds dazed by an ambush, tracker beep timer, companion position.
+    #[serde(default)]
+    pub dazed: f32,
+    #[serde(default)]
+    pub beep: f32,
+    #[serde(default)]
+    pub pal_pos: Vec2,
 }
 impl Player {
     pub fn new(id: usize, pos: Vec2) -> Player {
@@ -797,6 +818,9 @@ impl Player {
             jpage: 0,
             jcol: 0,
             bolts: vec![],
+            dazed: 0.,
+            beep: 0.,
+            pal_pos: Vec2::ZERO,
         }
     }
 }

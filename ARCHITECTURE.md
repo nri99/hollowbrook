@@ -136,6 +136,8 @@ any you forget. Menus are the `Ui` enum on `me.ui`; their input lives in `update
 | 44 | Home stories: main floor, basement, upstairs |
 | 45 | Dustreach: arrival at the gate, bounty board menu, lookalike bounty, market (day and dusk) |
 | 46 | Dustreach gear: buy at the board, stun pistol shot at a runner, stunned target |
+| 47 | Woods path and door to Dustreach |
+| 48 | Hunter life: full armour, companion, prisoner walking to the ship, guild master's forge |
 
 ## Glossary of short names
 

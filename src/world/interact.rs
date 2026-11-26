@@ -92,7 +92,11 @@ impl Game {
             }
             Scene::Frontier => {
                 cand(tc(F_BOARD), 1.6, 0.8, Tg::BountyBoard, None);
-                cand(vec2(F_BROKER.0, F_BROKER.1), 1.6, 0.8, Tg::BountyBoard, None);
+                cand(vec2(F_BROKER.0, F_BROKER.1), 1.6, 0.8, Tg::GuildMaster, None);
+                cand(vec2(F_RAMP.0, F_RAMP.1), 1.6, 0.8, Tg::Ship, None);
+                if !self.w.p.pal {
+                    cand(vec2(F_PAL_SPOT.0, F_PAL_SPOT.1), 1.4, 0.9, Tg::Pal, None);
+                }
                 cand(vec2(F_GATE.0 as f32 + 1., F_GATE.1 as f32 + 0.5), 1.6, 0.8, Tg::FGate, None);
                 if let Some(b) = self.w.p.bounty.as_ref().filter(|b| !b.caught) {
                     for (i, p) in b.pos.iter().enumerate() {
@@ -200,6 +204,9 @@ impl Game {
             Tg::Kiosk => v(tc(KIOSK), 1.5),
             Tg::BountyBoard => v(tc(F_BOARD), 1.9),
             Tg::WoodsDoor => v(tc(WOODS_DOOR), 2.4),
+            Tg::Ship => vec3(F_RAMP.0, 1.9, F_RAMP.1 - 0.6),
+            Tg::GuildMaster => vec3(F_BROKER.0, 1.9, F_BROKER.1),
+            Tg::Pal => vec3(F_PAL_SPOT.0, 0.8, F_PAL_SPOT.1),
             Tg::FGate => vec3(F_GATE.0 as f32 + 1., 2.6, F_GATE.1 as f32 + 0.5),
             Tg::Fugitive(i) => {
                 self.w.p.bounty.as_ref().and_then(|b| b.pos.get(i)).map_or(Vec3::ZERO, |p| vec3(p[0], 1.9, p[1]))
@@ -297,6 +304,14 @@ impl Game {
             Tg::Kiosk => format!("Initiatives kiosk ({} coupons)", self.w.p.coupons),
             Tg::BountyBoard => "Guild Post bounty board".into(),
             Tg::WoodsDoor => "Open the door to Dustreach".into(),
+            Tg::Ship => if self.w.p.bounty.as_ref().is_some_and(|b| b.caught && !b.delivered) {
+                "Lock them in the holding pod"
+            } else {
+                "Your ship"
+            }
+            .into(),
+            Tg::GuildMaster => "Talk to the guild master".into(),
+            Tg::Pal => "Say hello to the sand-hopper".into(),
             Tg::FGate => "Gate back to Hollowbrook".into(),
             Tg::Fugitive(_) => "Detain".into(),
             Tg::Plant(i) => {
@@ -425,6 +440,17 @@ impl Game {
             Tg::Kiosk => self.me.ui = Ui::Kiosk(0),
             Tg::BountyBoard => self.me.ui = Ui::Bounty(0),
             Tg::WoodsDoor => self.go(Scene::Frontier),
+            Tg::Ship => {
+                if self.deliver().is_err() {
+                    let pieces = self.armor_pieces();
+                    self.note(format!(
+                        "Your ship. The holding pod is empty. Armour: {pieces}/4 pieces, {} guild marks.",
+                        self.w.p.marks
+                    ))
+                }
+            }
+            Tg::GuildMaster => self.me.ui = Ui::Forge(0),
+            Tg::Pal => self.adopt_pal(),
             Tg::FGate => self.go(Scene::Town),
             Tg::Fugitive(i) => self.detain(i),
             Tg::ArtStall => {

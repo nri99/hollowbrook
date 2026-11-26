@@ -16,7 +16,7 @@ pub const F_ARCH: (i32, i32) = (32, 14);
 pub const F_BOARD: (i32, i32) = (13, 9);
 pub const F_BROKER: (f32, f32) = (14.6, 9.6);
 /// Structures: (kind, x, z, w, d). 0 Guild Post, 1 Longhouse, 2 market tent, 3 water tower, 4 wreck, 5 dome hut.
-pub const F_STRUCTS: [(u8, i32, i32, i32, i32); 15] = [
+pub const F_STRUCTS: [(u8, i32, i32, i32, i32); 16] = [
     (0, 11, 5, 5, 4),
     (1, 18, 5, 6, 4),
     (2, 6, 12, 2, 2),
@@ -32,6 +32,19 @@ pub const F_STRUCTS: [(u8, i32, i32, i32, i32); 15] = [
     (5, 28, 25, 2, 2),
     (2, 28, 6, 2, 2),
     (3, 7, 23, 2, 2),
+    (6, 21, 22, 6, 4), // your ship on its landing pad
+];
+/// Where you stand to use the ship's ramp (holding pod), where the companion waits, and the guild master.
+pub const F_RAMP: (f32, f32) = (24.0, 26.6);
+pub const F_PAL_SPOT: (f32, f32) = (30.5, 18.5);
+/// Hunter armour forged by the guild master for guild marks: (name, marks).
+pub const ARMOR: [(&str, u32); 4] = [("Helmet", 3), ("Chest plate", 4), ("Gauntlets", 2), ("Boots", 2)];
+/// Guild marks paid per bounty tier, on top of the coins.
+pub const MARKS: [u32; 3] = [1, 2, 3];
+pub const RUMOURS: [&str; 3] = [
+    "They're worn out and won't run far.",
+    "Word is they bolt the moment they see you. A stun pistol helps.",
+    "They've paid two lookalikes to wander about. Watch for the red scarf.",
 ];
 /// Hiding spots and how the broker describes them.
 pub const F_SPOTS: [((i32, i32), &str); 11] = [
@@ -92,6 +105,12 @@ pub struct Bounty {
     /// Seconds the target stays stunned by gear.
     #[serde(default)]
     pub stun: f32,
+    /// Locked in the ship's holding pod (ready to be paid at the board).
+    #[serde(default)]
+    pub delivered: bool,
+    /// Runners and lookalike targets ambush once when you first get close.
+    #[serde(default)]
+    pub ambushed: bool,
 }
 /// Frontier gear (original designs, non-lethal, works only in Dustreach): item id, price, what it does.
 pub const GEAR: [(u16, u32, &str); 3] = [
@@ -169,7 +188,6 @@ pub fn frontier_map() -> Vec<u8> {
         (28, 14),
         (9, 21),
         (37, 25),
-        (22, 25),
         (38, 9),
         (24, 20),
         (3, 26),
@@ -238,8 +256,17 @@ impl Game {
                 pos.push([t.0 as f32 + 0.5, t.1 as f32 + 0.5]);
             }
         }
-        self.w.p.bounty =
-            Some(Bounty { day: self.w.day, offer: k, tier: o.tier, pos, caught: false, run: 0., stun: 0. });
+        self.w.p.bounty = Some(Bounty {
+            day: self.w.day,
+            offer: k,
+            tier: o.tier,
+            pos,
+            caught: false,
+            run: 0.,
+            stun: 0.,
+            delivered: false,
+            ambushed: false,
+        });
         Ok(format!("Bounty taken: {}. Last seen {}.", o.name, F_SPOTS[o.spot].1))
     }
     pub fn drop_bounty(&mut self) {
@@ -268,6 +295,10 @@ impl Game {
         if !b.caught {
             return Err("You haven't detained them yet.");
         }
+        if !b.delivered {
+            return Err("Lock them in your ship's holding pod first.");
+        }
+        self.w.p.marks += MARKS[b.tier as usize];
         let reward = BOUNTY_REWARD[b.tier as usize];
         let before = rank_of(self.w.p.bounties_done);
         self.w.p.money = self.w.p.money.saturating_add(reward);
@@ -298,6 +329,42 @@ impl Game {
         }
     }
     /// Per-player frame update in the outpost: runners flee when the hunter gets close.
+    /// Walk a detained target up the ramp into the ship's holding pod.
+    pub fn deliver(&mut self) -> Result<(), &'static str> {
+        let b = self.w.p.bounty.as_mut().filter(|b| b.caught && !b.delivered).ok_or("The holding pod is empty.")?;
+        b.delivered = true;
+        let name = self.bounty_offers()[self.w.p.bounty.as_ref().unwrap().offer as usize].name;
+        self.snd.push(Snd::Door);
+        self.note(format!("{name} is locked in the holding pod. Collect the pay at the Guild Post board."));
+        Ok(())
+    }
+    /// The guild master forges armour piece `k` for guild marks.
+    pub fn forge(&mut self, k: usize) -> Result<(), &'static str> {
+        let (name, cost) = ARMOR[k];
+        if self.w.p.armor & (1 << k) != 0 {
+            return Err("You already wear that piece.");
+        }
+        if self.w.p.marks < cost {
+            return Err("Not enough guild marks. Bring in more bounties.");
+        }
+        self.w.p.marks -= cost;
+        self.w.p.armor |= 1 << k;
+        self.snd.push(Snd::Coin);
+        self.note(format!("The guild master hammers out your {name}. You wear it in Dustreach."));
+        Ok(())
+    }
+    pub fn armor_pieces(&self) -> u32 {
+        self.w.p.armor.count_ones()
+    }
+    /// The little sand-hopper at the oasis decides to follow you (once, kept forever).
+    pub fn adopt_pal(&mut self) {
+        if !self.w.p.pal {
+            self.w.p.pal = true;
+            self.me.pal_pos = vec2(F_PAL_SPOT.0, F_PAL_SPOT.1);
+            self.snd.push(Snd::Blip);
+            self.note("A little sand-hopper hops after you. It sniffs out bounties!");
+        }
+    }
     /// Buy gear `k` at the Guild Post. One of each; equips it straight away.
     pub fn buy_gear(&mut self, k: usize) -> Result<(), &'static str> {
         let (d, price, _) = GEAR[k];
@@ -387,10 +454,54 @@ impl Game {
         if hit {
             self.note("Stunned! Detain them now.");
         }
+        self.me.dazed = (self.me.dazed - dt).max(0.);
+        // the companion trots along just behind and beside you
+        if self.w.p.pal {
+            let f = self.me.face.normalize_or_zero();
+            let want = me - f * 0.8 + vec2(-f.y, f.x) * 0.45;
+            if self.me.pal_pos == Vec2::ZERO || self.me.pal_pos.distance(want) > 6. {
+                self.me.pal_pos = want;
+            } else {
+                self.me.pal_pos += (want - self.me.pal_pos) * (dt * 4.).min(1.);
+            }
+        }
+        // the tracker beeps faster the closer the target is
+        if let Some(d) = self.bounty_dist() {
+            self.me.beep -= dt;
+            if self.me.beep <= 0. {
+                self.snd.push(Snd::Blip);
+                self.me.beep = (d / 7.).clamp(0.12, 1.4);
+            }
+        }
+        let armor = self.w.p.armor.count_ones() as f32;
+        let mut ambush = false;
         let Some(b) = self.w.p.bounty.as_mut() else { return };
         if b.caught {
+            if !b.delivered {
+                // a detained target walks behind you to the ship
+                let f = self.me.face.normalize_or_zero();
+                let want = me - f * 0.9;
+                let p = vec2(b.pos[0][0], b.pos[0][1]);
+                if p.distance(want) > 0.3 {
+                    let n = p + (want - p).normalize_or_zero() * (3.6 * dt).min(p.distance(want));
+                    b.pos[0] = [n.x, n.y];
+                }
+            }
             return;
         }
+        let p = vec2(b.pos[0][0], b.pos[0][1]);
+        if b.tier >= 1 && !b.ambushed && b.stun <= 0. && p.distance(me) < 1.4 {
+            // the target throws a fistful of sand and makes a break for it; armour softens it
+            b.ambushed = true;
+            b.run = 4.5;
+            self.me.dazed = (1.6 - 0.3 * armor).max(0.4);
+            ambush = true;
+        }
+        if ambush {
+            self.note("Sand in your eyes! They're making a run for it.");
+            return;
+        }
+        let Some(b) = self.w.p.bounty.as_mut() else { return };
         if b.stun > 0. {
             b.stun -= dt;
             return;

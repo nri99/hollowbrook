@@ -34,7 +34,10 @@ fn bounty_offers_take_detain_turn_in_once() {
     let money = g.w.p.money;
     g.interact();
     assert!(g.w.p.bounty.as_ref().unwrap().caught);
+    assert_eq!(g.turn_in(), Err("Lock them in your ship's holding pod first."));
+    g.deliver().unwrap();
     assert_eq!(g.turn_in(), Ok(BOUNTY_REWARD[0]));
+    assert_eq!(g.w.p.marks, MARKS[0]);
     assert_eq!((g.w.p.money, g.w.p.bounties_done), (money + BOUNTY_REWARD[0], 1));
     assert!(g.turn_in().is_err()); // paid once
     assert_eq!(g.take_bounty(0), Err("You already brought that one in today."));
@@ -140,4 +143,58 @@ fn woods_path_door_leads_to_dustreach_and_back() {
     g.swap(Scene::Town);
     g.me.scene = Scene::Town;
     assert_eq!(g.me.pos, at_door); // the gate brings you back to the woods door
+}
+
+#[test]
+fn ship_pod_forge_companion_tracker_and_ambush() {
+    let mut g = g0(at(11, 10, 0, 0));
+    to_frontier(&mut g);
+    // the ship's ramp is reachable and leads to the holding pod
+    assert!(f_walk(&g.fmap, F_RAMP.0 as i32, F_RAMP.1 as i32), "ramp spot is open ground");
+    assert!(f_walk(&g.fmap, F_PAL_SPOT.0 as i32, F_PAL_SPOT.1 as i32), "companion spot is open ground");
+    // a runner ambushes once when you get close: you are dazed, they bolt
+    g.take_bounty(1).unwrap();
+    let p = g.w.p.bounty.as_ref().unwrap().pos[0];
+    g.me.ipos = vec2(p[0], p[1]) + vec2(1.0, 0.);
+    g.frontier_tick(0.02);
+    let b = g.w.p.bounty.as_ref().unwrap();
+    assert!(b.ambushed && b.run > 0. && g.me.dazed > 1.);
+    assert!(g.snd.contains(&Snd::Blip), "tracker beeps while hunting");
+    // detained targets follow you to the ship and only then pay out, with guild marks
+    g.w.p.bounty.as_mut().unwrap().run = 0.;
+    g.w.p.bounty.as_mut().unwrap().stun = 3.;
+    g.detain(0);
+    g.me.ipos = vec2(F_RAMP.0, F_RAMP.1);
+    for _ in 0..400 {
+        g.frontier_tick(0.02);
+    }
+    let q = g.w.p.bounty.as_ref().unwrap().pos[0];
+    assert!(vec2(q[0], q[1]).distance(g.me.ipos) < 1.4, "prisoner walked to you");
+    g.me.face = vec2(0., -1.);
+    assert_eq!(g.target(), Some(Tg::Ship));
+    g.interact();
+    assert!(g.w.p.bounty.as_ref().unwrap().delivered);
+    g.turn_in().unwrap();
+    assert_eq!(g.w.p.marks, MARKS[1]);
+    // the forge: marks buy armour pieces once each; armour softens the next ambush
+    assert_eq!(g.forge(0), Err("Not enough guild marks. Bring in more bounties."));
+    g.w.p.marks = 20;
+    g.forge(0).unwrap();
+    g.forge(1).unwrap();
+    assert_eq!(g.forge(0), Err("You already wear that piece."));
+    assert_eq!((g.w.p.marks, g.armor_pieces()), (13, 2));
+    // the companion: adopted once at the oasis, then trots after you
+    g.me.ipos = vec2(F_PAL_SPOT.0, F_PAL_SPOT.1 + 1.);
+    g.me.face = vec2(0., -1.);
+    assert_eq!(g.target(), Some(Tg::Pal));
+    g.interact();
+    assert!(g.w.p.pal);
+    g.me.ipos = vec2(20.5, 10.5);
+    for _ in 0..200 {
+        g.frontier_tick(0.02);
+    }
+    assert!(g.me.pal_pos.distance(g.me.ipos) < 1.5, "companion follows");
+    let g2 = reload(&g, "hunt");
+    assert!(g2.w.p.pal && g2.w.p.armor == 0b11 && g2.w.p.marks == 13);
+    assert!(g2.check().is_empty());
 }
