@@ -9,11 +9,11 @@ Rust + macroquad 0.4, one binary, no engine. Run the full check before every com
 |---|---|
 | `src/main.rs` | Window setup, title screen, the frame loop, saving, and all scripted autotest phases (the dev bot). |
 | `src/world.rs` | Core state types (`World`, `Profile`, `Player`, `Game`, `Tg`, `Ui`), constants, `activate`, saving glue, `Game::check()`, movement and scenes. |
-| `src/world/*.rs` | `impl Game` split by system: `daily` (rollover), `interact` (targets, prompts, talk), `housing`, `furniture`, `shop` (+ museum), `tools` (+ fishing, diving), `home_garden`, `festivals`, `projects`, `islet`, `extras` (campground, initiatives, surprises), `sim` (residents, wildlife, paths), `input` (update/tick, menus, placement). |
+| `src/world/*.rs` | `impl Game` split by system: `daily` (rollover), `interact` (targets, prompts, talk), `housing`, `furniture`, `shop` (+ museum), `tools` (+ fishing, diving), `home_garden`, `festivals`, `projects`, `islet`, `frontier` (Dustreach outpost, bounties), `extras` (campground, initiatives, surprises), `sim` (residents, wildlife, paths), `input` (update/tick, menus, placement). |
 | `src/events.rs` | M3 activities: monthly contests ("surveys"), resident invitations, hide-and-seek ("Trail Seek"). |
 | `src/data.rs` | Static content: item table `DEFS` and named ids `data::id`, buildings `BLDS`, residents, rooms, dialogue, guide/help text. |
 | `src/render.rs` | Colours, the CPU mesh builder `R`, lighting. Never changes state. |
-| `src/render/*.rs` | `characters`, `models` (furniture, buildings), `scene` (viewport `draw`, town, islet), `interior` (`room`), `hud` (all 2D menus). |
+| `src/render/*.rs` | `characters`, `models` (furniture, buildings), `scene` (viewport `draw`, town, islet), `interior` (`room`), `hud` (all 2D menus), `frontier` (Dustreach scene, bounty HUD and board menu). |
 | `src/save.rs` | JSON save/load, backups, corrupt-save handling, version upgrades (`upgrade`), legacy text-save migration. |
 | `src/pad.rs` | Gamepads (gilrs) mapped onto the same virtual keys as the keyboard. |
 | `src/net.rs` | LAN play: the host simulates, the friend sends input and receives snapshots. |
@@ -133,10 +133,11 @@ any you forget. Menus are the `Ui` enum on `me.ui`; their input lives in `update
 | 42 | Invitations: offer, home visit, missed visit (Nov 12 12:00 / 13:15) |
 | 43 | Hide-and-seek: start, finds, completion, timeout (Nov 13 12:00 / 16:00) |
 | 44 | Home stories: main floor, basement, upstairs |
+| 45 | Dustreach: arrival at the gate, bounty board menu, lookalike bounty, market (day and dusk) |
 
 ## Glossary of short names
 
 `w` world · `p` active profile · `me` active player · `Tg` interaction target · `BK` building kind ·
 `BLDS` buildings · `DEFS`/`def(id)` item table · `Ui` open menu · `tc(tile)` tile centre · `ipos` indoor position ·
 `hr`/`dom`/`mo`/`yr` hour/day of month/month/year · `fx` effects · `act` timed activity · `mproject` money project ·
-`project` material project · `wtask` weekly town task · `story` home floor (0 main, 1 basement, 2 upstairs).
+`project` material project · `wtask` weekly town task · `story` home floor (0 main, 1 basement, 2 upstairs) · `fmap`/`Scene::Frontier` Dustreach outpost (dev entry F9 with `HOLLOWBROOK_DEBUG`; no door from town yet).

@@ -7,11 +7,12 @@ use macroquad::models::{draw_mesh, Mesh, Vertex};
 use macroquad::prelude::*;
 use std::f32::consts::{FRAC_PI_2, PI};
 mod characters;
+mod frontier;
 mod hud;
 mod interior;
 mod models;
 mod scene;
-pub use {characters::*, hud::*, interior::*, models::*, scene::*};
+pub use {characters::*, frontier::*, hud::*, interior::*, models::*, scene::*};
 
 pub fn rgb(c: (f32, f32, f32)) -> Color {
     Color::new(c.0, c.1, c.2, 1.)

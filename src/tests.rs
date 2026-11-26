@@ -45,6 +45,7 @@ fn two(t: NaiveDateTime) -> Game {
 mod activities;
 mod daily;
 mod economy;
+mod frontier;
 mod furniture;
 mod islet;
 mod multiplayer;

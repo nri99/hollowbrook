@@ -1,0 +1,282 @@
+//! Dustreach: an original desert frontier outpost reached through a gate (no door from Hollowbrook yet; dev entry
+//! is F9 with HOLLOWBROOK_DEBUG). Players take bounties at the Guild Post board, track the target with the tracker,
+//! detain them (runners flee, some hide among lookalikes) and turn them in for coins and rank.
+//! All names, rules and numbers here are original and provisional.
+use super::*;
+
+pub const FW: i32 = 30;
+pub const FH: i32 = 24;
+/// Where players appear when they come through the gate, and the gate back to Hollowbrook.
+pub const F_SPAWN: (f32, f32) = (15.5, 20.5);
+pub const F_GATE: (i32, i32) = (15, 22);
+/// The Guild Post bounty board and the broker who stands beside it.
+pub const F_BOARD: (i32, i32) = (13, 9);
+pub const F_BROKER: (f32, f32) = (14.6, 9.6);
+/// Structures: (kind, x, z, w, d). 0 Guild Post, 1 Longhouse, 2 market tent, 3 water tower, 4 wreck, 5 dome hut.
+pub const F_STRUCTS: [(u8, i32, i32, i32, i32); 11] = [
+    (0, 11, 5, 5, 4),
+    (1, 18, 5, 6, 4),
+    (2, 6, 12, 2, 2),
+    (2, 9, 12, 2, 2),
+    (2, 20, 12, 2, 2),
+    (3, 24, 16, 2, 2),
+    (4, 3, 2, 5, 3),
+    (5, 5, 17, 2, 2),
+    (5, 22, 19, 2, 2),
+    (5, 26, 9, 2, 2),
+    (5, 7, 7, 2, 2),
+];
+/// Hiding spots and how the broker describes them.
+pub const F_SPOTS: [((i32, i32), &str); 8] = [
+    ((6, 6), "by the old wreck in the northwest"),
+    ((26, 3), "among the red rocks in the northeast"),
+    ((8, 15), "behind the market tents"),
+    ((25, 13), "near the water tower"),
+    ((3, 20), "out in the southwest dunes"),
+    ((27, 21), "past the huts in the southeast"),
+    ((22, 9), "round the back of the Longhouse"),
+    ((2, 11), "along the western ridge"),
+];
+const NAMES: [&str; 12] = [
+    "Corvin Slake",
+    "Ada Brisk",
+    "Tobin Marr",
+    "Wren Halloway",
+    "Dax Fennick",
+    "Mira Cole",
+    "Jory Vance",
+    "Esk Talloway",
+    "Nell Garrow",
+    "Bram Quill",
+    "Sable Ott",
+    "Rook Danvers",
+];
+const CRIMES: [&str; 8] = [
+    "skipped out on a water debt",
+    "smuggled glowmoss past the toll",
+    "rustled a herd of sand runners",
+    "forged trading permits",
+    "stole a crate of solar cells",
+    "broke out of the stockade",
+    "sold fake maps to travellers",
+    "jumped a supply caravan",
+];
+/// Scarf colours: the real target wears the first, lookalikes the others.
+pub const SCARVES: [(&str, (f32, f32, f32)); 3] =
+    [("red", (0.85, 0.2, 0.18)), ("blue", (0.2, 0.4, 0.85)), ("green", (0.25, 0.65, 0.3))];
+/// Tier 0 waits, tier 1 runs when you get close, tier 2 hides among two lookalikes (and runs).
+pub const BOUNTY_REWARD: [u32; 3] = [400, 900, 1600];
+pub const RANKS: [(u32, &str); 5] = [(0, "Drifter"), (3, "Tracker"), (8, "Hunter"), (15, "Warden"), (30, "Legend")];
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub struct Bounty {
+    pub day: i64,
+    pub offer: u8,
+    pub tier: u8,
+    /// Target first, then lookalikes (tier 2). Positions in outpost coordinates.
+    pub pos: Vec<[f32; 2]>,
+    pub caught: bool,
+    /// Seconds left of the current run; negative while the target catches its breath.
+    #[serde(default)]
+    pub run: f32,
+}
+pub struct Offer {
+    pub name: &'static str,
+    pub crime: &'static str,
+    pub tier: u8,
+    pub spot: usize,
+    pub reward: u32,
+}
+
+fn mix(a: u64, b: u64) -> u64 {
+    let mut x = a.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ b.wrapping_add(0x632B_E59B_D9B4_E019);
+    x ^= x >> 29;
+    x = x.wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    x ^ (x >> 32)
+}
+pub fn frontier_map() -> Vec<u8> {
+    let mut m = vec![SAND; (FW * FH) as usize];
+    let mut set = |x: i32, z: i32, c: u8| {
+        if (0..FW).contains(&x) && (0..FH).contains(&z) {
+            m[(z * FW + x) as usize] = c
+        }
+    };
+    for z in 0..FH {
+        for x in 0..FW {
+            if x == 0 || z == 0 || x == FW - 1 || z == FH - 1 {
+                set(x, z, ROCK) // canyon walls ring the outpost
+            }
+        }
+    }
+    for z in 9..FH - 1 {
+        set(15, z, PATH);
+        set(16, z, PATH)
+    } // main street from the gate to the Guild Post
+    for x in 4..27 {
+        set(x, 10, PATH)
+    } // cross street
+    for &(x, z) in &[(25, 2), (26, 2), (27, 4), (1, 9), (12, 18), (19, 16), (28, 14), (9, 21)] {
+        set(x, z, ROCK)
+    }
+    for &(_, x, z, w, d) in &F_STRUCTS {
+        for zz in z..z + d {
+            for xx in x..x + w {
+                set(xx, zz, ROCK)
+            }
+        }
+    }
+    set(F_GATE.0, F_GATE.1, PATH);
+    set(F_GATE.0 + 1, F_GATE.1, PATH);
+    m
+}
+pub fn ftile(m: &[u8], x: i32, z: i32) -> u8 {
+    if (0..FW).contains(&x) && (0..FH).contains(&z) {
+        m[(z * FW + x) as usize]
+    } else {
+        ROCK
+    }
+}
+pub fn f_walk(m: &[u8], x: i32, z: i32) -> bool {
+    matches!(ftile(m, x, z), SAND | PATH) && (x, z) != F_BOARD
+}
+pub fn rank_of(done: u32) -> &'static str {
+    RANKS.iter().rev().find(|r| done >= r.0).map_or("Drifter", |r| r.1)
+}
+
+impl Game {
+    /// Today's three bounties for the active player (same list all day; different for each player).
+    pub fn bounty_offers(&self) -> Vec<Offer> {
+        (0..3u8)
+            .map(|k| {
+                let h = mix(self.w.day as u64 * 7 + k as u64, self.w.p.id as u64 + 11);
+                Offer {
+                    name: NAMES[(h % NAMES.len() as u64) as usize],
+                    crime: CRIMES[((h >> 8) % CRIMES.len() as u64) as usize],
+                    tier: k,
+                    spot: ((h >> 16) % F_SPOTS.len() as u64) as usize,
+                    reward: BOUNTY_REWARD[k as usize],
+                }
+            })
+            .collect()
+    }
+    pub fn bounty_done_today(&self, k: u8) -> bool {
+        self.w.p.bounty_log.iter().any(|&(d, o)| d == self.w.day && o == k)
+    }
+    /// Accept offer `k`. One bounty at a time; each offer once per day.
+    pub fn take_bounty(&mut self, k: u8) -> Result<String, &'static str> {
+        if self.w.p.bounty.is_some() {
+            return Err("Finish or drop your current bounty first.");
+        }
+        if self.bounty_done_today(k) {
+            return Err("You already brought that one in today.");
+        }
+        let o = self.bounty_offers().into_iter().nth(k as usize).ok_or("No such bounty.")?;
+        let (sx, sz) = F_SPOTS[o.spot].0;
+        let mut pos = vec![[sx as f32 + 0.5, sz as f32 + 0.5]];
+        if o.tier == 2 {
+            for (dx, dz) in [(-3, 1), (3, -1)] {
+                let t = (sx + dx, sz + dz);
+                let t = if f_walk(&self.fmap, t.0, t.1) { t } else { (sx, sz + dz.signum()) };
+                pos.push([t.0 as f32 + 0.5, t.1 as f32 + 0.5]);
+            }
+        }
+        self.w.p.bounty = Some(Bounty { day: self.w.day, offer: k, tier: o.tier, pos, caught: false, run: 0. });
+        Ok(format!("Bounty taken: {}. Last seen {}.", o.name, F_SPOTS[o.spot].1))
+    }
+    pub fn drop_bounty(&mut self) {
+        if self.w.p.bounty.take().is_some() {
+            self.note("Bounty dropped. The broker shrugs.")
+        }
+    }
+    /// Detain figure `i` (0 = the real target). Lookalikes cost nothing but time.
+    pub fn detain(&mut self, i: usize) {
+        let Some(b) = self.w.p.bounty.as_mut() else { return };
+        if b.caught {
+            return;
+        }
+        if i == 0 {
+            b.caught = true;
+            let name = self.bounty_offers()[self.w.p.bounty.as_ref().unwrap().offer as usize].name;
+            self.snd.push(Snd::Coin);
+            self.note(format!("Detained {name}! Take them to the Guild Post board."));
+        } else {
+            self.note(format!("Wrong person. Your target wears a {} scarf.", SCARVES[0].0));
+        }
+    }
+    /// Turn in a detained target at the board: pays once, raises rank.
+    pub fn turn_in(&mut self) -> Result<u32, &'static str> {
+        let b = self.w.p.bounty.clone().ok_or("No bounty to turn in.")?;
+        if !b.caught {
+            return Err("You haven't detained them yet.");
+        }
+        let reward = BOUNTY_REWARD[b.tier as usize];
+        let before = rank_of(self.w.p.bounties_done);
+        self.w.p.money = self.w.p.money.saturating_add(reward);
+        self.w.p.bounties_done += 1;
+        self.w.p.bounty_log.push((b.day, b.offer));
+        self.w.p.bounty_log.retain(|&(d, _)| d + 7 >= self.w.day);
+        self.w.p.bounty = None;
+        self.snd.push(Snd::Coin);
+        let after = rank_of(self.w.p.bounties_done);
+        self.note(format!("Bounty paid: {reward} coins."));
+        if before != after {
+            self.note(format!("The guild names you {after}!"))
+        }
+        Ok(reward)
+    }
+    /// Distance from the active player to their target, if a hunt is on.
+    pub fn bounty_dist(&self) -> Option<f32> {
+        let b = self.w.p.bounty.as_ref()?;
+        (!b.caught).then(|| self.me.ipos.distance(vec2(b.pos[0][0], b.pos[0][1])))
+    }
+    pub fn tracker_word(&self) -> &'static str {
+        match self.bounty_dist() {
+            None => "",
+            Some(d) if d < 4. => "target in sight",
+            Some(d) if d < 8. => "hot",
+            Some(d) if d < 14. => "warm",
+            _ => "cold",
+        }
+    }
+    /// Per-player frame update in the outpost: runners flee when the hunter gets close.
+    pub fn frontier_tick(&mut self, dt: f32) {
+        if self.me.scene != Scene::Frontier {
+            return;
+        }
+        let me = self.me.ipos;
+        let Some(b) = self.w.p.bounty.as_mut() else { return };
+        if b.caught || b.tier == 0 {
+            return;
+        }
+        let p = vec2(b.pos[0][0], b.pos[0][1]);
+        if b.run <= 0. {
+            b.run += dt; // resting (negative) counts back up to zero
+            if b.run >= 0. && p.distance(me) < 2.6 {
+                b.run = 4.5; // spooked: run for a while
+            } else {
+                b.run = b.run.min(0.);
+                return;
+            }
+        }
+        b.run -= dt;
+        if b.run <= 0. {
+            b.run = -3.; // out of breath: catch them now
+        }
+        let away = (p - me).normalize_or_zero();
+        let side = vec2(-away.y, away.x);
+        for d in [away, (away + side).normalize(), (away - side).normalize(), side, -side] {
+            let n = p + d * 4.2 * dt;
+            let t = tile_of(n);
+            if f_walk(&self.fmap, t.0, t.1) {
+                b.pos[0] = [n.x, n.y];
+                break;
+            }
+        }
+    }
+    /// Day rollover: an uncaught bounty goes cold; a detained one can still be turned in.
+    pub(super) fn expire_bounty(p: &mut Profile, day: i64) {
+        if p.bounty.as_ref().is_some_and(|b| !b.caught && b.day != day) {
+            p.bounty = None;
+        }
+    }
+}

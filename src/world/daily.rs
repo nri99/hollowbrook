@@ -41,6 +41,7 @@ impl Game {
         self.birthday_letters();
     }
     pub(super) fn refresh_profile(&mut self, letters: bool) {
+        Self::expire_bounty(&mut self.w.p, self.w.day);
         self.refresh_social();
         self.settle_contests();
         self.assign_tasks();
@@ -436,6 +437,7 @@ impl Game {
                 Scene::Town => self.walk_tile(x, z) || self.tile(x, z) == SEA,
                 Scene::Room(b) => !self.room_block(b, x, z, 0),
                 Scene::Islet => matches!(tile_at_i(&self.imap, x, z), GRASS | SAND | BRIDGE | SEA) && (x, z) != ISTALL,
+                Scene::Frontier => f_walk(&self.fmap, x, z),
             }
         })
     }
@@ -504,6 +506,7 @@ impl Game {
         let c = match self.me.scene {
             Scene::Town => self.tile(t.0, t.1),
             Scene::Islet => tile_at_i(&self.imap, t.0, t.1),
+            Scene::Frontier => ftile(&self.fmap, t.0, t.1),
             Scene::Room(_) => return Snd::StepFloor,
         };
         if self.w.built.iter().any(|b| b.kind == PK_BRIDGE && ptiles(b.kind, b.x, b.z).contains(&t)) {
@@ -535,6 +538,11 @@ impl Game {
             }
         } // leaving forfeits
         match to {
+            Scene::Frontier => {
+                self.me.ipos = vec2(F_SPAWN.0, F_SPAWN.1);
+                self.me.face = vec2(0., -1.);
+                self.me.cam = self.me.ipos
+            }
             Scene::Islet => {
                 self.me.ipos = vec2(ISLET_SPAWN.0, ISLET_SPAWN.1);
                 self.me.face = vec2(0., -1.);

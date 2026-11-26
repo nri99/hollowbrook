@@ -206,8 +206,10 @@ pub(super) fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         );
         txt("Talk to friends at their hiding spots.", 22., 228., 17., WHITE);
     }
+    bounty_hud(g, sw);
     match &g.me.ui {
         Ui::Play => {}
+        Ui::Bounty(sel) => bounty_menu(g, *sel, sw),
         Ui::Invitation => {
             let pw = (sw - 24.).min(620.);
             let x = (sw - pw) / 2.;

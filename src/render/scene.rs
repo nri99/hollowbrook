@@ -339,8 +339,9 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
     let wx = weather(g.w.day, now.month());
     let rain = wx != Wx::Clear;
     let lt = light(hf, rain);
+    let lt = if g.me.scene == Scene::Frontier { dusty(&lt) } else { lt };
     let (cam, curve, c0) = match g.me.scene {
-        Scene::Town | Scene::Islet => (
+        Scene::Town | Scene::Islet | Scene::Frontier => (
             Camera3D {
                 position: vec3(g.me.cam.x, 7.4, g.me.cam.y + 7.6),
                 target: vec3(g.me.cam.x, 0.5, g.me.cam.y - 0.8),
@@ -410,6 +411,7 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
     let mut labels: Vec<(Vec3, String, Color)> = vec![];
     match g.me.scene {
         Scene::Islet => islet_scene(&mut r, g, &lt, &mut labels),
+        Scene::Frontier => frontier_scene(&mut r, g, &lt, &mut labels),
         Scene::Town => town(&mut r, g, &lt, now, &mut labels),
         Scene::Room(b) => room(&mut r, g, b, &lt, &mut labels),
     }
@@ -431,7 +433,15 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
         draw_rectangle(x - tw / 2. - 5., y - 17., tw + 10., 23., Color::new(0., 0., 0., 0.55));
         draw_text(&s, x - tw / 2., y, 20., c);
     }
-    if !matches!(g.me.scene, Scene::Room(_)) {
+    if g.me.scene == Scene::Frontier {
+        // wind-blown dust instead of the seasonal leaves and petals of Hollowbrook
+        let (w, h, t) = (vw(), vh(), g.t);
+        for i in 0..36 {
+            let x = ((i * 157) as f32 + t * (60. + (i % 5) as f32 * 14.)) % w;
+            let y = ((i * 89) as f32 + (t * 0.9 + i as f32).sin() * 12.) % h;
+            draw_circle(x, y, 1.6 + (i % 3) as f32 * 0.5, Color::new(0.98, 0.85, 0.66, 0.5));
+        }
+    } else if !matches!(g.me.scene, Scene::Room(_)) {
         let (mo, w, h, t) = (now.month(), vw(), vh(), g.t);
         match mo {
             3..=5 => {

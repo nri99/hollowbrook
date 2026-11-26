@@ -9,10 +9,12 @@ use std::collections::{HashMap, HashSet, VecDeque};
 mod daily;
 mod extras;
 mod festivals;
+mod frontier;
 mod furniture;
 mod home_garden;
 mod housing;
 mod input;
+pub use frontier::*;
 mod interact;
 mod islet;
 mod projects;
@@ -274,6 +276,13 @@ pub struct Profile {
     pub story: u8,
     #[serde(default)]
     pub stories: Vec<Vec<Furn>>,
+    /// Dustreach: active bounty, bounties turned in (rank), and (day, offer) already completed.
+    #[serde(default)]
+    pub bounty: Option<Bounty>,
+    #[serde(default)]
+    pub bounties_done: u32,
+    #[serde(default)]
+    pub bounty_log: Vec<(i64, u8)>,
     pub npcs: Vec<NpcS>,
     pub seen: Vec<u16>,
     pub tools: Vec<u16>,
@@ -350,6 +359,9 @@ impl Profile {
             missed_visit: None,
             contests: vec![],
             story: 0,
+            bounty: None,
+            bounties_done: 0,
+            bounty_log: vec![],
             stories: vec![],
             id,
             name,
@@ -508,6 +520,8 @@ pub enum Scene {
     Town,
     Room(usize),
     Islet,
+    /// Dustreach, the frontier outpost (separate world; dev entry only for now).
+    Frontier,
 }
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
 pub enum Pose {
@@ -572,6 +586,9 @@ pub enum Tg {
     Plant(usize),
     PlantSpot,
     Stairs(u8),
+    BountyBoard,
+    Fugitive(usize),
+    FGate,
 }
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum Ui {
@@ -602,6 +619,7 @@ pub enum Ui {
     Keeper(usize),
     Camp(usize),
     Kiosk(usize),
+    Bounty(usize),
     Title(usize),
     Help,
 }
@@ -794,6 +812,7 @@ pub struct Game {
     /// shared bubble spots in the sea marking a sea creature below
     pub bubbles: Vec<(Vec2, u16)>,
     pub imap: Vec<u8>,
+    pub fmap: Vec<u8>,
     pub ibubbles: Vec<(Vec2, u16)>,
     pub ibugs: Vec<(u16, Vec2, f32)>,
     pub pell_talked: bool,
@@ -865,6 +884,7 @@ impl Game {
             bubbles: vec![],
             visit: None,
             imap: islet(),
+            fmap: frontier_map(),
             ibubbles: vec![],
             pell_talked: false,
             ibugs: vec![],
@@ -974,6 +994,7 @@ impl Game {
             Scene::Town => self.me.pos,
             Scene::Room(b) => door_stand(b),
             Scene::Islet => dock_stand(),
+            Scene::Frontier => self.me.pos,
         };
         self.w.p.pos = [pos.x, pos.y];
         self.activate(0);
@@ -1061,6 +1082,7 @@ impl Game {
                 Scene::Town => pl.pos,
                 Scene::Room(b) => door_stand(b),
                 Scene::Islet => dock_stand(),
+                Scene::Frontier => pl.pos,
             };
             pr.pos = [p.x, p.y];
         }

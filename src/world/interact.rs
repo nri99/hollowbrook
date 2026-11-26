@@ -89,6 +89,16 @@ impl Game {
                     cand(tc(STALL), 1.5, 0.8, Tg::ArtStall, Some(STALL))
                 }
             }
+            Scene::Frontier => {
+                cand(tc(F_BOARD), 1.6, 0.8, Tg::BountyBoard, None);
+                cand(vec2(F_BROKER.0, F_BROKER.1), 1.6, 0.8, Tg::BountyBoard, None);
+                cand(vec2(F_GATE.0 as f32 + 1., F_GATE.1 as f32 + 0.5), 1.6, 0.8, Tg::FGate, None);
+                if let Some(b) = self.w.p.bounty.as_ref().filter(|b| !b.caught) {
+                    for (i, p) in b.pos.iter().enumerate() {
+                        cand(vec2(p[0], p[1]), 1.4, 0.9, Tg::Fugitive(i), None)
+                    }
+                }
+            }
             Scene::Islet => {
                 cand(vec2(PELL_I.0, PELL_I.1), 1.6, 0.8, Tg::Pell, None);
                 cand(tc(ACT_BOARD), 1.4, 0.8, Tg::ActBoard, None);
@@ -187,6 +197,11 @@ impl Game {
             Tg::Surprise => self.w.surprise.as_ref().map_or(Vec3::ZERO, |sp| v(tc((sp.x, sp.z)), 0.9)),
             Tg::CampSign => v(tc(CAMP_SIGN), 1.5),
             Tg::Kiosk => v(tc(KIOSK), 1.5),
+            Tg::BountyBoard => v(tc(F_BOARD), 1.9),
+            Tg::FGate => vec3(F_GATE.0 as f32 + 1., 2.6, F_GATE.1 as f32 + 0.5),
+            Tg::Fugitive(i) => {
+                self.w.p.bounty.as_ref().and_then(|b| b.pos.get(i)).map_or(Vec3::ZERO, |p| vec3(p[0], 1.9, p[1]))
+            }
             Tg::Board => v(tc(BOARD), 1.9),
             Tg::MSite => self.w.mproject.as_ref().map_or(Vec3::ZERO, |m| v(tc((m.x, m.z)), 1.6)),
             Tg::Dock => vec3(DOCK.0 as f32 + 0.5, 1.6, DOCK.1 as f32 + 0.3),
@@ -278,6 +293,9 @@ impl Game {
             Tg::Camper => format!("Talk to {} the {}", VISITORS[self.visitor()].name, VISITORS[self.visitor()].species),
             Tg::CampSign => "Read the campground sign".into(),
             Tg::Kiosk => format!("Initiatives kiosk ({} coupons)", self.w.p.coupons),
+            Tg::BountyBoard => "Guild Post bounty board".into(),
+            Tg::FGate => "Gate back to Hollowbrook".into(),
+            Tg::Fugitive(_) => "Detain".into(),
             Tg::Plant(i) => {
                 let p = self.w.garden[i];
                 let n = def(FLOWERS[p.kind as usize]).name;
@@ -402,6 +420,9 @@ impl Game {
                 self.me.ui = Ui::Talk { npc: None, who: "Campground sign".into(), lines: vec![format!("Hollowbrook Campground. Travellers stay one day each, at the campfire from {}:00 to {}:00.", CAMP_HOURS.0, CAMP_HOURS.1), format!("Today: {} the {}. Tomorrow: {} the {}.", v.name, v.species, n.name, n.species), "Each traveller sells one of each item per day and has one favor to ask.".into()], i: 0 }
             }
             Tg::Kiosk => self.me.ui = Ui::Kiosk(0),
+            Tg::BountyBoard => self.me.ui = Ui::Bounty(0),
+            Tg::FGate => self.go(Scene::Town),
+            Tg::Fugitive(i) => self.detain(i),
             Tg::ArtStall => {
                 let r = self.art_buy();
                 match r {

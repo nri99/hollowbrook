@@ -2267,6 +2267,32 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
             m.applied,
             g.settings_dirty
         );
+    } else if phase == "45" {
+        // Dustreach: arrival, the street, the board menu through the real input path, a lookalike bounty up close.
+        g.swap(Scene::Frontier);
+        g.me.scene = Scene::Frontier;
+        wait(g, c, 30).await;
+        shot!("f_arrival");
+        g.me.ipos = vec2(13.6, 10.7);
+        g.me.cam = g.me.ipos;
+        g.me.face = vec2(0., -1.);
+        wait(g, c, 20).await;
+        press(g, c, KeyCode::E).await;
+        shot!("f_board_menu");
+        press(g, c, KeyCode::S).await;
+        press(g, c, KeyCode::S).await;
+        press(g, c, KeyCode::Enter).await;
+        log!("bounty={:?}", g.w.p.bounty);
+        let p = g.w.p.bounty.as_ref().map(|b| b.pos[0]).unwrap_or([15., 15.]);
+        g.me.ipos = vec2(p[0], p[1] + 2.4);
+        g.me.cam = g.me.ipos;
+        g.me.face = vec2(0., -1.);
+        wait(g, c, 30).await;
+        shot!("f_lookalikes");
+        g.me.ipos = vec2(19.5, 12.5);
+        g.me.cam = g.me.ipos;
+        wait(g, c, 20).await;
+        shot!("f_market");
     } else if phase == "44" {
         // Home stories: main floor with both stairways, then basement and upstairs.
         g.w.p.home = 4;

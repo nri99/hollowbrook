@@ -43,6 +43,15 @@ impl Game {
     /// Per-player update for the active player (`activate` first): its own input, camera, UI, movement, actions.
     pub fn update_player(&mut self, inp: &Inp, dt: f32) {
         self.social_tick();
+        self.frontier_tick(dt);
+        // Dev-only entry to Dustreach until the real gate exists in Hollowbrook.
+        if inp.p(KeyCode::F9)
+            && self.me.ui == Ui::Play
+            && matches!(self.me.scene, Scene::Town | Scene::Frontier)
+            && std::env::var("HOLLOWBROOK_DEBUG").is_ok()
+        {
+            self.go(if self.me.scene == Scene::Frontier { Scene::Town } else { Scene::Frontier })
+        }
         self.me.swing = (self.me.swing - dt).max(0.);
         self.act_step();
         if self.w.p.task_day != self.w.day {
@@ -560,6 +569,27 @@ impl Game {
                             let lines = v.lines.iter().map(|l| l.to_string()).collect();
                             self.me.ui = Ui::Talk { npc: None, who, lines, i: 0 }
                         }
+                    }
+                }
+            }
+            Ui::Bounty(s) => {
+                let s = mv(s, 5);
+                self.me.ui = Ui::Bounty(s);
+                if esc || (ok && s == 4) {
+                    self.me.ui = Ui::Play
+                } else if ok && s < 3 {
+                    match self.take_bounty(s as u8) {
+                        Ok(m) => {
+                            self.note(m);
+                            self.me.ui = Ui::Play
+                        }
+                        Err(e) => self.note(e),
+                    }
+                } else if ok && s == 3 {
+                    if self.w.p.bounty.as_ref().is_some_and(|b| b.caught) {
+                        let _ = self.turn_in();
+                    } else {
+                        self.drop_bounty()
                     }
                 }
             }
