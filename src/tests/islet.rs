@@ -785,6 +785,7 @@ fn release_content_acquisition_audit() {
     src.push(150);
     src.extend(SPECIALS);
     src.extend(SEEDS);
+    src.extend(GEAR.iter().map(|g| g.0)); // Dustreach gear: bought at the Guild Post board
     src.extend(FLOWERS);
     src.push(CAN);
     src.push(169);
