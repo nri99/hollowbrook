@@ -343,8 +343,8 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
     let (cam, curve, c0) = match g.me.scene {
         Scene::Town | Scene::Islet | Scene::Frontier => (
             Camera3D {
-                position: vec3(g.me.cam.x, 7.4, g.me.cam.y + 7.6),
-                target: vec3(g.me.cam.x, 0.5, g.me.cam.y - 0.8),
+                position: vec3(g.me.cam.x, 6.1, g.me.cam.y + 8.3), // lower, longer view for more depth
+                target: vec3(g.me.cam.x, 0.8, g.me.cam.y - 0.8),
                 up: Vec3::Y,
                 fovy: 35f32.to_radians(),
                 ..Default::default()
