@@ -573,15 +573,20 @@ impl Game {
                 self.me.face = vec2(0., -1.);
                 self.me.cam = self.me.ipos
             }
-            Scene::Planet(_) => {
-                self.me.ipos = vec2(P_SPAWN.0, P_SPAWN.1);
+            Scene::Planet(k) => {
+                let r = ramp_of(k, pad_of(self.me.id));
+                self.me.ipos = r + vec2(0., 1.1);
                 self.me.face = vec2(0., 1.);
                 self.me.cam = self.me.ipos
             }
             Scene::Frontier => {
                 // off the ship's ramp when stepping out of it, otherwise at the gate from Hollowbrook
                 let from_ship = matches!(self.me.scene, Scene::Cockpit(_));
-                self.me.ipos = if from_ship { vec2(F_RAMP.0, F_RAMP.1 + 0.6) } else { vec2(F_SPAWN.0, F_SPAWN.1) };
+                if self.me.scene == Scene::Town {
+                    self.me.ship_at = 0; // your ship flies itself home to its Dustreach pad
+                }
+                self.me.ipos =
+                    if from_ship { ramp_of(0, pad_of(self.me.id)) + vec2(0., 0.6) } else { vec2(F_SPAWN.0, F_SPAWN.1) };
                 self.me.face = if from_ship { vec2(0., 1.) } else { vec2(0., -1.) };
                 self.me.cam = self.me.ipos
             }

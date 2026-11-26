@@ -1565,7 +1565,7 @@ pub(super) fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: 
 }
 /// Other local players who are in the same scene as the viewing player.
 pub(super) fn others(r: &mut R, g: &Game, t: f32) {
-    for o in g.others.iter().filter(|o| o.scene == g.me.scene) {
+    for o in g.others.iter().filter(|o| sees(&g.me, o)) {
         let p = if o.scene == Scene::Town { o.pos } else { o.ipos };
         let pose = match o.pose {
             Pose::Stand => 0,

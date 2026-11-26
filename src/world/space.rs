@@ -30,6 +30,38 @@ pub const SAMPLE_ITEM: [u16; 2] = [175, 176]; // Frost Crystal, Glowcap
 /// Each landing site has a pond: (centre x, centre z, radius x, radius z).
 pub const P_POND: [(f32, f32, f32, f32); 2] = [(9.0, 14.0, 3.2, 2.2), (21.0, 13.0, 3.0, 2.0)];
 
+/// Landing pads, one per player (index = pad_of(player id)): Dustreach and the landing sites. Pad 0 keeps the
+/// original spot (F_RAMP / P_SHIP / P_RAMP / P_SPAWN are pad 0).
+pub const F_PADS: [(i32, i32, i32, i32); 2] = [(21, 22, 6, 4), (41, 23, 6, 4)];
+pub const P_PADS: [(i32, i32, i32, i32); 2] = [(13, 3, 6, 4), (22, 3, 6, 4)];
+pub fn pad_of(id: usize) -> usize {
+    id.min(1)
+}
+/// Where you stand to board the ship on pad `i`: Dustreach (planet 0) or a landing site.
+pub fn ramp_of(planet: u8, i: usize) -> Vec2 {
+    if planet == 0 {
+        let (x, z, w, d) = F_PADS[i];
+        vec2(x as f32 + w as f32 / 2., (z + d) as f32 + 0.6)
+    } else {
+        let (x, z, w, d) = P_PADS[i];
+        vec2(x as f32 + w as f32 / 2., (z + d) as f32 + 1.1)
+    }
+}
+/// Is this player's ship parked on `planet` (and not flying)?
+pub fn ship_parked(p: &Player, planet: u8) -> bool {
+    p.flight.is_none() && p.ship_at == planet
+}
+/// Can player `a` see player `b` walking around? Same scene, `b` not flying, and never inside each other's ships.
+pub fn sees(a: &Player, b: &Player) -> bool {
+    a.scene == b.scene && b.flight.is_none() && !matches!(b.scene, Scene::Cockpit(_))
+}
+/// Can `a` see `b`'s ship in space? Both flying in the same system and neither in the light-speed tunnel.
+pub fn sees_in_space(a: &Player, b: &Player) -> bool {
+    match (a.flight, b.flight) {
+        (Some(x), Some(y)) => x.sys == y.sys && x.jump <= 0. && y.jump <= 0.,
+        _ => false,
+    }
+}
 /// Ship interior: 6 x 5 tiles. Front console along the back wall, the pilot's seat in front of it, the holding
 /// cell on the left, a bunk on the right, the ramp door in the middle of the near wall.
 pub const CK: (i32, i32) = (6, 5);
@@ -78,9 +110,8 @@ pub fn ptile(k: u8, x: i32, z: i32) -> u8 {
     if !(0..PW).contains(&x) || !(0..PH).contains(&z) || x == 0 || z == 0 || x == PW - 1 || z == PH - 1 {
         return ROCK;
     }
-    let (sx, sz, sw, sd) = P_SHIP;
-    if x >= sx && x < sx + sw && z >= sz && z < sz + sd {
-        return ROCK; // your ship
+    if P_PADS.iter().any(|&(sx, sz, sw, sd)| x >= sx && x < sx + sw && z >= sz && z < sz + sd) {
+        return ROCK; // a landing pad
     }
     let i = (k as usize).clamp(1, 2) - 1;
     let (cx, cz, rx, rz) = P_POND[i];
@@ -92,7 +123,7 @@ pub fn ptile(k: u8, x: i32, z: i32) -> u8 {
         return PATH;
     }
     let clear = SAMPLE_SPOTS[i].iter().any(|&(px, pz)| (px - x).abs() <= 1 && (pz - z).abs() <= 1)
-        || ((12..=20).contains(&x) && (7..=13).contains(&z));
+        || ((12..=29).contains(&x) && (7..=13).contains(&z));
     if !clear && h32(x, z, k) % 9 == 0 {
         return ROCK;
     }
@@ -119,8 +150,19 @@ impl Game {
     /// Walk up the ramp into your ship.
     pub fn board(&mut self) {
         if let Some(k) = self.planet_here() {
-            self.go(Scene::Cockpit(k));
+            if ship_parked(&self.me, k) {
+                self.go(Scene::Cockpit(k));
+            }
         }
+    }
+    /// The ramp of your own ship in the scene you are in, if your ship is parked here.
+    pub fn my_ramp(&self) -> Option<Vec2> {
+        let k = match self.me.scene {
+            Scene::Frontier => 0,
+            Scene::Planet(k) => k,
+            _ => return None,
+        };
+        ship_parked(&self.me, k).then(|| ramp_of(k, pad_of(self.me.id)))
     }
     /// Walk back down the ramp onto the planet the ship is parked on.
     pub fn disembark(&mut self) {
@@ -175,6 +217,7 @@ impl Game {
         }
         self.me.flight = None;
         let scene = Scene::Cockpit(f.sys);
+        self.me.ship_at = f.sys; // your ship is now parked on this planet's pad
         self.me.scene = scene; // you are still in the pilot's seat; walk down the ramp to step outside
         let at = vec2(CK_STAND.0, CK_STAND.1);
         self.me.ipos = at;

@@ -95,7 +95,9 @@ impl Game {
                 cand(vec2(CK_EXIT.0, CK_EXIT.1), 1.4, 0.8, Tg::ShipExit, None);
             }
             Scene::Planet(k) => {
-                cand(vec2(P_RAMP.0, P_RAMP.1), 1.6, 0.8, Tg::Ship, None);
+                if let Some(r) = self.my_ramp() {
+                    cand(r, 1.6, 0.8, Tg::Ship, None);
+                }
                 let i = (k as usize).clamp(1, 2) - 1;
                 for (s, &(x, z)) in SAMPLE_SPOTS[i].iter().enumerate() {
                     if !self.sample_taken(k, s) {
@@ -106,7 +108,9 @@ impl Game {
             Scene::Frontier => {
                 cand(tc(F_BOARD), 1.6, 0.8, Tg::BountyBoard, None);
                 cand(vec2(F_BROKER.0, F_BROKER.1), 1.6, 0.8, Tg::GuildMaster, None);
-                cand(vec2(F_RAMP.0, F_RAMP.1), 1.6, 0.8, Tg::Ship, None);
+                if let Some(r) = self.my_ramp() {
+                    cand(r, 1.6, 0.8, Tg::Ship, None);
+                }
                 if !self.w.p.pal {
                     cand(vec2(F_PAL_SPOT.0, F_PAL_SPOT.1), 1.4, 0.9, Tg::Pal, None);
                 }
@@ -222,11 +226,8 @@ impl Game {
             Tg::BountyBoard => v(tc(F_BOARD), 1.9),
             Tg::WoodsDoor => v(tc(WOODS_DOOR), 2.4),
             Tg::Ship => {
-                if self.me.scene == Scene::Frontier {
-                    vec3(F_RAMP.0, 1.9, F_RAMP.1 - 0.6)
-                } else {
-                    vec3(P_RAMP.0, 1.9, P_RAMP.1 - 0.6)
-                }
+                let r = self.my_ramp().unwrap_or(vec2(F_RAMP.0, F_RAMP.1));
+                vec3(r.x, 1.9, r.y - 0.6)
             }
             Tg::Pilot => vec3(CK_SEAT.0 as f32 + 0.5, 1.6, CK_SEAT.1 as f32 + 0.5),
             Tg::ShipExit => vec3(CK_EXIT.0, 1.4, CK_EXIT.1),

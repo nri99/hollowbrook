@@ -142,3 +142,82 @@ fn ship_interior_is_sound() {
     }
     assert!(g.free(g.me.ipos));
 }
+
+#[test]
+fn each_player_has_their_own_ship_and_sees_the_other() {
+    let mut g = two(at(11, 10, 0, 0));
+    for id in 0..2 {
+        g.activate(id);
+        g.swap(Scene::Frontier);
+        g.me.scene = Scene::Frontier;
+    }
+    // separate pads, each player can only board their own ship
+    for &(x, z, w, d) in &F_PADS {
+        assert!(!f_walk(&g.fmap, x + w / 2, z + d / 2), "pad is solid");
+    }
+    for i in 0..2 {
+        assert!(f_walk(&g.fmap, ramp_of(0, i).x as i32, ramp_of(0, i).y as i32), "Dustreach ramp {i} reachable");
+        for k in [1u8, 2] {
+            assert!(p_walk(k, ramp_of(k, i).x as i32, ramp_of(k, i).y as i32), "ramp {i} reachable on planet {k}");
+            assert!(
+                p_walk(k, ramp_of(k, i).x as i32, (ramp_of(k, i).y + 1.1) as i32),
+                "step-out spot {i} on planet {k}"
+            );
+        }
+    }
+    g.activate(0);
+    assert_eq!(g.my_ramp(), Some(ramp_of(0, 0)));
+    g.me.ipos = ramp_of(0, 1); // standing at P2's ramp
+    g.me.face = vec2(0., -1.);
+    assert_ne!(g.target(), Some(Tg::Ship), "can't board someone else's ship");
+    g.activate(1);
+    assert_eq!(g.my_ramp(), Some(ramp_of(0, 1)));
+    // both in Dustreach: they see each other
+    g.activate(0);
+    assert!(sees(&g.me, &g.others[0]));
+    // P1 boards and takes off: P1's ship leaves the pad, P2's stays; P2 can't see P1 inside or in flight
+    g.swap(Scene::Cockpit(0));
+    g.me.scene = Scene::Cockpit(0);
+    assert!(!sees(&g.others[0], &g.me), "nobody sees you inside your own ship");
+    g.take_off();
+    assert!(!ship_parked(&g.me, 0) && ship_parked(&g.others[0], 0));
+    assert!(!sees(&g.others[0], &g.me));
+    // P2 takes off too: they see each other's ships in the same system, not in different ones
+    g.activate(1);
+    g.swap(Scene::Cockpit(0));
+    g.me.scene = Scene::Cockpit(0);
+    g.take_off();
+    assert!(sees_in_space(&g.me, &g.others[0]));
+    g.plot_jump(2).unwrap();
+    assert!(!sees_in_space(&g.me, &g.others[0]), "not while in the light-speed tunnel");
+    for _ in 0..80 {
+        g.update_player(&Inp::none(), 0.05);
+    }
+    assert!(!sees_in_space(&g.me, &g.others[0]), "different systems");
+    // P2 lands on Verdance and steps out at their own pad; P1 follows and sees P2 there
+    g.me.flight.as_mut().unwrap().pos = vec2(0., PLANET_R + 2.);
+    g.land().unwrap();
+    assert_eq!(g.me.ship_at, 2);
+    g.swap(Scene::Planet(2));
+    g.me.scene = Scene::Planet(2);
+    assert!(g.free(g.me.ipos) && g.me.ipos.distance(ramp_of(2, 1)) < 1.6, "stepped out by pad 2");
+    g.activate(0);
+    g.plot_jump(2).unwrap();
+    for _ in 0..80 {
+        g.update_player(&Inp::none(), 0.05);
+    }
+    g.me.flight.as_mut().unwrap().pos = vec2(0., PLANET_R + 2.);
+    g.land().unwrap();
+    g.swap(Scene::Planet(2));
+    g.me.scene = Scene::Planet(2);
+    assert!(sees(&g.me, &g.others[0]), "both exploring Verdance");
+    assert!(ship_parked(&g.me, 2) && ship_parked(&g.others[0], 2), "both ships on their own pads");
+    assert_eq!(g.my_ramp(), Some(ramp_of(2, 0)));
+    // coming back through the woods door sends your ship home
+    g.swap(Scene::Town);
+    g.me.scene = Scene::Town;
+    g.swap(Scene::Frontier);
+    g.me.scene = Scene::Frontier;
+    assert_eq!(g.me.ship_at, 0);
+    assert!(g.check().is_empty());
+}

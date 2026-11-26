@@ -16,7 +16,7 @@ pub const F_ARCH: (i32, i32) = (32, 14);
 pub const F_BOARD: (i32, i32) = (13, 9);
 pub const F_BROKER: (f32, f32) = (14.6, 9.6);
 /// Structures: (kind, x, z, w, d). 0 Guild Post, 1 Longhouse, 2 market tent, 3 water tower, 4 wreck, 5 dome hut.
-pub const F_STRUCTS: [(u8, i32, i32, i32, i32); 21] = [
+pub const F_STRUCTS: [(u8, i32, i32, i32, i32); 20] = [
     (0, 11, 5, 5, 4),
     (1, 18, 5, 6, 4),
     (2, 6, 12, 2, 2),
@@ -32,8 +32,7 @@ pub const F_STRUCTS: [(u8, i32, i32, i32, i32); 21] = [
     (5, 28, 25, 2, 2),
     (2, 28, 6, 2, 2),
     (3, 7, 23, 2, 2),
-    (6, 21, 22, 6, 4), // your ship on its landing pad
-    (7, 44, 6, 3, 2),  // scrapyard heaps
+    (7, 44, 6, 3, 2), // scrapyard heaps
     (7, 50, 12, 2, 2),
     (8, 54, 4, 2, 2), // ruined watchtower
     (5, 47, 20, 2, 2),
@@ -230,6 +229,13 @@ pub fn frontier_map() -> Vec<u8> {
         (3, 26),
     ] {
         set(x, z, ROCK)
+    }
+    for &(x, z, w, d) in &F_PADS {
+        for zz in z..z + d {
+            for xx in x..x + w {
+                set(xx, zz, ROCK) // landing pads (a ship or a raised empty platform)
+            }
+        }
     }
     for &(_, x, z, w, d) in &F_STRUCTS {
         for zz in z..z + d {

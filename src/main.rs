@@ -2336,6 +2336,51 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         wait(g, c, 30).await;
         shot!("sp_verdance");
         log!("scene={:?} flight={:?}", g.me.scene, g.me.flight);
+    } else if phase == "51" {
+        // Two players, separate ships: P2 flies off (empty pad) while P1 is at the pads; both ships in space;
+        // both exploring Verdance with their own ships parked.
+        g.join("Rook");
+        for id in [0, 1] {
+            g.activate(id);
+            g.swap(Scene::Frontier);
+            g.me.scene = Scene::Frontier;
+        }
+        g.activate(0);
+        g.me.ipos = vec2(36.5, 28.4); // between the two pads
+        g.me.cam = g.me.ipos;
+        g.activate(1);
+        g.swap(Scene::Cockpit(0));
+        g.me.scene = Scene::Cockpit(0);
+        g.take_off();
+        g.activate(0);
+        wait(g, c, 20).await;
+        shot!("mp_pads");
+        g.swap(Scene::Cockpit(0));
+        g.me.scene = Scene::Cockpit(0);
+        g.take_off();
+        if let (Some(a), Some(b)) = (g.me.flight.as_mut(), g.others[0].flight.as_mut()) {
+            a.pos = vec2(-1.5, 9.);
+            b.pos = vec2(1.6, 10.);
+            b.yaw = 0.5;
+        }
+        wait(g, c, 20).await;
+        shot!("mp_space");
+        for id in [0, 1] {
+            g.activate(id);
+            g.me.flight = None;
+            g.me.ship_at = 2;
+            g.swap(Scene::Planet(2));
+            g.me.scene = Scene::Planet(2);
+        }
+        g.activate(0);
+        g.me.ipos = vec2(19.5, 10.5);
+        g.me.cam = g.me.ipos;
+        g.activate(1);
+        g.me.ipos = vec2(21.5, 11.0);
+        g.me.cam = g.me.ipos;
+        g.activate(0);
+        wait(g, c, 20).await;
+        shot!("mp_verdance");
     } else if phase == "occl" {
         // Occlusion sweep (needs HOLLOWBROOK_MARK_PLAYER): stand on every 2nd walkable tile of each outdoor scene,
         // render, and check the magenta marker on the player is visible. Prints "OCCLUDED <scene> <x> <z>".

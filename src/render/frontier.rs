@@ -71,8 +71,11 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
     let m = &g.fmap;
     let cam = g.me.cam;
     let mut faded_rocks: Vec<(f32, f32, f32, u32)> = vec![];
-    let structure =
-        |x: i32, z: i32| F_STRUCTS.iter().any(|&(_, sx, sz, w, d)| x >= sx && x < sx + w && z >= sz && z < sz + d);
+    // buildings and landing pads draw themselves, so their tiles get no rock blocks
+    let structure = |x: i32, z: i32| {
+        F_STRUCTS.iter().any(|&(_, sx, sz, w, d)| x >= sx && x < sx + w && z >= sz && z < sz + d)
+            || F_PADS.iter().any(|&(sx, sz, w, d)| x >= sx && x < sx + w && z >= sz && z < sz + d)
+    };
     for z in -9..FH + 7 {
         for x in -12..FW + 12 {
             let (fx, fz) = (x as f32, z as f32);
@@ -334,6 +337,7 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
     }
     frontier_life(r, g, t, labels);
     frontier_wilds(r, t);
+    draw_pads(r, g, 0, t, night, labels, false);
     if !g.me.riding {
         hover_bike(r, vec2(F_BIKE.0, F_BIKE.1), 0.4, t);
     } else {
@@ -368,6 +372,7 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
     if arch_blocks {
         draw_arch(r);
     }
+    draw_pads(r, g, 0, t, night, labels, true);
     r.alpha = a_view;
     // drawn last so that, when faded, the player behind it still shows through
     // the gate back to Hollowbrook: two posts, a crossbeam and a faint green shimmer
@@ -540,7 +545,15 @@ pub(super) fn woods_door(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(Vec3
 }
 
 /// Your ship: a weathered, patched-up freighter on stubby legs with a lowered ramp and a holding pod.
-pub(super) fn ship(r: &mut R, cx: f32, cz: f32, t: f32, night: f32, labels: &mut Vec<(Vec3, String, Color)>) {
+pub(super) fn ship(
+    r: &mut R,
+    cx: f32,
+    cz: f32,
+    t: f32,
+    night: f32,
+    labels: &mut Vec<(Vec3, String, Color)>,
+    label: &str,
+) {
     let hull = Color::new(0.62, 0.64, 0.66, 1.);
     let rust = Color::new(0.55, 0.36, 0.24, 1.);
     let c = vec3(cx, 1.05, cz);
@@ -594,7 +607,7 @@ pub(super) fn ship(r: &mut R, cx: f32, cz: f32, t: f32, night: f32, labels: &mut
     r.unlit = true;
     r.cube(vec3(cx, 1.05, cz + 1.28), vec3(0.42, 0.3, 0.02), Color::new(1., 0.8 + 0.1 * night, 0.5, 1.));
     r.unlit = u;
-    labels.push((vec3(cx, 2.6, cz), "Your ship".into(), Color::new(0.85, 0.92, 1., 1.)));
+    labels.push((vec3(cx, 2.6, cz), label.into(), Color::new(0.85, 0.92, 1., 1.)));
 }
 
 /// The companion: a round little sand-hopper with long ears and glowing antenna tips. It hops, and its tips
@@ -1009,7 +1022,6 @@ fn draw_struct(
             r.cube(c + vec3(1.2, 0.15, -1.1), vec3(0.3, 0.15, 0.2), Color::new(0.25, 0.22, 0.2, 1.));
             // scorched panel
         }
-        6 => ship(r, fx + fw / 2., fz + fd / 2., t, night, labels),
         7 => {
             // a heap of salvage: tilted hull plates, a drum, a big wheel and a bent pipe
             let c = vec3(fx + fw / 2., 0., fz + fd / 2.);

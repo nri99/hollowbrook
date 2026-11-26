@@ -843,6 +843,10 @@ pub struct Player {
     /// Flying your ship (runtime only).
     #[serde(default)]
     pub flight: Option<Flight>,
+    /// Planet your own ship is parked on (0 Dustreach). Runtime; it flies itself home when you come back through
+    /// the woods door.
+    #[serde(default)]
+    pub ship_at: u8,
 }
 impl Player {
     pub fn new(id: usize, pos: Vec2) -> Player {
@@ -876,6 +880,7 @@ impl Player {
             riding: false,
             standoff: 0.,
             flight: None,
+            ship_at: 0,
         }
     }
 }
