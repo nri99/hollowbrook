@@ -4,7 +4,7 @@
 //! All names, rules and numbers here are original and provisional.
 use super::*;
 
-pub const FW: i32 = 40;
+pub const FW: i32 = 60; // the east side (x 40+) holds the scrapyard, the old watchtower and the salt flats
 pub const FH: i32 = 30;
 /// Where players appear when they come through the gate, and the gate back to Hollowbrook.
 pub const F_SPAWN: (f32, f32) = (15.5, 26.5);
@@ -16,7 +16,7 @@ pub const F_ARCH: (i32, i32) = (32, 14);
 pub const F_BOARD: (i32, i32) = (13, 9);
 pub const F_BROKER: (f32, f32) = (14.6, 9.6);
 /// Structures: (kind, x, z, w, d). 0 Guild Post, 1 Longhouse, 2 market tent, 3 water tower, 4 wreck, 5 dome hut.
-pub const F_STRUCTS: [(u8, i32, i32, i32, i32); 16] = [
+pub const F_STRUCTS: [(u8, i32, i32, i32, i32); 21] = [
     (0, 11, 5, 5, 4),
     (1, 18, 5, 6, 4),
     (2, 6, 12, 2, 2),
@@ -33,6 +33,11 @@ pub const F_STRUCTS: [(u8, i32, i32, i32, i32); 16] = [
     (2, 28, 6, 2, 2),
     (3, 7, 23, 2, 2),
     (6, 21, 22, 6, 4), // your ship on its landing pad
+    (7, 44, 6, 3, 2),  // scrapyard heaps
+    (7, 50, 12, 2, 2),
+    (8, 54, 4, 2, 2), // ruined watchtower
+    (5, 47, 20, 2, 2),
+    (2, 44, 14, 2, 2),
 ];
 /// Where you stand to use the ship's ramp (holding pod), where the companion waits, and the guild master.
 pub const F_RAMP: (f32, f32) = (24.0, 26.6);
@@ -71,7 +76,7 @@ pub const RUMOURS: [&str; 3] = [
     "They've paid two lookalikes to wander about. Watch for the red scarf.",
 ];
 /// Hiding spots and how the broker describes them.
-pub const F_SPOTS: [((i32, i32), &str); 11] = [
+pub const F_SPOTS: [((i32, i32), &str); 14] = [
     ((6, 6), "by the old wreck in the northwest"),
     ((26, 3), "among the red rocks in the northeast"),
     ((8, 15), "behind the market tents"),
@@ -83,6 +88,9 @@ pub const F_SPOTS: [((i32, i32), &str); 11] = [
     ((29, 21), "resting by the oasis"),
     ((37, 3), "under the far north mesas"),
     ((33, 15), "beneath the stone arch"),
+    ((46, 9), "picking through the scrapyard"),
+    ((55, 8), "below the ruined watchtower"),
+    ((52, 23), "out on the salt flats"),
 ];
 const NAMES: [&str; 12] = [
     "Corvin Slake",
@@ -188,7 +196,7 @@ pub fn frontier_map() -> Vec<u8> {
         set(15, z, PATH);
         set(16, z, PATH)
     } // main street from the gate to the Guild Post
-    for x in 4..38 {
+    for x in 4..FW - 3 {
         set(x, 10, PATH)
     } // cross street, now running out to the arch and the oasis
     for z in 11..18 {

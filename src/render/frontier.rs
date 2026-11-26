@@ -80,7 +80,23 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
                 continue;
             }
             let c = ftile(m, x, z);
-            let base = if c == PATH { PATH_C } else { SAND_C };
+            let salt = x >= 46 && z >= 17 && c != PATH;
+            let base = if c == PATH {
+                PATH_C
+            } else if salt {
+                Color::new(0.88, 0.8, 0.68, 1.) // salt flats
+            } else {
+                SAND_C
+            };
+            if salt && hash(x * 11, z * 13) % 3 == 0 {
+                let (a, b) = ((hash(x, z) % 10) as f32 * 0.1, (hash(z, x) % 10) as f32 * 0.1);
+                r.seg(
+                    vec3(fx + a, 0.006, fz),
+                    vec3(fx + 1. - b, 0.006, fz + 1.),
+                    0.012,
+                    Color::new(0.75, 0.72, 0.66, 1.),
+                ); // cracks
+            }
             let col = |dx: i32, dz: i32| gtint(base, gnoise(x + dx, z + dz));
             r.quad4(
                 [vec3(fx, 0., fz), vec3(fx + 1., 0., fz), vec3(fx + 1., 0., fz + 1.), vec3(fx, 0., fz + 1.)],
@@ -903,6 +919,65 @@ fn draw_struct(
             // scorched panel
         }
         6 => ship(r, fx + fw / 2., fz + fd / 2., t, night, labels),
+        7 => {
+            // a heap of salvage: tilted hull plates, a drum, a big wheel and a bent pipe
+            let c = vec3(fx + fw / 2., 0., fz + fd / 2.);
+            let metal =
+                [Color::new(0.55, 0.56, 0.58, 1.), Color::new(0.62, 0.4, 0.28, 1.), Color::new(0.42, 0.45, 0.4, 1.)];
+            for k in 0..5 {
+                let a = k as f32 * 1.3 + fx;
+                r.with(
+                    Mat4::from_rotation_translation(
+                        Quat::from_rotation_y(a) * Quat::from_rotation_z(0.5 + (k % 2) as f32 * 0.4),
+                        c + vec3(a.cos() * 0.5, 0.35, a.sin() * 0.4),
+                    ),
+                    |r| r.cube(Vec3::ZERO, vec3(0.45, 0.04, 0.3), metal[k % 3]),
+                );
+            }
+            r.cyl(c + vec3(fw / 2. - 0.4, 0., 0.2), 0.22, 0.55, metal[1]);
+            r.with(
+                Mat4::from_rotation_translation(
+                    Quat::from_rotation_x(std::f32::consts::FRAC_PI_2),
+                    c + vec3(-fw / 2. + 0.5, 0.45, -0.3),
+                ),
+                |r| r.cyl(vec3(0., -0.06, 0.), 0.45, 0.12, Color::new(0.2, 0.2, 0.22, 1.)),
+            );
+            r.seg(c + vec3(-0.2, 0.1, 0.5), c + vec3(0.6, 0.9, 0.3), 0.06, metal[2]);
+            if night > 0.3 {
+                lantern(r, c + vec3(0., 1.1, 0.), night);
+            }
+            labels.push((c + vec3(0., 1.4, 0.), "Scrapyard".into(), Color::new(1., 0.86, 0.6, 1.)));
+        }
+        8 => {
+            // the old watchtower: a broken stone drum, a leaning platform and a torn banner
+            let c = vec3(fx + 1., 0., fz + 1.);
+            let stone = Color::new(0.7, 0.6, 0.5, 1.);
+            r.cyl(c, 0.85, 1.6, stone);
+            r.cyl(c + vec3(0., 1.6, 0.), 0.8, 0.7, sh(stone, 0.92));
+            for k in 0..5 {
+                let a = k as f32 * 1.25;
+                r.cube(
+                    c + vec3(a.cos() * 0.72, 2.45 + (k % 2) as f32 * 0.15, a.sin() * 0.72),
+                    vec3(0.14, 0.15 + (k % 2) as f32 * 0.1, 0.14),
+                    sh(stone, 0.85),
+                ); // ragged crown
+            }
+            r.cube(c + vec3(0., 0.55, 0.84), vec3(0.24, 0.5, 0.03), Color::new(0.2, 0.14, 0.1, 1.)); // doorway
+            r.with(Mat4::from_rotation_translation(Quat::from_rotation_z(0.15), c + vec3(0.9, 2.0, 0.)), |r| {
+                r.cube(Vec3::ZERO, vec3(0.5, 0.04, 0.4), BEAM)
+            });
+            let wave = (t * 2.).sin() * 0.06;
+            r.cube(c + vec3(0.15, 3.0, 0.), vec3(0.02, 0.5, 0.02), BEAM);
+            r.quad(
+                c + vec3(0.17, 3.4, 0.),
+                c + vec3(0.65, 3.35 + wave, 0.),
+                c + vec3(0.6, 3.1 + wave, 0.),
+                c + vec3(0.17, 3.15, 0.),
+                Vec3::Z,
+                Color::new(0.72, 0.22, 0.18, 1.),
+            );
+            labels.push((c + vec3(0., 3.7, 0.), "Old Watchtower".into(), Color::new(1., 0.86, 0.6, 1.)));
+        }
         _ => {
             let c = vec3(fx + 1., 0., fz + 1.);
             r.sphere(c, vec3(0.95, 1.05, 0.95), ADOBE);
