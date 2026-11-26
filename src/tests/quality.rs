@@ -119,3 +119,90 @@ fn named_item_ids_match_defs() {
         assert_eq!(def(num).name, name, "id constant out of sync: {line}");
     }
 }
+
+/// Stress test for the newer worlds: P1 starts in Dustreach with gear, armour and coins, P2 on Glacia; both mash
+/// random keys (incl. flight, nav computer, gear and standoffs) for thousands of frames across a day change.
+/// Every frame: Game::check() is clean, nobody stands inside a wall, flight and bounty numbers stay finite.
+#[test]
+fn random_input_stress_new_worlds() {
+    use KeyCode::*;
+    const KEYS: [KeyCode; 20] =
+        [W, A, S, D, W, W, E, E, Enter, Escape, Space, Tab, N, LeftShift, I, J, Up, Down, Left, Right];
+    let mut seed: u64 = 0xd057_2ea5;
+    let mut rnd = move |n: usize| {
+        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        ((seed >> 33) as usize) % n
+    };
+    let mut g = two(at(11, 8, 0, 0));
+    let mut now = at(11, 8, 0, 0);
+    g.w.p.money = 50_000;
+    g.w.p.armor = 0b1111;
+    g.w.p.tools.extend([172, 173, 174]);
+    g.swap(Scene::Frontier);
+    g.me.scene = Scene::Frontier;
+    g.activate(1);
+    g.swap(Scene::Planet(1));
+    g.me.scene = Scene::Planet(1);
+    let mut held: [Vec<KeyCode>; 2] = [vec![], vec![]];
+    let mut seen = std::collections::BTreeSet::new();
+    for frame in 0..30000 {
+        now += chrono::Duration::seconds(4); // ~1.4 game days
+        g.tick(0.05, now);
+        for id in 0..2 {
+            if frame % 8 == 0 {
+                held[id] = (0..rnd(3)).map(|_| KEYS[rnd(4)]).collect();
+            }
+            let pressed: Vec<KeyCode> = if rnd(3) == 0 { vec![KEYS[rnd(KEYS.len())]] } else { vec![] };
+            let down: Vec<KeyCode> = held[id].iter().chain(pressed.iter()).copied().collect();
+            g.activate(id);
+            if frame % 1500 == 0 && g.me.scene == Scene::Frontier && g.me.flight.is_none() && g.w.p.bounty.is_none() {
+                // hand out a bounty and stand near the target, so hunts, standoffs and gear get exercised too
+                let k = rnd(3) as u8;
+                if g.take_bounty(k).is_ok() {
+                    let p = g.w.p.bounty.as_ref().unwrap().pos[0];
+                    let near = vec2(p[0], p[1] + 2.);
+                    if g.free(near) {
+                        g.me.ipos = near;
+                    }
+                    g.w.p.equip = Some(172 + rnd(3) as u16);
+                }
+            }
+            g.update_player(&Inp::keys(&down, &pressed), 0.05);
+            let bad = g.check();
+            assert!(bad.is_empty(), "frame {frame}, player {id}: {bad:?}");
+            if g.me.flight.is_none() && g.me.trans.is_none() && g.me.scene != Scene::Town {
+                assert!(
+                    g.free(g.ppos()),
+                    "frame {frame}, player {id} stuck in a wall at {:?} in {:?}",
+                    g.ppos(),
+                    g.me.scene
+                );
+            }
+            seen.insert(format!("{:?}", g.me.scene).chars().take(9).collect::<String>());
+            if g.me.flight.is_some_and(|f| f.jump > 0.) {
+                seen.insert("jump".into());
+            }
+            if g.me.flight.is_some() {
+                seen.insert("flying".into());
+            }
+            if g.w.p.bounty.is_some() {
+                seen.insert("bounty".into());
+            }
+            if g.me.standoff > 0. {
+                seen.insert("standoff".into());
+            }
+            if let Some(f) = g.me.flight {
+                assert!(f.pos.is_finite() && f.vel.is_finite() && f.jump >= 0., "frame {frame}: bad flight {f:?}");
+            }
+            assert!(g.me.standoff >= 0. && g.me.dazed >= 0.);
+            if let Some(b) = g.w.p.bounty.as_ref() {
+                assert!(b.pos.iter().all(|p| p[0].is_finite() && p[1].is_finite()), "frame {frame}: bad bounty {b:?}");
+            }
+        }
+    }
+    eprintln!("stress worlds visited: {seen:?}");
+    g.activate(0);
+    let g2 = reload(&g, "stress_worlds");
+    assert_eq!((&g2.w.p.inv, g2.w.p.money), (&g.w.p.inv, g.w.p.money));
+    assert!(g2.check().is_empty());
+}

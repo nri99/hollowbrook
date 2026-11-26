@@ -23,7 +23,7 @@ pub fn human(
     t: f32,
     swing: f32,
 ) {
-    let (skin, hair, shirt, pants, shoe) = if id == 0 {
+    let (skin, hair, _default_shirt, pants, shoe) = if id == 0 {
         (
             Color::new(0.98, 0.82, 0.68, 1.),
             Color::new(0.36, 0.2, 0.12, 1.),

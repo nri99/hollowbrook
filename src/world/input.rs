@@ -46,6 +46,7 @@ impl Game {
         self.frontier_tick(dt);
         // Dev-only entry to Dustreach until the real gate exists in Hollowbrook.
         if inp.p(KeyCode::F9)
+            && self.me.flight.is_none() // never jump scenes mid-flight
             && self.me.ui == Ui::Play
             && matches!(self.me.scene, Scene::Town | Scene::Frontier)
             && std::env::var("HOLLOWBROOK_DEBUG").is_ok()

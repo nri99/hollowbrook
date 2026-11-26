@@ -86,3 +86,14 @@ fn landing_sites_are_sound() {
     fly(&mut g, &[KeyCode::W, KeyCode::LeftShift], &[], 80);
     assert!(g.me.flight.unwrap().pos.length() >= PLANET_R + 1.1, "never inside the planet");
 }
+
+#[test]
+fn debug_scene_key_ignored_while_flying() {
+    std::env::set_var("HOLLOWBROOK_DEBUG", "1");
+    let mut g = g0(at(11, 10, 0, 0));
+    g.swap(Scene::Frontier);
+    g.me.scene = Scene::Frontier;
+    g.take_off();
+    g.update_player(&Inp::keys(&[KeyCode::F9], &[KeyCode::F9]), 0.05);
+    assert!(g.me.trans.is_none() && g.me.flight.is_some(), "F9 must not change scenes mid-flight");
+}
