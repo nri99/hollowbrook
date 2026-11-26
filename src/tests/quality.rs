@@ -214,3 +214,59 @@ fn random_input_stress_new_worlds() {
     assert_eq!((&g2.w.p.inv, g2.w.p.money), (&g.w.p.inv, g.w.p.money));
     assert!(g2.check().is_empty());
 }
+
+/// Interaction sweep: in every outdoor world, stand on every walkable tile, face each direction and press E on
+/// whatever is there (both players), close any menu, then check the world rules and that nobody is stuck.
+#[test]
+fn every_interaction_everywhere_is_safe() {
+    let mut g = two(at(11, 10, 0, 0));
+    g.w.p.money = 99_999;
+    let scenes = [Scene::Town, Scene::Frontier, Scene::Planet(1), Scene::Planet(2), Scene::Islet];
+    let mut presses = 0;
+    for &sc in &scenes {
+        for id in 0..2 {
+            g.activate(id);
+            g.swap(sc);
+            g.me.scene = sc;
+            let (x0, x1, z0, z1) = match sc {
+                Scene::Town => (-8, W as i32, -13, H as i32),
+                Scene::Frontier => (0, FW, 0, FH),
+                Scene::Planet(_) => (0, PW, 0, PH),
+                _ => (0, IW as i32, 0, IH as i32),
+            };
+            for z in z0..z1 {
+                for x in x0..x1 {
+                    let p = vec2(x as f32 + 0.5, z as f32 + 0.5);
+                    if sc == Scene::Town {
+                        g.me.pos = p
+                    } else {
+                        g.me.ipos = p
+                    }
+                    if !g.free(p) {
+                        continue;
+                    }
+                    for f in [vec2(0., -1.), vec2(0., 1.), vec2(-1., 0.), vec2(1., 0.)] {
+                        g.me.face = f;
+                        g.interact();
+                        presses += 1;
+                        for _ in 0..3 {
+                            g.update_player(&Inp::keys(&[KeyCode::Escape], &[KeyCode::Escape]), 0.05);
+                        }
+                        g.me.flight = None;
+                        g.me.trans = None;
+                        g.stand_up();
+                        if g.me.scene != sc {
+                            g.swap(sc);
+                            g.me.scene = sc;
+                        }
+                        let bad = g.check();
+                        assert!(bad.is_empty(), "{sc:?} {x},{z} player {id}: {bad:?}");
+                    }
+                }
+            }
+        }
+    }
+    assert!(presses > 4000, "sweep pressed E {presses} times");
+    g.activate(0);
+    assert!(reload(&g, "interaction_sweep").check().is_empty());
+}
