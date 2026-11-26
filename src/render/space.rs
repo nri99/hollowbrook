@@ -19,29 +19,89 @@ fn space_light() -> Light {
     }
 }
 
-/// Your ship in flight: the same patched freighter, legs tucked, engines glowing with thrust. Forward is -z.
-fn flier(r: &mut R, p: Vec3, yaw: f32, thrust: f32, t: f32) {
-    let hull = Color::new(0.62, 0.64, 0.66, 1.);
-    let rust = Color::new(0.55, 0.36, 0.24, 1.);
-    r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(-yaw), p), |r| {
-        r.sphere(Vec3::ZERO, vec3(0.75, 0.3, 1.25), hull);
-        r.sphere(vec3(0., 0.12, -0.25), vec3(0.32, 0.12, 0.5), rust);
-        r.sphere(vec3(0., 0.12, -1.0), vec3(0.3, 0.2, 0.32), Color::new(0.16, 0.2, 0.26, 1.)); // cockpit
-        r.cube(vec3(0., 0., 0.2), vec3(1.25, 0.04, 0.35), sh(hull, 0.85)); // wings
-        for sx in [-0.42, 0.42] {
-            r.with(Mat4::from_rotation_translation(Quat::from_rotation_x(FRAC_PI_2), vec3(sx, 0., 0.9)), |r| {
-                r.cyl(vec3(0., -0.4, 0.), 0.2, 0.8, sh(hull, 0.85))
-            });
+/// Your ship in flight, forward is -z: a plated, weathered freighter. Layered hull plates with panel seams and
+/// scorch marks, a glass canopy with you at the controls, twin engine nacelles with intake rings and thrust glow,
+/// stubby wings with blinking navigation lights, a sensor dish and antenna. `look` is the pilot's outfit.
+fn flier(r: &mut R, p: Vec3, yaw: f32, thrust: f32, t: f32, pilot: (usize, (Option<u16>, Option<u16>, u8))) {
+    let hull = Color::new(0.66, 0.67, 0.69, 1.);
+    let dark = Color::new(0.32, 0.33, 0.36, 1.);
+    let rust = Color::new(0.56, 0.38, 0.27, 1.);
+    let seam = Color::new(0.24, 0.25, 0.27, 1.);
+    let bank = -thrust.min(1.) * 0.0;
+    r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(-yaw) * Quat::from_rotation_z(bank), p), |r| {
+        // fuselage: a long rounded core with a flatter armoured spine on top
+        r.sphere(vec3(0., 0., 0.1), vec3(0.62, 0.36, 1.55), hull);
+        r.cube(vec3(0., 0.26, 0.35), vec3(0.42, 0.1, 0.95), sh(hull, 0.93));
+        r.cube(vec3(0., -0.24, 0.2), vec3(0.45, 0.08, 1.0), dark); // belly
+        for k in 0..5 {
+            let z = -0.7 + k as f32 * 0.42;
+            r.cube(vec3(0., 0.365, z), vec3(0.43, 0.006, 0.012), seam); // panel seams across the spine
+        }
+        r.cube(vec3(0.0, 0.365, 0.35), vec3(0.008, 0.006, 0.95), seam);
+        r.cube(vec3(0.22, 0.37, 0.65), vec3(0.14, 0.01, 0.22), rust); // patched plates and scorch marks
+        r.cube(vec3(-0.25, 0.37, -0.2), vec3(0.1, 0.01, 0.15), sh(rust, 0.8));
+        r.cube(vec3(0.3, 0.3, 1.1), vec3(0.08, 0.02, 0.18), Color::new(0.2, 0.18, 0.17, 1.));
+        // nose and cockpit: a framed glass canopy with the pilot inside
+        r.sphere(vec3(0., -0.02, -1.35), vec3(0.4, 0.26, 0.42), sh(hull, 0.95));
+        r.with(Mat4::from_scale_rotation_translation(Vec3::splat(0.42), Quat::IDENTITY, vec3(0., 0.08, -0.82)), |r| {
+            human(r, pilot.0, pilot.1, Vec3::ZERO, PI, 0., 0., 1, None, t, 0.) // seated at the controls
+        });
+        let a = r.alpha;
+        r.alpha = if marking() { 0. } else { 0.42 };
+        r.sphere(vec3(0., 0.3, -0.85), vec3(0.36, 0.3, 0.5), Color::new(0.55, 0.75, 0.9, 1.)); // canopy glass
+        r.alpha = a;
+        for x in [-0.2, 0.2] {
+            r.seg(vec3(x, 0.24, -1.3), vec3(x * 0.8, 0.5, -0.75), 0.018, dark); // canopy frame struts
+        }
+        r.seg(vec3(-0.3, 0.32, -0.5), vec3(0.3, 0.32, -0.5), 0.02, dark);
+        // wings with navigation lights (red port, green starboard, white tail strobe)
+        for sx in [-1f32, 1.] {
+            r.cube(vec3(sx * 0.95, -0.02, 0.45), vec3(0.42, 0.035, 0.42), sh(hull, 0.88));
+            r.cube(vec3(sx * 1.2, -0.02, 0.62), vec3(0.18, 0.04, 0.16), dark);
+            let on = (t * 2.2).fract() < 0.18;
             let u = r.unlit;
             r.unlit = true;
-            let k = 0.55 + 0.45 * thrust.min(1.) + 0.08 * (t * 20. + sx).sin();
+            let c = if sx < 0. { Color::new(1., 0.25, 0.2, 1.) } else { Color::new(0.3, 1., 0.45, 1.) };
             r.sphere(
-                vec3(sx, 0., 1.32 + 0.25 * thrust),
-                vec3(0.17, 0.17, 0.2 + 0.35 * thrust),
-                Color::new(0.45 * k, 0.78 * k, 1. * k, 1.),
+                vec3(sx * 1.37, 0.02, 0.45),
+                Vec3::splat(if on { 0.06 } else { 0.04 }),
+                if on { c } else { sh(c, 0.45) },
             );
             r.unlit = u;
         }
+        // twin nacelles: intake rings, housings, exhaust glow that lengthens with thrust
+        for sx in [-0.52, 0.52] {
+            r.with(Mat4::from_rotation_translation(Quat::from_rotation_x(FRAC_PI_2), vec3(sx, 0.02, 0.95)), |r| {
+                r.cyl(vec3(0., -0.55, 0.), 0.24, 1.1, sh(hull, 0.85));
+                r.cyl(vec3(0., -0.6, 0.), 0.27, 0.1, dark); // intake ring
+                r.cyl(vec3(0., 0.5, 0.), 0.21, 0.12, seam); // exhaust collar
+            });
+            let u = r.unlit;
+            r.unlit = true;
+            let k = 0.55 + 0.45 * thrust.min(1.) + 0.06 * (t * 24. + sx).sin();
+            r.sphere(vec3(sx, 0.02, 1.62), vec3(0.17, 0.17, 0.08), Color::new(0.75 * k, 0.9 * k, 1., 1.));
+            let a = r.alpha;
+            r.alpha = 0.55;
+            r.sphere(
+                vec3(sx, 0.02, 1.75 + 0.35 * thrust),
+                vec3(0.14, 0.14, 0.18 + 0.5 * thrust),
+                Color::new(0.35 * k, 0.65 * k, 1. * k, 1.),
+            );
+            r.alpha = a;
+            r.unlit = u;
+        }
+        // dorsal sensor dish and antenna
+        r.cyl(vec3(-0.18, 0.36, 0.55), 0.03, 0.12, dark);
+        r.with(Mat4::from_rotation_translation(Quat::from_rotation_x(-0.5), vec3(-0.18, 0.5, 0.55)), |r| {
+            r.disc(Vec3::ZERO, vec2(0.16, 0.16), sh(hull, 1.1))
+        });
+        r.seg(vec3(0.2, 0.36, 1.0), vec3(0.22, 0.75, 1.1), 0.01, dark);
+        let u = r.unlit;
+        r.unlit = true;
+        if (t * 1.3).fract() < 0.1 {
+            r.sphere(vec3(0., 0.4, 1.35), Vec3::splat(0.05), WHITE);
+        }
+        r.unlit = u;
     });
 }
 
@@ -148,7 +208,7 @@ pub(super) fn space_view(g: &Game, f: &Flight, vp: Option<(f32, f32)>) {
     }
     let ma = t * 0.12 + f.sys as f32;
     r.sphere(vec3(ma.cos() * 13., -1., ma.sin() * 13.), Vec3::splat(0.9), Color::new(0.7, 0.7, 0.74, 1.)); // a moon
-    flier(&mut r, vec3(f.pos.x, 0.6, f.pos.y), f.yaw, f.thrust, t);
+    flier(&mut r, vec3(f.pos.x, 0.6, f.pos.y), f.yaw, f.thrust, t, (g.me.id, (g.w.p.shirt, g.w.p.hat, g.w.p.hair)));
     r.flush();
     hud_cam(vp);
     let near = f.pos.length() < PLANET_R + 4.;
@@ -400,4 +460,210 @@ fn border(r: &mut R, k: u8, x: i32, z: i32, col: Color, t: f32) {
         r.cyl(p, 0.12, h, Color::new(0.32, 0.24, 0.18, 1.));
         r.sphere(p + vec3(sway, h, 0.), vec3(0.7, 0.45, 0.7), sh(col, 1.1 + (hsh % 3) as f32 * 0.1));
     }
+}
+
+/// Inside your ship: plated floor with grating, ribbed curved walls, the front console with glowing screens under a
+/// wide windshield (showing the planet's sky), the pilot's seat, a holding cell with an energy barrier (your detained
+/// target sits inside once delivered), a bunk, crates, pipes and overhead lights.
+pub(super) fn cockpit_scene(r: &mut R, g: &Game, k: u8, lt: &Light, labels: &mut Vec<(Vec3, String, Color)>) {
+    let t = g.t;
+    let (w, d) = (CK.0 as f32, CK.1 as f32);
+    let floor = Color::new(0.42, 0.44, 0.47, 1.);
+    let wall = Color::new(0.6, 0.62, 0.64, 1.);
+    let trim = Color::new(0.3, 0.31, 0.34, 1.);
+    r.sun = vec3(0.3, 0.9, 0.4).normalize();
+    r.amb = vec3(0.5, 0.52, 0.56);
+    r.dif = vec3(0.45, 0.44, 0.42);
+    for z in 0..CK.1 {
+        for x in 0..CK.0 {
+            let (fx, fz) = (x as f32, z as f32);
+            let v = 0.94 + (hash(x, z) % 5) as f32 * 0.02;
+            r.quad(
+                vec3(fx, 0., fz),
+                vec3(fx + 1., 0., fz),
+                vec3(fx + 1., 0., fz + 1.),
+                vec3(fx, 0., fz + 1.),
+                Vec3::Y,
+                sh(floor, v),
+            );
+            r.quad(
+                vec3(fx, 0.002, fz),
+                vec3(fx + 1., 0.002, fz),
+                vec3(fx + 1., 0.002, fz + 0.03),
+                vec3(fx, 0.002, fz + 0.03),
+                Vec3::Y,
+                trim,
+            );
+            r.quad(
+                vec3(fx, 0.002, fz),
+                vec3(fx + 0.03, 0.002, fz),
+                vec3(fx + 0.03, 0.002, fz + 1.),
+                vec3(fx, 0.002, fz + 1.),
+                Vec3::Y,
+                trim,
+            );
+            if (x + z) % 2 == 0 {
+                for j in 0..4 {
+                    let gx = fx + 0.25 + j as f32 * 0.17;
+                    r.quad(
+                        vec3(gx, 0.003, fz + 0.3),
+                        vec3(gx + 0.06, 0.003, fz + 0.3),
+                        vec3(gx + 0.06, 0.003, fz + 0.7),
+                        vec3(gx, 0.003, fz + 0.7),
+                        Vec3::Y,
+                        sh(floor, 0.6),
+                    ); // grating
+                }
+            }
+        }
+    }
+    // back wall with a wide windshield showing the outside sky
+    r.quad(vec3(0., 0., 0.), vec3(w, 0., 0.), vec3(w, 2.5, 0.), vec3(0., 2.5, 0.), Vec3::Z, wall);
+    let sky = match k {
+        1 => Color::new(0.75, 0.86, 0.98, 1.),
+        2 => Color::new(0.25, 0.4, 0.42, 1.),
+        _ => Color::new(0.98, 0.8, 0.6, 1.),
+    };
+    let u = r.unlit;
+    r.unlit = true;
+    let n = 1. - lt.night * 0.7;
+    r.quad(
+        vec3(0.7, 1.15, 0.01),
+        vec3(w - 0.7, 1.15, 0.01),
+        vec3(w - 1.0, 2.2, 0.01),
+        vec3(1.0, 2.2, 0.01),
+        Vec3::Z,
+        Color::new(sky.r * n, sky.g * n, sky.b * n, 1.),
+    );
+    r.quad(
+        vec3(0.7, 1.15, 0.015),
+        vec3(w - 0.7, 1.15, 0.015),
+        vec3(w - 0.7, 1.35, 0.015),
+        vec3(0.7, 1.35, 0.015),
+        Vec3::Z,
+        Color::new(sky.r * 0.7 * n, sky.g * 0.65 * n, sky.b * 0.6 * n, 1.),
+    ); // horizon
+    r.unlit = u;
+    for x in [1.0, w / 2., w - 1.0] {
+        r.cube(vec3(x, 1.68, 0.03), vec3(0.04, 0.55, 0.03), trim); // window frame struts
+    }
+    // ribbed side walls (cut away like the house rooms) and ceiling beams
+    for x in [-0.08, w + 0.08] {
+        r.cube(vec3(x, 0.5, d / 2.), vec3(0.08, 0.5, d / 2.), sh(wall, 0.85));
+        for z in 0..=CK.1 {
+            r.cube(vec3(x, 0.55, z as f32), vec3(0.1, 0.55, 0.05), trim);
+        }
+    }
+    r.cube(vec3(w / 2., 0.12, d + 0.06), vec3(w / 2., 0.12, 0.06), sh(wall, 0.8));
+    // front console: a long desk with glowing screens and blinking buttons
+    r.cube(vec3(w / 2., 0.42, 0.5), vec3(w / 2. - 0.1, 0.42, 0.42), Color::new(0.36, 0.37, 0.4, 1.));
+    r.cube(vec3(w / 2., 0.86, 0.6), vec3(w / 2. - 0.1, 0.03, 0.34), Color::new(0.24, 0.25, 0.28, 1.));
+    let u = r.unlit;
+    r.unlit = true;
+    for (i, x) in [1.2f32, 2.4, 3.6, 4.8].iter().enumerate() {
+        let c = [
+            Color::new(0.3, 0.9, 1., 1.),
+            Color::new(1., 0.7, 0.3, 1.),
+            Color::new(0.4, 1., 0.5, 1.),
+            Color::new(0.3, 0.9, 1., 1.),
+        ][i];
+        let flick = 0.8 + 0.2 * (t * 3. + i as f32).sin();
+        r.cube(
+            vec3(*x, 1.0, 0.32),
+            vec3(0.32, 0.14, 0.01),
+            Color::new(c.r * flick * 0.4, c.g * flick * 0.4, c.b * flick * 0.4, 1.),
+        );
+        r.cube(vec3(*x, 1.0, 0.33), vec3(0.24, 0.015, 0.005), c); // a scrolling readout line
+        r.cube(vec3(*x - 0.1, 0.9 + ((t * 0.7 + i as f32) % 1.) * 0.18, 0.335), vec3(0.08, 0.008, 0.004), sh(c, 0.8));
+        for j in 0..3 {
+            let on = ((t * 1.7 + (i * 3 + j) as f32 * 0.37) % 1.) < 0.5;
+            r.sphere(vec3(*x - 0.2 + j as f32 * 0.2, 0.9, 0.75), Vec3::splat(0.03), if on { c } else { sh(c, 0.3) });
+        }
+    }
+    r.unlit = u;
+    // the pilot's seat
+    let (sx, sz) = (CK_SEAT.0 as f32 + 0.5, CK_SEAT.1 as f32 + 0.5);
+    let leather = Color::new(0.45, 0.28, 0.2, 1.);
+    r.cyl(vec3(sx, 0., sz), 0.08, 0.35, trim);
+    r.cube(vec3(sx, 0.42, sz), vec3(0.3, 0.06, 0.28), leather);
+    r.cube(vec3(sx, 0.78, sz + 0.25), vec3(0.3, 0.36, 0.05), leather);
+    for ax in [-0.32, 0.32] {
+        r.cube(vec3(sx + ax, 0.55, sz), vec3(0.04, 0.04, 0.24), trim);
+    }
+    r.seg(vec3(sx, 0.5, sz - 0.25), vec3(sx, 0.7, sz - 0.4), 0.02, trim); // control yoke
+    r.cube(vec3(sx, 0.72, sz - 0.42), vec3(0.14, 0.025, 0.025), trim);
+    // the holding cell: bars and a blue energy barrier; your delivered target waits inside
+    let cell = vec3(0.5, 0., 1.5);
+    r.cube(cell + vec3(0., 1.1, 0.), vec3(0.5, 0.05, 1.0), trim);
+    for j in 0..6 {
+        r.cube(vec3(1.0, 0.55, 0.6 + j as f32 * 0.36), vec3(0.025, 0.55, 0.025), trim);
+    }
+    if let Some(b) = g.w.p.bounty.as_ref().filter(|b| b.delivered) {
+        let _ = b;
+        human(r, 1, (Some(65), None, 1), cell + vec3(0., 0., 0.1), FRAC_PI_2, 0., 0., 0, None, t, 0.);
+        r.cube(cell + vec3(0., 0.45, 0.12), vec3(0.16, 0.04, 0.12), Color::new(0.3, 0.32, 0.36, 1.));
+        // binders
+    }
+    let (a, u) = (r.alpha, r.unlit);
+    r.alpha = 0.22 + 0.08 * (t * 4.).sin();
+    r.unlit = true;
+    r.quad(
+        vec3(1.0, 0.02, 0.45),
+        vec3(1.0, 0.02, 2.55),
+        vec3(1.0, 1.08, 2.55),
+        vec3(1.0, 1.08, 0.45),
+        Vec3::X,
+        Color::new(0.4, 0.7, 1., 1.),
+    );
+    r.alpha = a;
+    r.unlit = u;
+    // bunk with a rumpled blanket, crates, a coiled pipe
+    r.cube(vec3(5.5, 0.3, 1.5), vec3(0.45, 0.06, 0.95), trim);
+    r.cube(vec3(5.5, 0.4, 1.6), vec3(0.42, 0.05, 0.8), Color::new(0.5, 0.55, 0.42, 1.));
+    r.sphere(vec3(5.5, 0.47, 0.8), vec3(0.3, 0.07, 0.15), Color::new(0.85, 0.82, 0.75, 1.)); // pillow
+    r.cube(vec3(5.6, 0.18, 3.6), vec3(0.25, 0.18, 0.25), Color::new(0.55, 0.42, 0.28, 1.));
+    r.cube(vec3(5.6, 0.48, 3.6), vec3(0.18, 0.12, 0.18), Color::new(0.5, 0.38, 0.26, 1.));
+    r.seg(vec3(w - 0.12, 2.0, 0.3), vec3(w - 0.12, 2.0, d - 0.3), 0.05, Color::new(0.5, 0.45, 0.35, 1.)); // overhead pipe
+    let u = r.unlit;
+    r.unlit = true;
+    for z in [1.2, 3.0] {
+        r.cube(vec3(w / 2., 2.45, z), vec3(0.5, 0.02, 0.08), Color::new(1., 0.93, 0.8, 1.));
+        // ceiling light strips
+    }
+    r.unlit = u;
+    r.disc(vec3(w / 2., 0.006, 2.0), vec2(1.6, 1.2), Color::new(1., 0.95, 0.85, 0.08));
+    // ramp door at the near wall
+    r.cube(vec3(CK_EXIT.0, 0.005, CK_EXIT.1 - 0.1), vec3(0.45, 0.005, 0.32), Color::new(0.75, 0.6, 0.25, 1.)); // hazard plate
+    for j in 0..4 {
+        r.cube(
+            vec3(CK_EXIT.0 - 0.33 + j as f32 * 0.22, 0.008, CK_EXIT.1 - 0.1),
+            vec3(0.05, 0.004, 0.3),
+            Color::new(0.15, 0.15, 0.15, 1.),
+        );
+    }
+    let me = g.me.ipos;
+    if me.distance(vec2(sx, sz)) < 2.2 {
+        labels.push((vec3(sx, 1.5, sz), "Pilot's seat".into(), Color::new(0.85, 0.95, 1., 1.)));
+    }
+    if let Some(b) = g.w.p.bounty.as_ref().filter(|b| b.delivered) {
+        let _ = b;
+        if me.distance(vec2(cell.x, cell.z)) < 2.5 {
+            labels.push((cell + vec3(0., 1.6, 0.), "Holding cell".into(), Color::new(0.75, 0.9, 1., 1.)));
+        }
+    }
+    let shc = Color::new(0., 0., 0., 0.22);
+    r.disc(vec3(me.x, 0.02, me.y), vec2(0.32, 0.26), shc);
+    human(
+        r,
+        g.me.id,
+        (g.w.p.shirt, g.w.p.hat, g.w.p.hair),
+        vec3(me.x, 0., me.y),
+        yaw_of(g.me.face),
+        g.me.anim,
+        g.me.spd,
+        0,
+        None,
+        t,
+        g.me.swing,
+    );
 }

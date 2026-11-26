@@ -439,6 +439,7 @@ impl Game {
                 Scene::Islet => matches!(tile_at_i(&self.imap, x, z), GRASS | SAND | BRIDGE | SEA) && (x, z) != ISTALL,
                 Scene::Frontier => f_walk(&self.fmap, x, z),
                 Scene::Planet(k) => p_walk(k, x, z),
+                Scene::Cockpit(_) => !ck_block(x, z),
             }
         })
     }
@@ -536,7 +537,7 @@ impl Game {
                 SAND => SAND,
                 c => c,
             },
-            Scene::Room(_) => return Snd::StepFloor,
+            Scene::Room(_) | Scene::Cockpit(_) => return Snd::StepFloor,
         };
         if self.w.built.iter().any(|b| b.kind == PK_BRIDGE && ptiles(b.kind, b.x, b.z).contains(&t)) {
             return Snd::StepWood;
@@ -567,14 +568,21 @@ impl Game {
             }
         } // leaving forfeits
         match to {
+            Scene::Cockpit(_) => {
+                self.me.ipos = vec2(CK_EXIT.0, CK_EXIT.1 - 0.7);
+                self.me.face = vec2(0., -1.);
+                self.me.cam = self.me.ipos
+            }
             Scene::Planet(_) => {
                 self.me.ipos = vec2(P_SPAWN.0, P_SPAWN.1);
                 self.me.face = vec2(0., 1.);
                 self.me.cam = self.me.ipos
             }
             Scene::Frontier => {
-                self.me.ipos = vec2(F_SPAWN.0, F_SPAWN.1);
-                self.me.face = vec2(0., -1.);
+                // off the ship's ramp when stepping out of it, otherwise at the gate from Hollowbrook
+                let from_ship = matches!(self.me.scene, Scene::Cockpit(_));
+                self.me.ipos = if from_ship { vec2(F_RAMP.0, F_RAMP.1 + 0.6) } else { vec2(F_SPAWN.0, F_SPAWN.1) };
+                self.me.face = if from_ship { vec2(0., 1.) } else { vec2(0., -1.) };
                 self.me.cam = self.me.ipos
             }
             Scene::Islet => {

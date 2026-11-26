@@ -2296,9 +2296,15 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         wait(g, c, 6).await;
         shot!("s_greeting");
     } else if phase == "50" {
-        // Spaceflight: take off from Dustreach, fly, nav computer, light speed, Glacia orbit, both landing sites.
-        g.swap(Scene::Frontier);
-        g.me.scene = Scene::Frontier;
+        // Spaceflight: inside the ship, take off from the pilot's seat, fly, nav computer, light speed, Glacia orbit,
+        // both landing sites.
+        g.swap(Scene::Cockpit(0));
+        g.me.scene = Scene::Cockpit(0);
+        g.me.ipos = vec2(CK_STAND.0, CK_STAND.1 + 0.4);
+        g.me.cam = g.me.ipos;
+        g.me.face = vec2(0., -1.);
+        wait(g, c, 20).await;
+        shot!("sp_cockpit");
         g.take_off();
         for _ in 0..30 {
             step(g, c, &[KeyCode::W, KeyCode::D], &[]).await;
@@ -2317,6 +2323,8 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         shot!("sp_glacia_orbit");
         g.me.flight.as_mut().map(|f| f.pos = vec2(0., PLANET_R + 2.));
         press(g, c, KeyCode::E).await;
+        g.swap(Scene::Planet(1));
+        g.me.scene = Scene::Planet(1);
         g.me.ipos = vec2(12.5, 13.5);
         g.me.cam = g.me.ipos;
         wait(g, c, 30).await;

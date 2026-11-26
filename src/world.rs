@@ -540,6 +540,8 @@ pub enum Scene {
     Frontier,
     /// A landing site reached by spaceflight (1 Glacia, 2 Verdance).
     Planet(u8),
+    /// Inside your ship, parked on planet k (0 Dustreach). Fly from the pilot's seat.
+    Cockpit(u8),
 }
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
 pub enum Pose {
@@ -611,6 +613,8 @@ pub enum Tg {
     Pal,
     Bike,
     Sample(usize),
+    Pilot,
+    ShipExit,
     Local(usize),
     Fugitive(usize),
     FGate,
@@ -1082,7 +1086,7 @@ impl Game {
             Scene::Town => self.me.pos,
             Scene::Room(b) => door_stand(b),
             Scene::Islet => dock_stand(),
-            Scene::Frontier | Scene::Planet(_) => self.me.pos,
+            Scene::Frontier | Scene::Planet(_) | Scene::Cockpit(_) => self.me.pos,
         };
         self.w.p.pos = [pos.x, pos.y];
         self.activate(0);
@@ -1170,7 +1174,7 @@ impl Game {
                 Scene::Town => pl.pos,
                 Scene::Room(b) => door_stand(b),
                 Scene::Islet => dock_stand(),
-                Scene::Frontier | Scene::Planet(_) => pl.pos,
+                Scene::Frontier | Scene::Planet(_) | Scene::Cockpit(_) => pl.pos,
             };
             pr.pos = [p.x, p.y];
         }

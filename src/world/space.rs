@@ -30,6 +30,22 @@ pub const SAMPLE_ITEM: [u16; 2] = [175, 176]; // Frost Crystal, Glowcap
 /// Each landing site has a pond: (centre x, centre z, radius x, radius z).
 pub const P_POND: [(f32, f32, f32, f32); 2] = [(9.0, 14.0, 3.2, 2.2), (21.0, 13.0, 3.0, 2.0)];
 
+/// Ship interior: 6 x 5 tiles. Front console along the back wall, the pilot's seat in front of it, the holding
+/// cell on the left, a bunk on the right, the ramp door in the middle of the near wall.
+pub const CK: (i32, i32) = (6, 5);
+pub const CK_SEAT: (i32, i32) = (3, 1);
+pub const CK_EXIT: (f32, f32) = (3.5, 4.55);
+pub const CK_STAND: (f32, f32) = (3.5, 2.5);
+pub fn ck_block(x: i32, z: i32) -> bool {
+    x < 0
+        || z < 0
+        || x >= CK.0
+        || z >= CK.1
+        || z == 0
+        || (x, z) == CK_SEAT
+        || (x == 0 && z <= 2)
+        || (x == 5 && (1..=2).contains(&z))
+}
 /// Runtime flight state (never saved: quitting mid-flight puts you back in Hollowbrook like any Dustreach visit).
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct Flight {
@@ -96,12 +112,27 @@ impl Game {
         match self.me.scene {
             Scene::Frontier => Some(0),
             Scene::Planet(k) => Some(k),
+            Scene::Cockpit(k) => Some(k),
             _ => None,
+        }
+    }
+    /// Walk up the ramp into your ship.
+    pub fn board(&mut self) {
+        if let Some(k) = self.planet_here() {
+            self.go(Scene::Cockpit(k));
+        }
+    }
+    /// Walk back down the ramp onto the planet the ship is parked on.
+    pub fn disembark(&mut self) {
+        if let Scene::Cockpit(k) = self.me.scene {
+            self.go(if k == 0 { Scene::Frontier } else { Scene::Planet(k) });
         }
     }
     /// Climb aboard and lift off into the planet's orbit.
     pub fn take_off(&mut self) {
-        let Some(sys) = self.planet_here() else { return };
+        let Scene::Cockpit(sys) = self.me.scene else {
+            return self.note("Take the pilot's seat inside your ship to fly.");
+        };
         self.me.riding = false;
         self.me.standoff = 0.;
         self.me.bolts.clear();
@@ -143,17 +174,14 @@ impl Game {
             return Err("Fly closer to the planet to land.");
         }
         self.me.flight = None;
-        let scene = if f.sys == 0 { Scene::Frontier } else { Scene::Planet(f.sys) };
-        if self.me.scene != scene {
-            self.swap(scene);
-            self.me.scene = scene;
-        }
-        let at = if f.sys == 0 { vec2(F_RAMP.0, F_RAMP.1 + 0.6) } else { vec2(P_SPAWN.0, P_SPAWN.1) };
+        let scene = Scene::Cockpit(f.sys);
+        self.me.scene = scene; // you are still in the pilot's seat; walk down the ramp to step outside
+        let at = vec2(CK_STAND.0, CK_STAND.1);
         self.me.ipos = at;
         self.me.cam = at;
         self.me.face = vec2(0., 1.);
         self.snd.push(Snd::Door);
-        self.note(format!("Landed on {}.", PLANETS[f.sys as usize].0));
+        self.note(format!("Landed on {}. Walk down the ramp to step outside.", PLANETS[f.sys as usize].0));
         Ok(())
     }
     /// Flight controls (called by update_player while flying and no menu is open).

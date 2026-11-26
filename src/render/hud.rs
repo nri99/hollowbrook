@@ -99,7 +99,7 @@ pub(super) fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
             txt(&s, 14., y, 22., WHITE)
         }
     }
-    if g.me.ui == Ui::Play && g.me.placing.is_none() && g.me.trans.is_none() {
+    if g.me.ui == Ui::Play && g.me.placing.is_none() && g.me.trans.is_none() && g.me.flight.is_none() {
         if let Some(tg) = g.target() {
             let s = if g.me.pad {
                 format!("[A] {}", g.tg_label(tg)).replace("[F]", "[Select]").replace("[G]", "[LB]")

@@ -144,14 +144,14 @@ any you forget. Menus are the `Ui` enum on `me.ui`; their input lives in `update
 | 47 | Woods path and door to Dustreach |
 | 48 | Hunter life: full armour, companion, prisoner walking to the ship, guild master's forge |
 | 49 | Feel pass: quick-draw standoff at DRAW!, resident greeting (use 2026-11-10T09:00 for the rainbow) |
-| 50 | Spaceflight: take off, orbit, nav computer, light speed, Glacia orbit, Glacia and Verdance surfaces |
+| 50 | Spaceflight: ship interior, take off from the pilot's seat, orbit, nav computer, light speed, Glacia orbit, Glacia and Verdance surfaces |
 
 ## Glossary of short names
 
 `w` world · `p` active profile · `me` active player · `Tg` interaction target · `BK` building kind ·
 `BLDS` buildings · `DEFS`/`def(id)` item table · `Ui` open menu · `tc(tile)` tile centre · `ipos` indoor position ·
 `hr`/`dom`/`mo`/`yr` hour/day of month/month/year · `fx` effects · `act` timed activity · `mproject` money project ·
-`project` material project · `wtask` weekly town task · `flight` (Player) flying your ship · `Scene::Planet(k)` landing site (1 Glacia, 2 Verdance; tiles from `ptile`) · `story` home floor (0 main, 1 basement, 2 upstairs) · `fmap`/`Scene::Frontier` Dustreach outpost (dev entry F9 with `HOLLOWBROOK_DEBUG`; no door from town yet).
+`project` material project · `wtask` weekly town task · `Scene::Cockpit(k)` inside your ship parked on planet k (fly from the pilot's seat; `ck_block` tiles) · `flight` (Player) flying your ship · `Scene::Planet(k)` landing site (1 Glacia, 2 Verdance; tiles from `ptile`) · `story` home floor (0 main, 1 basement, 2 upstairs) · `fmap`/`Scene::Frontier` Dustreach outpost (dev entry F9 with `HOLLOWBROOK_DEBUG`; no door from town yet).
 
 ## Finding and fixing bugs (workflow)
 

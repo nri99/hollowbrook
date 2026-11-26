@@ -90,6 +90,10 @@ impl Game {
                     cand(tc(STALL), 1.5, 0.8, Tg::ArtStall, Some(STALL))
                 }
             }
+            Scene::Cockpit(_) => {
+                cand(tc(CK_SEAT), 1.6, 0.8, Tg::Pilot, None);
+                cand(vec2(CK_EXIT.0, CK_EXIT.1), 1.4, 0.8, Tg::ShipExit, None);
+            }
             Scene::Planet(k) => {
                 cand(vec2(P_RAMP.0, P_RAMP.1), 1.6, 0.8, Tg::Ship, None);
                 let i = (k as usize).clamp(1, 2) - 1;
@@ -224,6 +228,8 @@ impl Game {
                     vec3(P_RAMP.0, 1.9, P_RAMP.1 - 0.6)
                 }
             }
+            Tg::Pilot => vec3(CK_SEAT.0 as f32 + 0.5, 1.6, CK_SEAT.1 as f32 + 0.5),
+            Tg::ShipExit => vec3(CK_EXIT.0, 1.4, CK_EXIT.1),
             Tg::Sample(s) => {
                 let k = match self.me.scene {
                     Scene::Planet(k) => k,
@@ -339,11 +345,13 @@ impl Game {
             Tg::Ship => if self.w.p.bounty.as_ref().is_some_and(|b| b.caught && !b.delivered) {
                 "Lock them in the holding pod"
             } else {
-                "Board your ship and take off"
+                "Board your ship"
             }
             .into(),
             Tg::GuildMaster => "Talk to the guild master".into(),
             Tg::Pal => "Say hello to the sand-hopper".into(),
+            Tg::Pilot => "Take the pilot's seat and fly".into(),
+            Tg::ShipExit => "Walk down the ramp".into(),
             Tg::Sample(_) => {
                 if matches!(self.me.scene, Scene::Planet(1)) { "Chip off a frost crystal" } else { "Pick a glowcap" }
                     .into()
@@ -483,11 +491,13 @@ impl Game {
             Tg::WoodsDoor => self.go(Scene::Frontier),
             Tg::Ship => {
                 if self.deliver().is_err() {
-                    self.take_off()
+                    self.board()
                 }
             }
             Tg::GuildMaster => self.me.ui = Ui::Forge(0),
             Tg::Pal => self.adopt_pal(),
+            Tg::Pilot => self.take_off(),
+            Tg::ShipExit => self.disembark(),
             Tg::Sample(s) => {
                 if let Scene::Planet(k) = self.me.scene {
                     self.take_sample(k, s)

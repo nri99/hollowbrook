@@ -83,7 +83,11 @@ impl R {
         let mut col = c;
         if !self.unlit {
             let n = self.xf.transform_vector3(n).normalize_or_zero();
-            let l = self.amb + self.dif * n.dot(self.sun).max(0.) + Vec3::splat(0.08 * n.y.max(0.));
+            // sky light from above, a little less from below (hemisphere), plus contact shading: upright surfaces
+            // (walls, trunks, legs, furniture sides) darken softly where they meet the ground
+            let hemi = 0.93 + 0.07 * n.y;
+            let ao = if n.y.abs() < 0.6 { 0.8 + 0.2 * (w.y / 0.55).clamp(0., 1.) } else { 1. };
+            let l = (self.amb * hemi + self.dif * n.dot(self.sun).max(0.) + Vec3::splat(0.08 * n.y.max(0.))) * ao;
             col = Color::new(c.r * l.x, c.g * l.y, c.b * l.z, c.a)
         }
         let f = ((d2.sqrt() - self.fog.0) / (self.fog.1 - self.fog.0)).clamp(0., 1.);
