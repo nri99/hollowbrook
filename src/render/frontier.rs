@@ -124,7 +124,11 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
                 let h = if z >= FH - 2 {
                     0.16 + (k % 3) as f32 * 0.06
                 } else if edge {
-                    2.2 + (k % 5) as f32 * 0.45
+                    if z <= 0 {
+                        1.3 + (k % 4) as f32 * 0.3
+                    } else {
+                        2.2 + (k % 5) as f32 * 0.45
+                    } // low north rim: open sky
                 } else {
                     0.7 + (k % 3) as f32 * 0.3
                 };
@@ -144,7 +148,8 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
                 r.sphere(p + vec3(0.25, 0.03, 0.1), vec3(0.06, 0.04, 0.05), sh(ROCK_C, 0.9));
             }
             if !inside && z < FH - 1 && hash(x + 50, z) % 3 != 0 {
-                mesa(r, fx, fz, 3.0 + (hash(x, z) % 4) as f32 * 0.6, hash(x, z));
+                mesa(r, fx, fz, 1.2 + (hash(x, z) % 4) as f32 * 0.35, hash(x, z));
+                // low far mesas leave open sky
             }
         }
     }
@@ -328,6 +333,7 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
         }
     }
     frontier_life(r, g, t, labels);
+    frontier_wilds(r, t);
     if !g.me.riding {
         hover_bike(r, vec2(F_BIKE.0, F_BIKE.1), 0.4, t);
     } else {
@@ -985,4 +991,83 @@ fn draw_struct(
             r.cyl(c + vec3(0.3, 0.85, -0.2), 0.08, 0.35, sh(ADOBE, 0.85)); // little chimney
         }
     }
+}
+
+/// Dustreach sky (2D, behind the world): a huge ringed gas giant and a small pale moon hanging over the canyon,
+/// which drift slowly with the hour and glow brighter as the light fades.
+pub(super) fn frontier_sky(g: &Game, lt: &Light, w: f32, h: f32) {
+    let k = 1. - lt.night * 0.5;
+    let glow = 0.6 + lt.night * 0.35;
+    let drift = (g.hr as f32 + g.t / 3600.) * 6.;
+    // the gas giant: soft banded disc partly hidden behind its ring
+    let (px, py, pr) = (w * 0.72 - drift, h * 0.17, h * 0.13);
+    let band =
+        [Color::new(0.93, 0.78, 0.62, glow), Color::new(0.85, 0.62, 0.5, glow), Color::new(0.96, 0.86, 0.72, glow)];
+    draw_circle(px, py, pr, band[0]);
+    for i in 0..6 {
+        let y = py - pr + (i as f32 + 0.5) * pr / 3.;
+        let dy = (y - py).abs() + pr / 12.; // band edge furthest from the centre stays inside the disc
+        let half = (pr * pr - dy * dy).max(0.).sqrt();
+        draw_rectangle(px - half, y - pr / 12., half * 2., pr / 6., band[i % 3]);
+    }
+    draw_circle(px - pr * 0.35, py - pr * 0.3, pr * 0.18, Color::new(1., 0.95, 0.85, glow * 0.4)); // highlight
+    let ring = Color::new(0.98, 0.9, 0.78, glow * 0.85);
+    for j in 0..3 {
+        let rx = pr * (1.75 + j as f32 * 0.12);
+        let ry = pr * (0.32 + j as f32 * 0.02);
+        let steps = 60;
+        for s in 0..steps {
+            let (a0, a1) = (
+                s as f32 / steps as f32 * std::f32::consts::TAU,
+                (s + 1) as f32 / steps as f32 * std::f32::consts::TAU,
+            );
+            let (x0, y0) = (px + a0.cos() * rx, py + a0.sin() * ry * 1. - a0.cos() * ry * 0.5);
+            let (x1, y1) = (px + a1.cos() * rx, py + a1.sin() * ry * 1. - a1.cos() * ry * 0.5);
+            let front = a0.sin() > 0.;
+            if front || ((x0 - px).powi(2) + (y0 - py).powi(2)).sqrt() > pr {
+                draw_line(x0, y0, x1, y1, 2.2 - j as f32 * 0.5, ring);
+            }
+        }
+    }
+    // a small pale moon
+    let (mx, my) = (w * 0.9 - drift * 0.3, h * 0.07); // clear of the info panel at top left
+    draw_circle(mx, my, h * 0.028, Color::new(0.95 * k + 0.05, 0.95 * k + 0.05, 1., glow + 0.1));
+    draw_circle(mx + h * 0.008, my - h * 0.004, h * 0.007, Color::new(0.75, 0.75, 0.82, glow));
+    // crater
+}
+
+/// Dust devils spinning across the salt flats, and the bleached ribcage of some enormous desert beast.
+pub(super) fn frontier_wilds(r: &mut R, t: f32) {
+    let a = r.alpha;
+    for k in 0..2 {
+        let ph = t * 0.06 + k as f32 * 2.7;
+        let base = vec3(52. + ph.sin() * 5., 0., 22. + (ph * 1.3).cos() * 4.);
+        r.alpha = 0.22;
+        for j in 0..7 {
+            let y = j as f32 * 0.32;
+            let ang = t * 6. + j as f32 * 0.9;
+            let rad = 0.12 + j as f32 * 0.09;
+            r.sphere(
+                base + vec3(ang.cos() * rad * 0.4, y, ang.sin() * rad * 0.4),
+                vec3(rad, 0.14, rad),
+                Color::new(0.92, 0.82, 0.66, 1.),
+            );
+        }
+    }
+    r.alpha = a;
+    // the old bones half sunk in the flats
+    let bone = Color::new(0.93, 0.9, 0.82, 1.);
+    let c = vec3(56.5, 0., 26.);
+    r.seg(c + vec3(-2.2, 0.15, 0.), c + vec3(2.0, 0.25, 0.), 0.09, bone); // spine
+    for i in 0..6 {
+        let x = -1.6 + i as f32 * 0.65;
+        let hgt = 1.3 - (i as f32 - 2.5).abs() * 0.18;
+        for sz in [-1f32, 1.] {
+            r.seg(c + vec3(x, 0.25, 0.), c + vec3(x + 0.1, hgt, sz * 0.55), 0.05, bone);
+            r.seg(c + vec3(x + 0.1, hgt, sz * 0.55), c + vec3(x + 0.18, 0.0, sz * 0.95), 0.045, bone);
+        }
+    }
+    r.sphere(c + vec3(2.5, 0.35, 0.), vec3(0.45, 0.32, 0.38), bone); // skull
+    r.sphere(c + vec3(2.75, 0.4, 0.18), Vec3::splat(0.09), Color::new(0.25, 0.2, 0.18, 1.));
+    r.seg(c + vec3(2.7, 0.55, 0.2), c + vec3(3.2, 1.0, 0.45), 0.05, bone); // horn
 }

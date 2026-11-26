@@ -406,6 +406,10 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
             )
         }
     }
+    if g.me.scene == Scene::Frontier {
+        hud_cam(vp);
+        frontier_sky(g, &lt, vw(), vh());
+    }
     set_camera(&cam);
     let mut r = R::new(curve, c0, &lt, if matches!(g.me.scene, Scene::Room(_)) { (100., 200.) } else { (12., 21.) });
     let mut labels: Vec<(Vec3, String, Color)> = vec![];
