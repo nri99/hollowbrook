@@ -2294,6 +2294,13 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         wait(g, c, 20).await;
         press(g, c, KeyCode::E).await;
         shot!("h_forge");
+        press(g, c, KeyCode::Escape).await;
+        g.me.riding = true; // logged FIXTURE: on the hover-bike
+        g.me.ipos = vec2(14.2, 13.4);
+        g.me.cam = g.me.ipos;
+        g.me.face = vec2(-1., -0.2).normalize();
+        wait(g, c, 30).await;
+        shot!("h_street");
         log!("ui={:?} target={:?}", g.me.ui, g.target());
     } else if phase == "47" {
         // The woods path and the door to Dustreach, then through it.

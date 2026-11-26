@@ -381,6 +381,12 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
             labels.push((vec3(F_PAL_SPOT.0, 0.9, F_PAL_SPOT.1), "Sand-hopper".into(), Color::new(1., 0.9, 0.7, 1.)));
         }
     }
+    frontier_life(r, g, t, labels);
+    if !g.me.riding {
+        hover_bike(r, vec2(F_BIKE.0, F_BIKE.1), 0.4, t);
+    } else {
+        hover_bike(r, g.me.ipos, yaw_of(g.me.face), t);
+    }
     hunter_gear(r, g, t);
     let shc = Color::new(0., 0., 0., 0.2);
     r.disc(vec3(g.me.ipos.x, 0.02, g.me.ipos.y), vec2(0.32, 0.26), shc);
@@ -388,7 +394,7 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
         r,
         g.me.id,
         (g.w.p.shirt, g.w.p.hat, g.w.p.hair),
-        vec3(g.me.ipos.x, 0., g.me.ipos.y),
+        vec3(g.me.ipos.x, if g.me.riding { 0.34 } else { 0. }, g.me.ipos.y),
         yaw_of(g.me.face),
         g.me.anim,
         g.me.spd,
@@ -449,7 +455,9 @@ pub(super) fn bounty_hud(g: &Game, sw: f32) {
         format!("Bounty: {}   Tracker: {}", o.name, g.tracker_word())
     };
     txt(&line, 22., 207., 21., WHITE);
-    let sub = if b.tier == 2 && !b.caught {
+    let sub = if b.hinted && !b.caught {
+        format!("Moss says: head {} from here.", bearing(g.me.ipos, vec2(b.pos[0][0], b.pos[0][1])))
+    } else if b.tier == 2 && !b.caught {
         format!("Last seen {}. Wears a {} scarf.", F_SPOTS[o.spot].1, SCARVES[0].0)
     } else {
         format!("Last seen {}.", F_SPOTS[o.spot].1)
@@ -730,4 +738,143 @@ pub(super) fn forge_menu(g: &Game, sel: usize, sw: f32) {
     list(&items, Some(sel), x0 + 30., 230.);
     txt("Earn marks by bringing in bounties: 1 / 2 / 3 by difficulty.", x0 + 30., 400., 17., DARKGRAY);
     txt("W/S choose   Enter forge   Esc close", x0 + 30., 470., 18., Color::new(0.45, 0.3, 0.2, 1.));
+}
+
+/// A hover-bike: a long low body, twin forward engine pods, a seat and a soft blue hover glow underneath.
+fn hover_bike(r: &mut R, p: Vec2, yaw: f32, t: f32) {
+    let bob = (t * 2.2).sin() * 0.03;
+    let paint = Color::new(0.62, 0.22, 0.18, 1.);
+    let metal = Color::new(0.45, 0.47, 0.5, 1.);
+    let u = r.unlit;
+    r.unlit = true;
+    r.disc(vec3(p.x, 0.02, p.y), vec2(0.45, 0.45), Color::new(0.45, 0.8, 1., 0.25));
+    r.unlit = u;
+    r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(yaw), vec3(p.x, 0.3 + bob, p.y)), |r| {
+        r.sphere(Vec3::ZERO, vec3(0.2, 0.12, 0.62), paint); // body
+        r.cube(vec3(0., 0.1, -0.12), vec3(0.11, 0.04, 0.2), Color::new(0.25, 0.18, 0.14, 1.)); // seat
+        for sx in [-0.16, 0.16] {
+            r.with(
+                Mat4::from_rotation_translation(
+                    Quat::from_rotation_x(std::f32::consts::FRAC_PI_2),
+                    vec3(sx, 0.02, 0.45),
+                ),
+                |r| {
+                    r.cyl(vec3(0., -0.25, 0.), 0.07, 0.5, metal); // engine pods
+                },
+            );
+            let u = r.unlit;
+            r.unlit = true;
+            r.sphere(vec3(sx, 0.02, 0.18), Vec3::splat(0.05), Color::new(0.5, 0.85, 1., 1.));
+            r.unlit = u;
+        }
+        r.seg(vec3(-0.14, 0.2, 0.18), vec3(0.14, 0.2, 0.18), 0.015, metal); // handlebars
+        r.cube(vec3(0., -0.1, -0.5), vec3(0.06, 0.04, 0.1), metal); // tail fin
+    });
+}
+
+/// Everyday Dustreach: townsfolk, pack beasts plodding down the street, a helper robot at the market and
+/// small craft crossing the sky.
+fn frontier_life(r: &mut R, g: &Game, t: f32, labels: &mut Vec<(Vec3, String, Color)>) {
+    let looks = [(Some(68), Some(67), 2), (Some(64), None, 1), (Some(66), Some(68), 0), (Some(69), None, 3)];
+    for i in 0..LOCALS.len() {
+        let p = local_pos(i, t);
+        let near = g.me.ipos.distance(p) < 3.;
+        let face = if near { g.me.ipos - p } else { local_pos(i, t + 0.5) - p };
+        r.disc(vec3(p.x, 0.02, p.y), vec2(0.3, 0.24), Color::new(0., 0., 0., 0.18));
+        human(
+            r,
+            1,
+            looks[i],
+            vec3(p.x, 0., p.y),
+            yaw_of(face.normalize_or_zero()),
+            t * 2.,
+            if near { 0. } else { 0.6 },
+            0,
+            None,
+            t,
+            0.,
+        );
+        if i == INFORMANT {
+            r.sphere(vec3(p.x, 1.08, p.y), vec3(0.34, 0.33, 0.34), Color::new(0.3, 0.26, 0.24, 1.));
+            // hooded cloak
+        }
+        if near {
+            labels.push((vec3(p.x, 1.9, p.y), LOCALS[i].1.into(), Color::new(1., 0.9, 0.75, 1.)));
+        }
+    }
+    // two shaggy pack beasts with saddle bags, walking the cross street
+    for k in 0..2 {
+        let ph = t * 0.045 + k as f32 * 3.1;
+        let x = 18. + ph.sin() * 11.;
+        let dir = if ph.cos() > 0. { 1. } else { -1. };
+        let p = vec3(x, 0., 9.35 + k as f32 * 1.6);
+        let fur = Color::new(0.5, 0.38, 0.27, 1.);
+        r.disc(vec3(p.x, 0.02, p.z), vec2(0.7, 0.4), Color::new(0., 0., 0., 0.18));
+        r.with(
+            Mat4::from_rotation_translation(
+                Quat::from_rotation_y(if dir > 0. {
+                    std::f32::consts::FRAC_PI_2
+                } else {
+                    -std::f32::consts::FRAC_PI_2
+                }),
+                p,
+            ),
+            |r| {
+                r.sphere(vec3(0., 0.8, 0.), vec3(0.42, 0.4, 0.75), fur);
+                r.sphere(vec3(0., 1.15, -0.1), vec3(0.28, 0.22, 0.32), sh(fur, 0.9)); // hump
+                r.sphere(vec3(0., 0.9, 0.78), vec3(0.2, 0.2, 0.26), sh(fur, 1.1)); // head
+                for sx in [-0.14, 0.14] {
+                    r.seg(vec3(sx, 1.02, 0.85), vec3(sx * 2.2, 1.18, 0.75), 0.03, Color::new(0.85, 0.8, 0.7, 1.));
+                    // horns
+                }
+                for (j, (sx, sz)) in [(-0.25, 0.45), (0.25, 0.45), (-0.25, -0.45), (0.25, -0.45)].iter().enumerate() {
+                    let swing = (t * 4. + j as f32 * 1.6).sin() * 0.12;
+                    r.seg(vec3(*sx, 0.55, *sz), vec3(*sx, 0.0, sz + swing), 0.06, sh(fur, 0.8));
+                    // legs
+                }
+                for sx in [-0.45, 0.45] {
+                    r.cube(vec3(sx, 0.75, 0.0), vec3(0.08, 0.18, 0.25), Color::new(0.6, 0.5, 0.32, 1.));
+                    // saddle bags
+                }
+            },
+        );
+    }
+    // a helper robot trundling between the market tents
+    let rx = 8.5 + (t * 0.3).sin() * 2.2;
+    let rdir = if (t * 0.3).cos() > 0. { 1. } else { -1. };
+    let rp = vec3(rx, 0., 13.6);
+    r.disc(vec3(rp.x, 0.02, rp.z), vec2(0.26, 0.2), Color::new(0., 0., 0., 0.18));
+    r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(rdir * std::f32::consts::FRAC_PI_2), rp), |r| {
+        let shell = Color::new(0.86, 0.82, 0.72, 1.);
+        r.cube(vec3(0., 0.42, 0.), vec3(0.2, 0.24, 0.18), shell);
+        r.cube(vec3(0., 0.42, 0.19), vec3(0.12, 0.1, 0.01), Color::new(0.75, 0.45, 0.25, 1.)); // panel
+        r.sphere(vec3(0., 0.74, 0.), vec3(0.17, 0.12, 0.17), sh(shell, 0.92)); // dome
+        let u = r.unlit;
+        r.unlit = true;
+        r.sphere(vec3(0., 0.76, 0.15), Vec3::splat(0.045), Color::new(0.4, 0.9, 1., 1.)); // eye
+        r.unlit = u;
+        r.seg(vec3(0.08, 0.84, 0.), vec3(0.12, 1.05, -0.03), 0.01, Color::new(0.3, 0.3, 0.32, 1.)); // antenna
+        for sx in [-0.21, 0.21] {
+            r.with(
+                Mat4::from_rotation_translation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_2), vec3(sx, 0.12, 0.)),
+                |r| {
+                    r.cyl(vec3(0., -0.04, 0.), 0.12, 0.08, Color::new(0.25, 0.25, 0.27, 1.));
+                    // wheels
+                },
+            );
+        }
+    });
+    // small craft crossing the sky beyond the north cliffs
+    let ph = (t % 40.) / 40.;
+    let sx = 46. - ph * 54.;
+    let sp = vec3(sx, 6.2 + (ph * 6.).sin() * 0.3, -1.5);
+    r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2), sp), |r| {
+        let body = Color::new(0.7, 0.72, 0.75, 1.);
+        r.sphere(Vec3::ZERO, vec3(0.3, 0.22, 0.9), body);
+        r.cube(vec3(0., 0., -0.1), vec3(1.0, 0.04, 0.3), sh(body, 0.85)); // wings
+        let u = r.unlit;
+        r.unlit = true;
+        r.sphere(vec3(0., 0., -0.9), Vec3::splat(0.16), Color::new(1., 0.7, 0.4, 1.)); // engine glow
+        r.unlit = u;
+    });
 }

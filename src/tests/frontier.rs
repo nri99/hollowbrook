@@ -198,3 +198,37 @@ fn ship_pod_forge_companion_tracker_and_ambush() {
     assert!(g2.w.p.pal && g2.w.p.armor == 0b11 && g2.w.p.marks == 13);
     assert!(g2.check().is_empty());
 }
+
+#[test]
+fn informant_bike_and_townsfolk() {
+    let mut g = g0(at(11, 10, 0, 0));
+    to_frontier(&mut g);
+    for i in 0..LOCALS.len() {
+        let (x, z) = LOCALS[i].0;
+        assert!(f_walk(&g.fmap, x as i32, z as i32), "{} stands on open ground", LOCALS[i].1);
+    }
+    assert!(f_walk(&g.fmap, F_BIKE.0 as i32, F_BIKE.1 as i32), "bike spot is open ground");
+    assert_eq!(bearing(vec2(5., 5.), vec2(5., 1.)), "north");
+    assert_eq!(bearing(vec2(5., 5.), vec2(9., 9.)), "south-east");
+    // the informant: one bearing per bounty, for coins
+    g.take_bounty(0).unwrap();
+    let money = g.w.p.money;
+    g.talk_local(INFORMANT);
+    assert!(g.w.p.bounty.as_ref().unwrap().hinted);
+    assert_eq!(g.w.p.money, money - HINT_PRICE);
+    g.talk_local(INFORMANT);
+    assert_eq!(g.w.p.money, money - HINT_PRICE, "paid once");
+    // the hover-bike: faster in Dustreach, parked when you leave
+    let start = vec2(15.5, 12.5);
+    g.me.ipos = start;
+    g.step_move(vec2(1., 0.), false, 0.1);
+    let walk = g.me.ipos.distance(start);
+    g.me.ipos = start;
+    g.toggle_bike();
+    g.step_move(vec2(1., 0.), false, 0.1);
+    assert!(g.me.ipos.distance(start) > walk * 1.5, "riding is faster");
+    g.swap(Scene::Town);
+    g.me.scene = Scene::Town;
+    g.frontier_tick(0.02);
+    assert!(!g.me.riding, "the bike stays in Dustreach");
+}

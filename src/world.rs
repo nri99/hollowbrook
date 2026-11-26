@@ -601,6 +601,8 @@ pub enum Tg {
     Ship,
     GuildMaster,
     Pal,
+    Bike,
+    Local(usize),
     Fugitive(usize),
     FGate,
 }
@@ -791,6 +793,9 @@ pub struct Player {
     pub beep: f32,
     #[serde(default)]
     pub pal_pos: Vec2,
+    /// Riding the Dustreach hover-bike (runtime; parked automatically when leaving Dustreach).
+    #[serde(default)]
+    pub riding: bool,
 }
 impl Player {
     pub fn new(id: usize, pos: Vec2) -> Player {
@@ -821,6 +826,7 @@ impl Player {
             dazed: 0.,
             beep: 0.,
             pal_pos: Vec2::ZERO,
+            riding: false,
         }
     }
 }

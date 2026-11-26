@@ -97,6 +97,10 @@ impl Game {
                 if !self.w.p.pal {
                     cand(vec2(F_PAL_SPOT.0, F_PAL_SPOT.1), 1.4, 0.9, Tg::Pal, None);
                 }
+                cand(vec2(F_BIKE.0, F_BIKE.1), 1.7, 0.85, Tg::Bike, None);
+                for i in 0..LOCALS.len() {
+                    cand(local_pos(i, self.t), 1.5, 0.9, Tg::Local(i), None);
+                }
                 cand(vec2(F_GATE.0 as f32 + 1., F_GATE.1 as f32 + 0.5), 1.6, 0.8, Tg::FGate, None);
                 if let Some(b) = self.w.p.bounty.as_ref().filter(|b| !b.caught) {
                     for (i, p) in b.pos.iter().enumerate() {
@@ -207,6 +211,11 @@ impl Game {
             Tg::Ship => vec3(F_RAMP.0, 1.9, F_RAMP.1 - 0.6),
             Tg::GuildMaster => vec3(F_BROKER.0, 1.9, F_BROKER.1),
             Tg::Pal => vec3(F_PAL_SPOT.0, 0.8, F_PAL_SPOT.1),
+            Tg::Bike => vec3(F_BIKE.0, 1.2, F_BIKE.1),
+            Tg::Local(i) => {
+                let p = local_pos(i, self.t);
+                vec3(p.x, 1.9, p.y)
+            }
             Tg::FGate => vec3(F_GATE.0 as f32 + 1., 2.6, F_GATE.1 as f32 + 0.5),
             Tg::Fugitive(i) => {
                 self.w.p.bounty.as_ref().and_then(|b| b.pos.get(i)).map_or(Vec3::ZERO, |p| vec3(p[0], 1.9, p[1]))
@@ -312,6 +321,8 @@ impl Game {
             .into(),
             Tg::GuildMaster => "Talk to the guild master".into(),
             Tg::Pal => "Say hello to the sand-hopper".into(),
+            Tg::Bike => if self.me.riding { "Park the hover-bike" } else { "Ride the hover-bike" }.into(),
+            Tg::Local(i) => format!("Talk to {}", LOCALS[i].1),
             Tg::FGate => "Gate back to Hollowbrook".into(),
             Tg::Fugitive(_) => "Detain".into(),
             Tg::Plant(i) => {
@@ -451,6 +462,8 @@ impl Game {
             }
             Tg::GuildMaster => self.me.ui = Ui::Forge(0),
             Tg::Pal => self.adopt_pal(),
+            Tg::Bike => self.toggle_bike(),
+            Tg::Local(i) => self.talk_local(i),
             Tg::FGate => self.go(Scene::Town),
             Tg::Fugitive(i) => self.detain(i),
             Tg::ArtStall => {

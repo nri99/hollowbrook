@@ -41,6 +41,30 @@ pub const F_PAL_SPOT: (f32, f32) = (30.5, 18.5);
 pub const ARMOR: [(&str, u32); 4] = [("Helmet", 3), ("Chest plate", 4), ("Gauntlets", 2), ("Boots", 2)];
 /// Guild marks paid per bounty tier, on top of the coins.
 pub const MARKS: [u32; 3] = [1, 2, 3];
+/// Where the hover-bike parks beside your ship.
+pub const F_BIKE: (f32, f32) = (19.6, 24.6);
+/// Townsfolk: home spot, name, what they say. Index 2 is the informant who sells a bearing on your target.
+pub const LOCALS: [((f32, f32), &str, &str); 4] = [
+    ((8.5, 14.6), "Old Sel", "Spice, rope, sun-cloth. Everything a long walk needs."),
+    ((21.0, 14.6), "Kip", "Water's two coins a cup today. The oasis is free, if you like grit."),
+    ((18.5, 11.6), "Moss", "I hear things. For 60 coins I'll tell you which way your mark went."),
+    ((27.5, 27.0), "Dena", "That ship of yours rattles. Keep the bike out of the dunes and it'll last."),
+];
+pub const INFORMANT: usize = 2;
+pub const HINT_PRICE: u32 = 60;
+/// Townsfolk drift around their spot; the same function drives drawing and talking.
+pub fn local_pos(i: usize, t: f32) -> Vec2 {
+    let (x, z) = LOCALS[i].0;
+    let k = i as f32 * 1.7;
+    vec2(x + (t * 0.21 + k).sin() * 0.9, z + (t * 0.17 + k * 2.).cos() * 0.5)
+}
+/// Compass word from `a` towards `b` (north is up the screen, towards smaller z).
+pub fn bearing(a: Vec2, b: Vec2) -> &'static str {
+    let d = b - a;
+    let ang = d.x.atan2(-d.y).to_degrees().rem_euclid(360.);
+    ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"]
+        [((ang + 22.5) / 45.) as usize % 8]
+}
 pub const RUMOURS: [&str; 3] = [
     "They're worn out and won't run far.",
     "Word is they bolt the moment they see you. A stun pistol helps.",
@@ -111,6 +135,9 @@ pub struct Bounty {
     /// Runners and lookalike targets ambush once when you first get close.
     #[serde(default)]
     pub ambushed: bool,
+    /// The informant has been paid for this bounty: the HUD shows a live bearing.
+    #[serde(default)]
+    pub hinted: bool,
 }
 /// Frontier gear (original designs, non-lethal, works only in Dustreach): item id, price, what it does.
 pub const GEAR: [(u16, u32, &str); 3] = [
@@ -266,6 +293,7 @@ impl Game {
             stun: 0.,
             delivered: false,
             ambushed: false,
+            hinted: false,
         });
         Ok(format!("Bounty taken: {}. Last seen {}.", o.name, F_SPOTS[o.spot].1))
     }
@@ -356,6 +384,40 @@ impl Game {
     pub fn armor_pieces(&self) -> u32 {
         self.w.p.armor.count_ones()
     }
+    /// Talk to townsperson `i`. The informant sells a live bearing on your target, once per bounty.
+    pub fn talk_local(&mut self, i: usize) {
+        let (_, name, line) = LOCALS[i];
+        if i == INFORMANT {
+            match self.w.p.bounty.as_ref() {
+                Some(b) if !b.caught && b.hinted => {
+                    return self.note(format!("{name}: \"I've told you all I know. Follow the bearing.\""))
+                }
+                Some(b) if !b.caught => {
+                    if self.w.p.money < HINT_PRICE {
+                        return self.note(format!("{name}: \"Come back with {HINT_PRICE} coins.\""));
+                    }
+                    self.w.p.money -= HINT_PRICE;
+                    let t = vec2(b.pos[0][0], b.pos[0][1]);
+                    let dir = bearing(self.me.ipos, t);
+                    self.w.p.bounty.as_mut().unwrap().hinted = true;
+                    self.snd.push(Snd::Coin);
+                    return self.note(format!("{name}: \"Your mark went {dir}. I'll keep you posted.\""));
+                }
+                _ => {}
+            }
+        }
+        self.note(format!("{name}: \"{line}\""))
+    }
+    /// Climb on or off the hover-bike parked by your ship.
+    pub fn toggle_bike(&mut self) {
+        self.me.riding = !self.me.riding;
+        self.snd.push(Snd::Door);
+        self.note(if self.me.riding {
+            "You fire up the hover-bike. Twice as fast; park it back by the ship."
+        } else {
+            "Hover-bike parked."
+        });
+    }
     /// The little sand-hopper at the oasis decides to follow you (once, kept forever).
     pub fn adopt_pal(&mut self) {
         if !self.w.p.pal {
@@ -423,6 +485,7 @@ impl Game {
     pub fn frontier_tick(&mut self, dt: f32) {
         if self.me.scene != Scene::Frontier {
             self.me.bolts.clear();
+            self.me.riding = false; // the bike stays in Dustreach
             return;
         }
         let me = self.me.ipos;

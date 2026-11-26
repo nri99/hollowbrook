@@ -464,7 +464,8 @@ impl Game {
             5.5
         } else {
             3.0
-        }) * dt;
+        }) * dt
+            * if self.me.riding && self.me.scene == Scene::Frontier { 1.9 } else { 1. };
         let p0 = self.ppos();
         let mut p = p0;
         let nx = p + vec2(d.x * s, 0.);
