@@ -314,6 +314,9 @@ async fn main() {
     let sounds = Sounds::load().await;
     eprintln!("[audio] backend: quad-snd; {} sound effects loaded", sounds.0.len());
     let auto = std::env::var("HOLLOWBROOK_AUTOTEST").ok();
+    if auto.is_some() {
+        rand::srand(0x5eed); // scripted runs use fixed randomness so screenshots repeat (see tools/shots.sh)
+    }
     let mut g = match load_game() {
         Some(g) => g,
         None if auto.is_some() => Game::new("Tester".into(), clock.now()),

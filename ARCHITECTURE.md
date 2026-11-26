@@ -21,6 +21,7 @@ Rust + macroquad 0.4, one binary, no engine. Run the full check before every com
 | `src/clock.rs` | Real-time clock, overridable with `HOLLOWBROOK_DEV_TIME`. |
 | `src/tests.rs` + `src/tests/*.rs` | Headless tests by topic; shared helpers in `tests.rs`; `quality.rs` holds the stress test and guards. |
 | `tools/check.sh` | fmt check + clippy correctness + tests (run before every commit). |
+| `tools/shots.sh check` / `save` | Visual regression check: screenshots of phases 1, 30, 40, 44, 45, 48 (fixed randomness) compared with a saved baseline; changed images get before/after/difference strips in `test_output/shots_diff/`. |
 | `tools/quick.sh`, `tools/quickshot.sh` | Seconds-fast loop: incremental `quick` profile tests (optional name filter) / one autotest phase screenshot into `test_output/quickshot/`. |
 | `tools/ui_audit.sh` | Screenshots of every autotest phase as contact sheets (run from `test_output/`). |
 
@@ -145,3 +146,12 @@ any you forget. Menus are the `Ui` enum on `me.ui`; their input lives in `update
 `BLDS` buildings · `DEFS`/`def(id)` item table · `Ui` open menu · `tc(tile)` tile centre · `ipos` indoor position ·
 `hr`/`dom`/`mo`/`yr` hour/day of month/month/year · `fx` effects · `act` timed activity · `mproject` money project ·
 `project` material project · `wtask` weekly town task · `story` home floor (0 main, 1 basement, 2 upstairs) · `fmap`/`Scene::Frontier` Dustreach outpost (dev entry F9 with `HOLLOWBROOK_DEBUG`; no door from town yet).
+
+## Finding and fixing bugs (workflow)
+
+1. Reproduce: write a failing headless test in the matching `src/tests/<topic>.rs` (helpers: `g0`, `two`, `reload`).
+   If the bug is a broken rule (duplication, overflow, stuck state), add the rule to `Game::check()` instead: the
+   random-input stress test then guards it for every future change.
+2. Fix it, then `bash tools/quick.sh <topic>` (seconds).
+3. Visual changes: `bash tools/quickshot.sh <phase>` to look, `bash tools/shots.sh check` to catch side effects elsewhere.
+4. `bash tools/check.sh` must pass before committing (gate the commit on its exit code, never on grepped output).
