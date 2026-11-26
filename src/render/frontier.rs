@@ -444,3 +444,38 @@ pub(super) fn bounty_menu(g: &Game, sel: usize, sw: f32) {
     }
     txt("W/S choose   Enter take / buy   Esc close", x0 + 30., 550., 18., Color::new(0.45, 0.3, 0.2, 1.));
 }
+
+/// The door to Dustreach at the end of the woods path: a stone-footed wooden frame, a sun-bleached door,
+/// a warm desert glow leaking round the edges, a lantern and a small sign.
+pub(super) fn woods_door(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(Vec3, String, Color)>) {
+    let (x, z) = (WOODS_DOOR.0 as f32 + 0.5, WOODS_DOOR.1 as f32 + 0.5);
+    if (x - g.me.cam.x).powi(2) + (z - g.me.cam.y).powi(2) > 480. {
+        return;
+    }
+    let stone = Color::new(0.6, 0.58, 0.55, 1.);
+    for px in [x - 0.55, x + 0.55] {
+        r.cube(vec3(px, 0.15, z), vec3(0.14, 0.15, 0.16), stone);
+        r.cube(vec3(px, 1.05, z), vec3(0.09, 0.8, 0.09), BEAM);
+    }
+    r.cube(vec3(x, 1.9, z), vec3(0.7, 0.09, 0.12), BEAM);
+    r.cube(vec3(x, 2.02, z), vec3(0.58, 0.04, 0.1), Color::new(0.3, 0.55, 0.3, 1.)); // moss on the lintel
+    let u = r.unlit;
+    r.unlit = true;
+    let a = r.alpha;
+    r.alpha = 0.55 + 0.1 * (g.t * 1.6).sin();
+    r.cube(vec3(x, 0.92, z + 0.03), vec3(0.47, 0.86, 0.02), Color::new(1., 0.72, 0.42, 1.)); // desert light behind the door
+    r.alpha = a;
+    r.unlit = u;
+    r.cube(vec3(x, 0.9, z + 0.07), vec3(0.42, 0.82, 0.03), ADOBE);
+    for k in 0..3 {
+        r.cube(vec3(x - 0.28 + k as f32 * 0.28, 0.9, z + 0.1), vec3(0.01, 0.8, 0.01), sh(ADOBE, 0.8));
+        // planks
+    }
+    r.sphere(vec3(x + 0.28, 0.92, z + 0.12), Vec3::splat(0.035), GOLD);
+    lantern(r, vec3(x + 0.72, 1.55, z + 0.16), lt.night);
+    r.cube(vec3(x - 0.95, 0.45, z + 0.35), vec3(0.03, 0.45, 0.03), BEAM);
+    r.cube(vec3(x - 0.95, 0.85, z + 0.37), vec3(0.24, 0.1, 0.02), Color::new(0.85, 0.6, 0.38, 1.));
+    if g.me.pos.distance(vec2(x, z)) < 5. {
+        labels.push((vec3(x, 2.5, z), "Dustreach".into(), Color::new(1., 0.82, 0.6, 1.)));
+    }
+}

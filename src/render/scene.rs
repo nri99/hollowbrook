@@ -346,7 +346,7 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
                 position: vec3(g.me.cam.x, 7.4, g.me.cam.y + 7.6),
                 target: vec3(g.me.cam.x, 0.5, g.me.cam.y - 0.8),
                 up: Vec3::Y,
-                fovy: 40f32.to_radians(),
+                fovy: 35f32.to_radians(),
                 ..Default::default()
             },
             g.curve,
@@ -360,7 +360,7 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
                     position: vec3(w as f32 / 2., 5.4 * s, d as f32 + 3.4 * s),
                     target: vec3(w as f32 / 2., 0.3, d as f32 / 2. + 0.1),
                     up: Vec3::Y,
-                    fovy: 45f32.to_radians(),
+                    fovy: 40f32.to_radians(),
                     ..Default::default()
                 },
                 0.,
@@ -499,13 +499,16 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
 }
 pub(super) fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: &mut Vec<(Vec3, String, Color)>) {
     let t = g.t;
+    woods_door(r, g, lt, labels);
     let (grass, fol) = season(now.month());
     let (cx, cz) = (g.me.cam.x, g.me.cam.y);
     let rad = 22i32;
     let near = |x: f32, z: f32| (x - cx).powi(2) + (z - cz).powi(2) < (rad * rad) as f32;
     let water = |c: u8| matches!(c, RIVER | SEA | BRIDGE);
     let ext = |x: i32, z: i32| {
-        if x >= 0 && z >= 0 && x < W as i32 && z < H as i32 {
+        if WOODS_PATH.contains(&(x, z)) {
+            PATH
+        } else if x >= 0 && z >= 0 && x < W as i32 && z < H as i32 {
             g.map[z as usize * W + x as usize]
         } else if z >= 26 {
             SEA

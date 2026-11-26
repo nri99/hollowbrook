@@ -2267,6 +2267,20 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
             m.applied,
             g.settings_dirty
         );
+    } else if phase == "47" {
+        // The woods path and the door to Dustreach, then through it.
+        g.me.pos = vec2(2.3, 17.5);
+        g.me.cam = vec2(-2.5, 17.5);
+        g.me.face = vec2(-1., 0.);
+        wait(g, c, 30).await;
+        shot!("w_path");
+        g.me.pos = vec2(WOODS_DOOR.0 as f32 + 1.5, WOODS_DOOR.1 as f32 + 0.5);
+        g.me.cam = g.me.pos;
+        wait(g, c, 20).await;
+        shot!("w_door");
+        press(g, c, KeyCode::E).await;
+        wait(g, c, 60).await;
+        log!("scene after door: {:?}", g.me.scene);
     } else if phase == "46" {
         // Dustreach gear: buy through the board menu, fire the stun pistol at a runner, then the staff up close.
         g.w.p.money = 9000; // logged FIXTURE so the purchases are affordable

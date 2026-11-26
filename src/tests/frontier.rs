@@ -118,3 +118,21 @@ fn gear_buy_stun_and_holstered_in_town() {
     assert!(g.w.p.bounty.as_ref().unwrap().stun > 2.);
     assert!(g.check().is_empty());
 }
+
+#[test]
+fn woods_path_door_leads_to_dustreach_and_back() {
+    let mut g = g0(at(11, 10, 0, 0));
+    for &(x, z) in &WOODS_PATH {
+        assert!(g.walk_tile(x, z), "path tile {x},{z} walkable");
+    }
+    assert!(!g.walk_tile(WOODS_DOOR.0, WOODS_DOOR.1));
+    g.me.pos = vec2(WOODS_DOOR.0 as f32 + 1.5, WOODS_DOOR.1 as f32 + 0.5);
+    g.me.face = vec2(-1., 0.);
+    assert_eq!(g.target(), Some(Tg::WoodsDoor));
+    let at_door = g.me.pos;
+    g.swap(Scene::Frontier);
+    g.me.scene = Scene::Frontier;
+    g.swap(Scene::Town);
+    g.me.scene = Scene::Town;
+    assert_eq!(g.me.pos, at_door); // the gate brings you back to the woods door
+}

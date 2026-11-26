@@ -52,6 +52,7 @@ impl Game {
                     cand(c, 1.5, 0.8, Tg::Site, Some((p.x, p.z)))
                 }
                 cand(tc(BOARD), 1.5, 0.8, Tg::Board, Some(BOARD));
+                cand(tc(WOODS_DOOR), 1.6, 0.9, Tg::WoodsDoor, Some(WOODS_DOOR));
                 if self.contest_host_open() {
                     let (x, z) = crate::events::CONTEST_SPOT;
                     cand(vec2(x, z), 1.5, 0.7, Tg::Contest, None);
@@ -198,6 +199,7 @@ impl Game {
             Tg::CampSign => v(tc(CAMP_SIGN), 1.5),
             Tg::Kiosk => v(tc(KIOSK), 1.5),
             Tg::BountyBoard => v(tc(F_BOARD), 1.9),
+            Tg::WoodsDoor => v(tc(WOODS_DOOR), 2.4),
             Tg::FGate => vec3(F_GATE.0 as f32 + 1., 2.6, F_GATE.1 as f32 + 0.5),
             Tg::Fugitive(i) => {
                 self.w.p.bounty.as_ref().and_then(|b| b.pos.get(i)).map_or(Vec3::ZERO, |p| vec3(p[0], 1.9, p[1]))
@@ -294,6 +296,7 @@ impl Game {
             Tg::CampSign => "Read the campground sign".into(),
             Tg::Kiosk => format!("Initiatives kiosk ({} coupons)", self.w.p.coupons),
             Tg::BountyBoard => "Guild Post bounty board".into(),
+            Tg::WoodsDoor => "Open the door to Dustreach".into(),
             Tg::FGate => "Gate back to Hollowbrook".into(),
             Tg::Fugitive(_) => "Detain".into(),
             Tg::Plant(i) => {
@@ -421,6 +424,7 @@ impl Game {
             }
             Tg::Kiosk => self.me.ui = Ui::Kiosk(0),
             Tg::BountyBoard => self.me.ui = Ui::Bounty(0),
+            Tg::WoodsDoor => self.go(Scene::Frontier),
             Tg::FGate => self.go(Scene::Town),
             Tg::Fugitive(i) => self.detain(i),
             Tg::ArtStall => {

@@ -587,6 +587,7 @@ pub enum Tg {
     PlantSpot,
     Stairs(u8),
     BountyBoard,
+    WoodsDoor,
     Fugitive(usize),
     FGate,
 }
@@ -714,7 +715,15 @@ pub fn tile_at_i(map: &[u8], x: i32, z: i32) -> u8 {
         map[z as usize * IW + x as usize]
     }
 }
+/// A winding path from the west edge of town into the woods, ending at the door to Dustreach.
+/// These tiles lie outside the saved map, so existing towns and saves are unaffected.
+pub const WOODS_PATH: [(i32, i32); 10] =
+    [(0, 17), (-1, 17), (-2, 17), (-2, 16), (-3, 16), (-4, 16), (-5, 16), (-5, 17), (-6, 17), (-7, 17)];
+pub const WOODS_DOOR: (i32, i32) = (-8, 17);
 pub fn tile_at(map: &[u8], x: i32, z: i32) -> u8 {
+    if WOODS_PATH.contains(&(x, z)) {
+        return PATH;
+    }
     if x < 0 || z < 0 || x >= W as i32 || z >= H as i32 {
         PINE
     } else {
