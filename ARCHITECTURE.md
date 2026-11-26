@@ -22,6 +22,8 @@ Rust + macroquad 0.4, one binary, no engine. Run the full check before every com
 | `src/tests.rs` + `src/tests/*.rs` | Headless tests by topic; shared helpers in `tests.rs`; `quality.rs` holds the stress test and guards. |
 | `tools/check.sh` | fmt check + clippy correctness + tests (run before every commit). |
 | `tools/shots.sh check` / `save` | Visual regression check: screenshots of phases 1, 30, 40, 44, 45, 48 (fixed randomness) compared with a saved baseline; changed images get before/after/difference strips in `test_output/shots_diff/`. |
+| `tools/view.sh <scene> <x> <z> [time] [facing]` | Render any spot (numbers from the F12 overlay of a bug screenshot) into `test_output/quickshot/view.png`, with the target logged. |
+| `tools/audit_pages.py <dir>` | After `tools/ui_audit.sh <dir>` (all 47 phases), labelled overview pages to scan every screenshot at once. |
 | `tools/quick.sh`, `tools/quickshot.sh` | Seconds-fast loop: incremental `quick` profile tests (optional name filter) / one autotest phase screenshot into `test_output/quickshot/`. |
 | `tools/ui_audit.sh` | Screenshots of every autotest phase as contact sheets (run from `test_output/`). |
 
@@ -149,9 +151,18 @@ any you forget. Menus are the `Ui` enum on `me.ui`; their input lives in `update
 
 ## Finding and fixing bugs (workflow)
 
-1. Reproduce: write a failing headless test in the matching `src/tests/<topic>.rs` (helpers: `g0`, `two`, `reload`).
+1. Reproduce: visual bug reports with an F12 overlay -> `bash tools/view.sh <scene> <x> <z> <time>`;
+   logic bugs -> write a failing headless test in the matching `src/tests/<topic>.rs` (helpers: `g0`, `two`, `reload`).
    If the bug is a broken rule (duplication, overflow, stuck state), add the rule to `Game::check()` instead: the
    random-input stress test then guards it for every future change.
 2. Fix it, then `bash tools/quick.sh <topic>` (seconds).
 3. Visual changes: `bash tools/quickshot.sh <phase>` to look, `bash tools/shots.sh check` to catch side effects elsewhere.
 4. `bash tools/check.sh` must pass before committing (gate the commit on its exit code, never on grepped output).
+
+## Occlusion rule (things hiding the player)
+
+The camera looks north from the south, so anything drawn south of the player can hide them. Every scene fades such
+objects AND draws them after the player (fading alone is not enough: an earlier-drawn object still hides the player):
+- Hollowbrook: `fade_b` in `render/scene.rs` (buildings) plus tree fading.
+- Dustreach: `draw_struct` + the `blocks` test and `faded_rocks` in `render/frontier.rs`, and the gate.
+New tall objects must join one of these lists. Check with `bash tools/view.sh <scene> <x> <z>` standing just north of it.

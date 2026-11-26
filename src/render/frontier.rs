@@ -70,6 +70,7 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
     let t = g.t;
     let m = &g.fmap;
     let cam = g.me.cam;
+    let mut faded_rocks: Vec<(f32, f32, f32, u32)> = vec![];
     let structure =
         |x: i32, z: i32| F_STRUCTS.iter().any(|&(_, sx, sz, w, d)| x >= sx && x < sx + w && z >= sz && z < sz + d);
     for z in -9..FH + 7 {
@@ -111,7 +112,12 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
                 } else {
                     0.7 + (k % 3) as f32 * 0.3
                 };
-                mesa(r, fx, fz, h, k);
+                let me = g.me.ipos;
+                if inside && me.x > fx - 0.7 && me.x < fx + 1.7 && fz + 1. > me.y + 0.2 && fz < me.y + 2.5 {
+                    faded_rocks.push((fx, fz, h, k));
+                } else {
+                    mesa(r, fx, fz, h, k);
+                }
             } else if c == SAND && hash(x * 3, z * 7) % 11 == 0 {
                 // scrub: a dry bush and the odd pebble
                 let p = vec3(fx + 0.3 + (hash(x, z) % 5) as f32 * 0.1, 0., fz + 0.5);
@@ -171,94 +177,18 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
         labels.push((vec3(ox, 1.2, oz), "Oasis".into(), Color::new(0.75, 0.95, 1., 1.)));
     }
     let night = lt.night;
+    // anything standing between the camera (south) and the player is drawn faded, after the player
+    let me = g.me.ipos;
+    let blocks = |fx: f32, fz: f32, fw: f32, fd: f32| {
+        me.x > fx - 0.3 && me.x < fx + fw + 0.3 && fz + fd > me.y + 0.4 && fz < me.y + 2.6
+    };
+    let mut faded: Vec<(u8, i32, i32, i32, i32)> = vec![];
     for &(kind, x, z, w, d) in &F_STRUCTS {
-        let (fx, fz, fw, fd) = (x as f32, z as f32, w as f32, d as f32);
-        match kind {
-            0 => {
-                adobe_box(r, fx, fz, fw, fd, 1.9, true);
-                r.cube(vec3(fx + fw / 2., 1.62, fz + fd + 0.02), vec3(0.9, 0.18, 0.03), BEAM); // sign plank
-                r.cube(vec3(fx + 0.8, 1.6, fz + fd + 0.04), vec3(0.2, 0.32, 0.01), Color::new(0.72, 0.2, 0.16, 1.)); // banner
-                lantern(r, vec3(fx + fw / 2. - 0.6, 1.25, fz + fd + 0.12), night);
-                labels.push((vec3(fx + fw / 2., 2.35, fz + fd), "Guild Post".into(), Color::new(1., 0.86, 0.6, 1.)));
-            }
-            1 => {
-                adobe_box(r, fx, fz, fw, fd, 1.7, true);
-                r.sphere(vec3(fx + fw / 2., 1.86, fz + fd / 2.), vec3(1.1, 0.6, 1.1), sh(ADOBE, 1.04)); // dome
-                let cloth = [Color::new(0.85, 0.42, 0.22, 1.), Color::new(0.95, 0.85, 0.65, 1.)];
-                for k in 0..6 {
-                    let x0 = fx + fw / 2. - 1.2 + k as f32 * 0.4;
-                    r.quad(
-                        vec3(x0, 1.3, fz + fd),
-                        vec3(x0 + 0.4, 1.3, fz + fd),
-                        vec3(x0 + 0.4, 1.05, fz + fd + 0.7),
-                        vec3(x0, 1.05, fz + fd + 0.7),
-                        vec3(0., 0.94, 0.34),
-                        cloth[k % 2],
-                    ); // striped awning
-                }
-                for px in [fx + fw / 2. - 1.15, fx + fw / 2. + 1.15] {
-                    r.cube(vec3(px, 0.52, fz + fd + 0.68), vec3(0.03, 0.52, 0.03), BEAM);
-                    lantern(r, vec3(px, 0.92, fz + fd + 0.68), night);
-                }
-                labels.push((
-                    vec3(fx + fw / 2., 2.75, fz + fd / 2.),
-                    "Longhouse".into(),
-                    Color::new(1., 0.86, 0.6, 1.),
-                ));
-            }
-            2 => {
-                let c = vec3(fx + fw / 2., 0., fz + fd / 2.);
-                for (dx, dz) in [(-0.8, -0.8), (0.8, -0.8), (-0.8, 0.8), (0.8, 0.8)] {
-                    r.cube(c + vec3(dx, 0.6, dz), vec3(0.03, 0.6, 0.03), BEAM);
-                }
-                let tone =
-                    [Color::new(0.75, 0.3, 0.25, 1.), Color::new(0.3, 0.5, 0.6, 1.), Color::new(0.8, 0.6, 0.25, 1.)]
-                        [(x as usize / 3) % 3];
-                r.roof(c + vec3(0., 1.2, 0.), 0.95, 0.95, 0.45, tone);
-                r.cube(c + vec3(-0.3, 0.2, 0.2), vec3(0.22, 0.2, 0.2), Color::new(0.6, 0.45, 0.28, 1.)); // crate
-                r.cube(c + vec3(0.35, 0.18, -0.25), vec3(0.18, 0.18, 0.18), Color::new(0.55, 0.4, 0.25, 1.));
-                r.cyl(c + vec3(0.4, 0., 0.35), 0.14, 0.32, Color::new(0.72, 0.42, 0.3, 1.));
-                // clay pot
-            }
-            3 => {
-                let c = vec3(fx + 1., 0., fz + 1.);
-                for (dx, dz) in [(-0.55, -0.55), (0.55, -0.55), (-0.55, 0.55), (0.55, 0.55)] {
-                    r.seg(c + vec3(dx, 0., dz), c + vec3(dx * 0.7, 2.2, dz * 0.7), 0.05, BEAM);
-                }
-                r.cyl(c + vec3(0., 2.2, 0.), 0.75, 0.9, Color::new(0.55, 0.52, 0.48, 1.));
-                r.cone(c + vec3(0., 3.1, 0.), 0.8, 0.35, Color::new(0.45, 0.42, 0.4, 1.));
-                for k in 0..7 {
-                    r.cube(c + vec3(0.62, 0.3 + k as f32 * 0.3, 0.62), vec3(0.12, 0.015, 0.015), BEAM);
-                    // ladder rungs
-                }
-            }
-            4 => {
-                // a long-crashed hauler, half sunk in the sand
-                let c = vec3(fx + fw / 2., 0.35, fz + fd / 2.);
-                let hull = Color::new(0.55, 0.55, 0.52, 1.);
-                r.with(
-                    Mat4::from_rotation_translation(Quat::from_rotation_z(1.35) * Quat::from_rotation_y(0.3), c),
-                    |r| {
-                        r.cyl(vec3(0., -2.2, 0.), 0.85, 4.4, hull);
-                        r.cone(vec3(0., 2.2, 0.), 0.85, 0.9, sh(hull, 0.9));
-                        for k in 0..4 {
-                            r.cyl(vec3(0., -1.6 + k as f32 * 1.1, 0.), 0.88, 0.08, sh(hull, 0.7));
-                            // hull ribs
-                        }
-                    },
-                );
-                r.cube(c + vec3(-1.4, 0.5, 1.0), vec3(0.6, 0.04, 0.35), sh(hull, 0.8)); // broken fin
-                r.cube(c + vec3(1.2, 0.15, -1.1), vec3(0.3, 0.15, 0.2), Color::new(0.25, 0.22, 0.2, 1.));
-                // scorched panel
-            }
-            6 => ship(r, fx + fw / 2., fz + fd / 2., t, night, labels),
-            _ => {
-                let c = vec3(fx + 1., 0., fz + 1.);
-                r.sphere(c, vec3(0.95, 1.05, 0.95), ADOBE);
-                r.cube(c + vec3(0., 0.4, 0.9), vec3(0.22, 0.4, 0.06), Color::new(0.28, 0.18, 0.12, 1.));
-                r.cyl(c + vec3(0.3, 0.85, -0.2), 0.08, 0.35, sh(ADOBE, 0.85)); // little chimney
-            }
+        if blocks(x as f32, z as f32, w as f32, d as f32) {
+            faded.push((kind, x, z, w, d));
+            continue;
         }
+        draw_struct(r, kind, x, z, w, d, t, night, labels);
     }
     // bounty board with one paper per open offer
     let (bx, bz) = (F_BOARD.0 as f32 + 0.5, F_BOARD.1 as f32 + 0.5);
@@ -403,6 +333,16 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
         t,
         g.me.swing,
     );
+    // structures and rocks that block the view, faded, after the player so the player shows through
+    let a_view = r.alpha;
+    r.alpha = 0.3;
+    for (kind, x, z, w, d) in faded {
+        draw_struct(r, kind, x, z, w, d, t, night, labels);
+    }
+    for (fx, fz, h, k) in faded_rocks {
+        mesa(r, fx, fz, h, k);
+    }
+    r.alpha = a_view;
     // drawn last so that, when faded, the player behind it still shows through
     // the gate back to Hollowbrook: two posts, a crossbeam and a faint green shimmer
     let gx = F_GATE.0 as f32 + 1.;
@@ -877,4 +817,97 @@ fn frontier_life(r: &mut R, g: &Game, t: f32, labels: &mut Vec<(Vec3, String, Co
         r.sphere(vec3(0., 0., -0.9), Vec3::splat(0.16), Color::new(1., 0.7, 0.4, 1.)); // engine glow
         r.unlit = u;
     });
+}
+
+/// One Dustreach structure (kind as in F_STRUCTS). Drawn normally, or faded after the player when it blocks the view.
+fn draw_struct(
+    r: &mut R,
+    kind: u8,
+    x: i32,
+    z: i32,
+    w: i32,
+    d: i32,
+    t: f32,
+    night: f32,
+    labels: &mut Vec<(Vec3, String, Color)>,
+) {
+    let (fx, fz, fw, fd) = (x as f32, z as f32, w as f32, d as f32);
+    match kind {
+        0 => {
+            adobe_box(r, fx, fz, fw, fd, 1.9, true);
+            r.cube(vec3(fx + fw / 2., 1.62, fz + fd + 0.02), vec3(0.9, 0.18, 0.03), BEAM); // sign plank
+            r.cube(vec3(fx + 0.8, 1.6, fz + fd + 0.04), vec3(0.2, 0.32, 0.01), Color::new(0.72, 0.2, 0.16, 1.)); // banner
+            lantern(r, vec3(fx + fw / 2. - 0.6, 1.25, fz + fd + 0.12), night);
+            labels.push((vec3(fx + fw / 2., 2.35, fz + fd), "Guild Post".into(), Color::new(1., 0.86, 0.6, 1.)));
+        }
+        1 => {
+            adobe_box(r, fx, fz, fw, fd, 1.7, true);
+            r.sphere(vec3(fx + fw / 2., 1.86, fz + fd / 2.), vec3(1.1, 0.6, 1.1), sh(ADOBE, 1.04)); // dome
+            let cloth = [Color::new(0.85, 0.42, 0.22, 1.), Color::new(0.95, 0.85, 0.65, 1.)];
+            for k in 0..6 {
+                let x0 = fx + fw / 2. - 1.2 + k as f32 * 0.4;
+                r.quad(
+                    vec3(x0, 1.3, fz + fd),
+                    vec3(x0 + 0.4, 1.3, fz + fd),
+                    vec3(x0 + 0.4, 1.05, fz + fd + 0.7),
+                    vec3(x0, 1.05, fz + fd + 0.7),
+                    vec3(0., 0.94, 0.34),
+                    cloth[k % 2],
+                ); // striped awning
+            }
+            for px in [fx + fw / 2. - 1.15, fx + fw / 2. + 1.15] {
+                r.cube(vec3(px, 0.52, fz + fd + 0.68), vec3(0.03, 0.52, 0.03), BEAM);
+                lantern(r, vec3(px, 0.92, fz + fd + 0.68), night);
+            }
+            labels.push((vec3(fx + fw / 2., 2.75, fz + fd / 2.), "Longhouse".into(), Color::new(1., 0.86, 0.6, 1.)));
+        }
+        2 => {
+            let c = vec3(fx + fw / 2., 0., fz + fd / 2.);
+            for (dx, dz) in [(-0.8, -0.8), (0.8, -0.8), (-0.8, 0.8), (0.8, 0.8)] {
+                r.cube(c + vec3(dx, 0.6, dz), vec3(0.03, 0.6, 0.03), BEAM);
+            }
+            let tone = [Color::new(0.75, 0.3, 0.25, 1.), Color::new(0.3, 0.5, 0.6, 1.), Color::new(0.8, 0.6, 0.25, 1.)]
+                [(x as usize / 3) % 3];
+            r.roof(c + vec3(0., 1.2, 0.), 0.95, 0.95, 0.45, tone);
+            r.cube(c + vec3(-0.3, 0.2, 0.2), vec3(0.22, 0.2, 0.2), Color::new(0.6, 0.45, 0.28, 1.)); // crate
+            r.cube(c + vec3(0.35, 0.18, -0.25), vec3(0.18, 0.18, 0.18), Color::new(0.55, 0.4, 0.25, 1.));
+            r.cyl(c + vec3(0.4, 0., 0.35), 0.14, 0.32, Color::new(0.72, 0.42, 0.3, 1.));
+            // clay pot
+        }
+        3 => {
+            let c = vec3(fx + 1., 0., fz + 1.);
+            for (dx, dz) in [(-0.55, -0.55), (0.55, -0.55), (-0.55, 0.55), (0.55, 0.55)] {
+                r.seg(c + vec3(dx, 0., dz), c + vec3(dx * 0.7, 2.2, dz * 0.7), 0.05, BEAM);
+            }
+            r.cyl(c + vec3(0., 2.2, 0.), 0.75, 0.9, Color::new(0.55, 0.52, 0.48, 1.));
+            r.cone(c + vec3(0., 3.1, 0.), 0.8, 0.35, Color::new(0.45, 0.42, 0.4, 1.));
+            for k in 0..7 {
+                r.cube(c + vec3(0.62, 0.3 + k as f32 * 0.3, 0.62), vec3(0.12, 0.015, 0.015), BEAM);
+                // ladder rungs
+            }
+        }
+        4 => {
+            // a long-crashed hauler, half sunk in the sand
+            let c = vec3(fx + fw / 2., 0.35, fz + fd / 2.);
+            let hull = Color::new(0.55, 0.55, 0.52, 1.);
+            r.with(Mat4::from_rotation_translation(Quat::from_rotation_z(1.35) * Quat::from_rotation_y(0.3), c), |r| {
+                r.cyl(vec3(0., -2.2, 0.), 0.85, 4.4, hull);
+                r.cone(vec3(0., 2.2, 0.), 0.85, 0.9, sh(hull, 0.9));
+                for k in 0..4 {
+                    r.cyl(vec3(0., -1.6 + k as f32 * 1.1, 0.), 0.88, 0.08, sh(hull, 0.7));
+                    // hull ribs
+                }
+            });
+            r.cube(c + vec3(-1.4, 0.5, 1.0), vec3(0.6, 0.04, 0.35), sh(hull, 0.8)); // broken fin
+            r.cube(c + vec3(1.2, 0.15, -1.1), vec3(0.3, 0.15, 0.2), Color::new(0.25, 0.22, 0.2, 1.));
+            // scorched panel
+        }
+        6 => ship(r, fx + fw / 2., fz + fd / 2., t, night, labels),
+        _ => {
+            let c = vec3(fx + 1., 0., fz + 1.);
+            r.sphere(c, vec3(0.95, 1.05, 0.95), ADOBE);
+            r.cube(c + vec3(0., 0.4, 0.9), vec3(0.22, 0.4, 0.06), Color::new(0.28, 0.18, 0.12, 1.));
+            r.cyl(c + vec3(0.3, 0.85, -0.2), 0.08, 0.35, sh(ADOBE, 0.85)); // little chimney
+        }
+    }
 }

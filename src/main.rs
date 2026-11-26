@@ -2270,6 +2270,34 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
             m.applied,
             g.settings_dirty
         );
+    } else if phase == "view" {
+        // Reproduce a reported view: HOLLOWBROOK_VIEW="<Town|Frontier|Islet|Room:N> <x> <z> [facing degrees]".
+        // Use the scene and pos from the F12 debug overlay of a bug screenshot (see tools/view.sh).
+        let spec = std::env::var("HOLLOWBROOK_VIEW").unwrap_or_else(|_| "Town 15.5 15.5".into());
+        let f: Vec<&str> = spec.split_whitespace().collect();
+        let num = |i: usize, d: f32| f.get(i).and_then(|v| v.parse::<f32>().ok()).unwrap_or(d);
+        let scene = match f.first().copied().unwrap_or("Town") {
+            "Frontier" => Scene::Frontier,
+            "Islet" => Scene::Islet,
+            s if s.starts_with("Room:") => Scene::Room(s[5..].parse().unwrap_or(HOME)),
+            _ => Scene::Town,
+        };
+        if scene != Scene::Town {
+            g.swap(scene);
+        }
+        g.me.scene = scene;
+        let p = vec2(num(1, 15.5), num(2, 15.5));
+        let a = num(3, 180.).to_radians();
+        if scene == Scene::Town {
+            g.me.pos = p
+        } else {
+            g.me.ipos = p
+        }
+        g.me.cam = p;
+        g.me.face = vec2(a.sin(), -a.cos());
+        wait(g, c, 40).await;
+        log!("view {spec}: scene={:?} pos={:?} target={:?}", g.me.scene, p, g.target());
+        shot!("view");
     } else if phase == "48" {
         // Dustreach hunter life: full armour, companion, a prisoner walking to the ship, the guild master's forge.
         g.w.p.armor = 0b1111; // logged FIXTURE: all armour pieces
