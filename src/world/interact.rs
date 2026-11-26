@@ -90,6 +90,15 @@ impl Game {
                     cand(tc(STALL), 1.5, 0.8, Tg::ArtStall, Some(STALL))
                 }
             }
+            Scene::Planet(k) => {
+                cand(vec2(P_RAMP.0, P_RAMP.1), 1.6, 0.8, Tg::Ship, None);
+                let i = (k as usize).clamp(1, 2) - 1;
+                for (s, &(x, z)) in SAMPLE_SPOTS[i].iter().enumerate() {
+                    if !self.sample_taken(k, s) {
+                        cand(tc((x, z)), 1.4, 0.9, Tg::Sample(s), None);
+                    }
+                }
+            }
             Scene::Frontier => {
                 cand(tc(F_BOARD), 1.6, 0.8, Tg::BountyBoard, None);
                 cand(vec2(F_BROKER.0, F_BROKER.1), 1.6, 0.8, Tg::GuildMaster, None);
@@ -208,7 +217,21 @@ impl Game {
             Tg::Kiosk => v(tc(KIOSK), 1.5),
             Tg::BountyBoard => v(tc(F_BOARD), 1.9),
             Tg::WoodsDoor => v(tc(WOODS_DOOR), 2.4),
-            Tg::Ship => vec3(F_RAMP.0, 1.9, F_RAMP.1 - 0.6),
+            Tg::Ship => {
+                if self.me.scene == Scene::Frontier {
+                    vec3(F_RAMP.0, 1.9, F_RAMP.1 - 0.6)
+                } else {
+                    vec3(P_RAMP.0, 1.9, P_RAMP.1 - 0.6)
+                }
+            }
+            Tg::Sample(s) => {
+                let k = match self.me.scene {
+                    Scene::Planet(k) => k,
+                    _ => 1,
+                };
+                let (x, z) = SAMPLE_SPOTS[(k as usize).clamp(1, 2) - 1][s];
+                vec3(x as f32 + 0.5, 0.9, z as f32 + 0.5)
+            }
             Tg::GuildMaster => vec3(F_BROKER.0, 1.9, F_BROKER.1),
             Tg::Pal => vec3(F_PAL_SPOT.0, 0.8, F_PAL_SPOT.1),
             Tg::Bike => vec3(F_BIKE.0, 1.2, F_BIKE.1),
@@ -316,11 +339,15 @@ impl Game {
             Tg::Ship => if self.w.p.bounty.as_ref().is_some_and(|b| b.caught && !b.delivered) {
                 "Lock them in the holding pod"
             } else {
-                "Your ship"
+                "Board your ship and take off"
             }
             .into(),
             Tg::GuildMaster => "Talk to the guild master".into(),
             Tg::Pal => "Say hello to the sand-hopper".into(),
+            Tg::Sample(_) => {
+                if matches!(self.me.scene, Scene::Planet(1)) { "Chip off a frost crystal" } else { "Pick a glowcap" }
+                    .into()
+            }
             Tg::Bike => if self.me.riding { "Park the hover-bike" } else { "Ride the hover-bike" }.into(),
             Tg::Local(i) => format!("Talk to {}", LOCALS[i].1),
             Tg::FGate => "Gate back to Hollowbrook".into(),
@@ -453,15 +480,16 @@ impl Game {
             Tg::WoodsDoor => self.go(Scene::Frontier),
             Tg::Ship => {
                 if self.deliver().is_err() {
-                    let pieces = self.armor_pieces();
-                    self.note(format!(
-                        "Your ship. The holding pod is empty. Armour: {pieces}/4 pieces, {} guild marks.",
-                        self.w.p.marks
-                    ))
+                    self.take_off()
                 }
             }
             Tg::GuildMaster => self.me.ui = Ui::Forge(0),
             Tg::Pal => self.adopt_pal(),
+            Tg::Sample(s) => {
+                if let Scene::Planet(k) = self.me.scene {
+                    self.take_sample(k, s)
+                }
+            }
             Tg::Bike => self.toggle_bike(),
             Tg::Local(i) => self.talk_local(i),
             Tg::FGate => self.go(Scene::Town),

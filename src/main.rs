@@ -2295,12 +2295,45 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         g.me.face = vec2(0., -1.);
         wait(g, c, 6).await;
         shot!("s_greeting");
+    } else if phase == "50" {
+        // Spaceflight: take off from Dustreach, fly, nav computer, light speed, Glacia orbit, both landing sites.
+        g.swap(Scene::Frontier);
+        g.me.scene = Scene::Frontier;
+        g.take_off();
+        for _ in 0..30 {
+            step(g, c, &[KeyCode::W, KeyCode::D], &[]).await;
+        }
+        shot!("sp_orbit");
+        press(g, c, KeyCode::N).await;
+        press(g, c, KeyCode::S).await;
+        shot!("sp_nav");
+        press(g, c, KeyCode::Enter).await;
+        wait(g, c, 70).await;
+        shot!("sp_lightspeed");
+        wait(g, c, 120).await;
+        for _ in 0..20 {
+            step(g, c, &[KeyCode::W], &[]).await;
+        }
+        shot!("sp_glacia_orbit");
+        g.me.flight.as_mut().map(|f| f.pos = vec2(0., PLANET_R + 2.));
+        press(g, c, KeyCode::E).await;
+        g.me.ipos = vec2(12.5, 13.5);
+        g.me.cam = g.me.ipos;
+        wait(g, c, 30).await;
+        shot!("sp_glacia");
+        g.swap(Scene::Planet(2));
+        g.me.scene = Scene::Planet(2);
+        g.me.ipos = vec2(17.5, 15.5);
+        g.me.cam = g.me.ipos;
+        wait(g, c, 30).await;
+        shot!("sp_verdance");
+        log!("scene={:?} flight={:?}", g.me.scene, g.me.flight);
     } else if phase == "occl" {
         // Occlusion sweep (needs HOLLOWBROOK_MARK_PLAYER): stand on every 2nd walkable tile of each outdoor scene,
         // render, and check the magenta marker on the player is visible. Prints "OCCLUDED <scene> <x> <z>".
         let mut bad = 0;
         let mut total = 0;
-        for scene in [Scene::Town, Scene::Frontier, Scene::Islet] {
+        for scene in [Scene::Town, Scene::Frontier, Scene::Islet, Scene::Planet(1), Scene::Planet(2)] {
             if scene != Scene::Town {
                 g.swap(scene);
             } else if g.me.scene != Scene::Town {
@@ -2310,6 +2343,7 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
             let (x0, x1, z0, z1) = match scene {
                 Scene::Town => (-8, W as i32, -13, H as i32),
                 Scene::Frontier => (0, FW, 0, FH),
+                Scene::Planet(_) => (0, PW, 0, PH),
                 _ => (0, IW as i32, 0, IH as i32),
             };
             for z in (z0..z1).step_by(2) {
@@ -2318,6 +2352,7 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
                     let ok = match scene {
                         Scene::Town => g.walk_tile(x, z),
                         Scene::Frontier => f_walk(&g.fmap, x, z),
+                        Scene::Planet(k) => p_walk(k, x, z),
                         _ => matches!(tile_at_i(&g.imap, x, z), GRASS | SAND | BRIDGE),
                     };
                     if !ok {
@@ -2359,6 +2394,7 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         let scene = match f.first().copied().unwrap_or("Town") {
             "Frontier" => Scene::Frontier,
             "Islet" => Scene::Islet,
+            s if s.starts_with("Planet:") => Scene::Planet(s[7..].parse().unwrap_or(1)),
             s if s.starts_with("Room:") => Scene::Room(s[5..].parse().unwrap_or(HOME)),
             _ => Scene::Town,
         };

@@ -6,7 +6,7 @@
 # anything flagged should be looked at (test_output/shots_diff/ has before|after|difference images).
 cd "$(dirname "$0")/.."
 mode=${1:-check}
-PHASES="1 30 40 44 45 48"
+PHASES="1 30 40 44 45 48 50"
 cargo build -q --profile quick 2>&1 | grep -E "^error" -A6 && exit 1
 out=test_output/shots_new; rm -rf "$out"; mkdir -p "$out"
 for p in $PHASES; do

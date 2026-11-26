@@ -163,7 +163,13 @@ pub(super) fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
             )
         }
     }
-    let hint = if g.me.mplace.is_some() {
+    let hint = if g.me.flight.is_some() {
+        if g.me.pad {
+            "Stick fly  X nav computer  A land"
+        } else {
+            "W thrust  A/D turn  Shift boost  N nav computer  E land"
+        }
+    } else if g.me.mplace.is_some() {
         "Placing project: walk/face a spot  Enter place  Esc cancel"
     } else if g.swimming() {
         if g.me.pad {
@@ -211,6 +217,7 @@ pub(super) fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         Ui::Play => {}
         Ui::Bounty(sel) => bounty_menu(g, *sel, sw),
         Ui::Forge(sel) => forge_menu(g, *sel, sw),
+        Ui::Nav(sel) => nav_menu(g, *sel, sw),
         Ui::Invitation => {
             let pw = (sw - 24.).min(620.);
             let x = (sw - pw) / 2.;

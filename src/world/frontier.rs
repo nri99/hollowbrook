@@ -521,6 +521,9 @@ impl Game {
         }
     }
     pub fn frontier_tick(&mut self, dt: f32) {
+        if self.me.flight.is_some() {
+            return; // nothing on the ground moves for you while you're flying
+        }
         if self.me.scene != Scene::Frontier {
             self.me.bolts.clear();
             self.me.standoff = 0.;

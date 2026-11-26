@@ -438,6 +438,7 @@ impl Game {
                 Scene::Room(b) => !self.room_block(b, x, z, 0),
                 Scene::Islet => matches!(tile_at_i(&self.imap, x, z), GRASS | SAND | BRIDGE | SEA) && (x, z) != ISTALL,
                 Scene::Frontier => f_walk(&self.fmap, x, z),
+                Scene::Planet(k) => p_walk(k, x, z),
             }
         })
     }
@@ -508,6 +509,10 @@ impl Game {
             Scene::Town => self.tile(t.0, t.1),
             Scene::Islet => tile_at_i(&self.imap, t.0, t.1),
             Scene::Frontier => ftile(&self.fmap, t.0, t.1),
+            Scene::Planet(k) => match ptile(k, t.0, t.1) {
+                SAND => SAND,
+                c => c,
+            },
             Scene::Room(_) => return Snd::StepFloor,
         };
         if self.w.built.iter().any(|b| b.kind == PK_BRIDGE && ptiles(b.kind, b.x, b.z).contains(&t)) {
@@ -539,6 +544,11 @@ impl Game {
             }
         } // leaving forfeits
         match to {
+            Scene::Planet(_) => {
+                self.me.ipos = vec2(P_SPAWN.0, P_SPAWN.1);
+                self.me.face = vec2(0., 1.);
+                self.me.cam = self.me.ipos
+            }
             Scene::Frontier => {
                 self.me.ipos = vec2(F_SPAWN.0, F_SPAWN.1);
                 self.me.face = vec2(0., -1.);

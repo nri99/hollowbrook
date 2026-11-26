@@ -15,6 +15,8 @@ mod home_garden;
 mod housing;
 mod input;
 pub use frontier::*;
+mod space;
+pub use space::*;
 mod interact;
 mod islet;
 mod projects;
@@ -290,6 +292,9 @@ pub struct Profile {
     pub armor: u8,
     #[serde(default)]
     pub pal: bool,
+    /// Resources gathered on other planets: (day, planet, spot).
+    #[serde(default)]
+    pub samples: Vec<(i64, u8, u8)>,
     pub npcs: Vec<NpcS>,
     pub seen: Vec<u16>,
     pub tools: Vec<u16>,
@@ -372,6 +377,7 @@ impl Profile {
             marks: 0,
             armor: 0,
             pal: false,
+            samples: vec![],
             stories: vec![],
             id,
             name,
@@ -532,6 +538,8 @@ pub enum Scene {
     Islet,
     /// Dustreach, the frontier outpost (separate world; dev entry only for now).
     Frontier,
+    /// A landing site reached by spaceflight (1 Glacia, 2 Verdance).
+    Planet(u8),
 }
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
 pub enum Pose {
@@ -602,6 +610,7 @@ pub enum Tg {
     GuildMaster,
     Pal,
     Bike,
+    Sample(usize),
     Local(usize),
     Fugitive(usize),
     FGate,
@@ -637,6 +646,7 @@ pub enum Ui {
     Kiosk(usize),
     Bounty(usize),
     Forge(usize),
+    Nav(usize),
     Title(usize),
     Help,
 }
@@ -826,6 +836,9 @@ pub struct Player {
     /// Dustreach quick-draw standoff: seconds left (0 = none). The last DRAW_WINDOW seconds are the "DRAW!" window.
     #[serde(default)]
     pub standoff: f32,
+    /// Flying your ship (runtime only).
+    #[serde(default)]
+    pub flight: Option<Flight>,
 }
 impl Player {
     pub fn new(id: usize, pos: Vec2) -> Player {
@@ -858,6 +871,7 @@ impl Player {
             pal_pos: Vec2::ZERO,
             riding: false,
             standoff: 0.,
+            flight: None,
         }
     }
 }
@@ -1068,7 +1082,7 @@ impl Game {
             Scene::Town => self.me.pos,
             Scene::Room(b) => door_stand(b),
             Scene::Islet => dock_stand(),
-            Scene::Frontier => self.me.pos,
+            Scene::Frontier | Scene::Planet(_) => self.me.pos,
         };
         self.w.p.pos = [pos.x, pos.y];
         self.activate(0);
@@ -1156,7 +1170,7 @@ impl Game {
                 Scene::Town => pl.pos,
                 Scene::Room(b) => door_stand(b),
                 Scene::Islet => dock_stand(),
-                Scene::Frontier => pl.pos,
+                Scene::Frontier | Scene::Planet(_) => pl.pos,
             };
             pr.pos = [p.x, p.y];
         }

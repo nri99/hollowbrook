@@ -53,4 +53,5 @@ mod museum;
 mod projects;
 mod quality;
 mod save_safety;
+mod space;
 mod world;

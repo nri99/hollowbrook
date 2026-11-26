@@ -406,7 +406,7 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
 
 /// The bounty panel under the messages while a hunt is on.
 pub(super) fn bounty_hud(g: &Game, sw: f32) {
-    if g.me.scene != Scene::Frontier {
+    if g.me.scene != Scene::Frontier || g.me.flight.is_some() {
         return;
     }
     if g.me.standoff > 0. {
@@ -540,7 +540,7 @@ pub(super) fn woods_door(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(Vec3
 }
 
 /// Your ship: a weathered, patched-up freighter on stubby legs with a lowered ramp and a holding pod.
-fn ship(r: &mut R, cx: f32, cz: f32, t: f32, night: f32, labels: &mut Vec<(Vec3, String, Color)>) {
+pub(super) fn ship(r: &mut R, cx: f32, cz: f32, t: f32, night: f32, labels: &mut Vec<(Vec3, String, Color)>) {
     let hull = Color::new(0.62, 0.64, 0.66, 1.);
     let rust = Color::new(0.55, 0.36, 0.24, 1.);
     let c = vec3(cx, 1.05, cz);

@@ -110,7 +110,7 @@ const fn tl(id: u16, name: &'static str, buy: u32) -> D {
     D { buy, ..b(id, name, K::Tool, 0, (0.6, 0.45, 0.3)) }
 }
 
-pub static DEFS: [D; 135] = [
+pub static DEFS: [D; 137] = [
     cr(0, "Cabbage White", K::Bug, 90, (1., 1., 0.95), 0.2, 0, 3, 10, 6, 17),
     cr(1, "Honeybee", K::Bug, 160, (1., 0.85, 0.2), 0.2, 0, 3, 7, 8, 17),
     cr(2, "Ladybug", K::Bug, 120, (0.9, 0.15, 0.1), 0.2, 0, 3, 6, 8, 17),
@@ -254,6 +254,8 @@ pub static DEFS: [D; 135] = [
     tl(172, "Stun Pistol", 1500),
     tl(173, "Tangle Launcher", 2500),
     tl(174, "Shock Staff", 1000),
+    b(175, "Frost Crystal", K::Material, 350, (0.6, 0.85, 1.)),
+    b(176, "Glowcap", K::Material, 300, (0.4, 1., 0.7)),
 ];
 pub const FRUITS: [u16; 4] = [20, 21, 22, 23];
 pub const FURN_IDS: [u16; 20] = [50, 51, 52, 53, 54, 55, 56, 57, 90, 91, 92, 93, 94, 95, 110, 111, 112, 113, 114, 115];
@@ -1497,4 +1499,6 @@ pub mod id {
     pub const STUN_PISTOL: u16 = 172; // Stun Pistol
     pub const TANGLE_LAUNCHER: u16 = 173; // Tangle Launcher
     pub const SHOCK_STAFF: u16 = 174; // Shock Staff
+    pub const FROST_CRYSTAL: u16 = 175; // Frost Crystal
+    pub const GLOWCAP: u16 = 176; // Glowcap
 }

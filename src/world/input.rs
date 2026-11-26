@@ -81,6 +81,11 @@ impl Game {
             self.me.spd = 0.;
             return;
         }
+        if self.me.flight.is_some() {
+            self.flight_input(inp, dt);
+            self.me.spd = 0.;
+            return;
+        }
         if self.me.placing.is_some() {
             self.place_input(inp);
             self.me.spd = 0.;
@@ -576,6 +581,18 @@ impl Game {
                             let lines = v.lines.iter().map(|l| l.to_string()).collect();
                             self.me.ui = Ui::Talk { npc: None, who, lines, i: 0 }
                         }
+                    }
+                }
+            }
+            Ui::Nav(s) => {
+                let s = mv(s, PLANETS.len() + 1);
+                self.me.ui = Ui::Nav(s);
+                if esc || (ok && s == PLANETS.len()) {
+                    self.me.ui = Ui::Play
+                } else if ok {
+                    self.me.ui = Ui::Play;
+                    if let Err(e) = self.plot_jump(s as u8) {
+                        self.note(e)
                     }
                 }
             }

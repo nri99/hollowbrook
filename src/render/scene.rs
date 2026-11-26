@@ -336,13 +336,22 @@ pub(super) fn hud_cam(vp: Option<(f32, f32)>) {
     }
 }
 pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(f32, f32)>) {
+    if let Some(f) = g.me.flight.as_ref() {
+        space_view(g, f, vp);
+        hud(g, now, dbg);
+        return;
+    }
     let hf = now.hour() as f32 + now.minute() as f32 / 60.;
     let wx = weather(g.w.day, now.month());
     let rain = wx != Wx::Clear;
     let lt = light(hf, rain);
-    let lt = if g.me.scene == Scene::Frontier { dusty(&lt) } else { lt };
+    let lt = match g.me.scene {
+        Scene::Frontier => dusty(&lt),
+        Scene::Planet(k) => planet_light(&lt, k),
+        _ => lt,
+    };
     let (cam, curve, c0) = match g.me.scene {
-        Scene::Town | Scene::Islet | Scene::Frontier => (
+        Scene::Town | Scene::Islet | Scene::Frontier | Scene::Planet(_) => (
             Camera3D {
                 position: vec3(g.me.cam.x, 5.6, g.me.cam.y + 8.6), // low, long view for depth
                 target: vec3(g.me.cam.x, 0.8, g.me.cam.y - 0.8),
@@ -407,9 +416,9 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
             )
         }
     }
-    if g.me.scene == Scene::Frontier {
+    if matches!(g.me.scene, Scene::Frontier | Scene::Planet(2)) {
         hud_cam(vp);
-        frontier_sky(g, &lt, vw(), vh());
+        frontier_sky(g, &lt, vw(), vh()); // Verdance is a moon of the same ringed giant
     } else if g.me.scene == Scene::Town && rainbow_now(g, now) {
         hud_cam(vp);
         let (w, h) = (vw(), vh());
@@ -444,6 +453,7 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
     match g.me.scene {
         Scene::Islet => islet_scene(&mut r, g, &lt, &mut labels),
         Scene::Frontier => frontier_scene(&mut r, g, &lt, &mut labels),
+        Scene::Planet(k) => planet_scene(&mut r, g, k, &lt, &mut labels),
         Scene::Town => town(&mut r, g, &lt, now, &mut labels),
         Scene::Room(b) => room(&mut r, g, b, &lt, &mut labels),
     }
@@ -472,6 +482,25 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
             let x = ((i * 157) as f32 + t * (60. + (i % 5) as f32 * 14.)) % w;
             let y = ((i * 89) as f32 + (t * 0.9 + i as f32).sin() * 12.) % h;
             draw_circle(x, y, 1.6 + (i % 3) as f32 * 0.5, Color::new(0.98, 0.85, 0.66, 0.5));
+        }
+    } else if let Scene::Planet(k) = g.me.scene {
+        // snow drifting on Glacia, glowing spores rising on Verdance
+        let (w, h, t) = (vw(), vh(), g.t);
+        for i in 0..44 {
+            let (x, y, c) = if k == 1 {
+                (
+                    ((i * 131) as f32 + (t * 0.7 + i as f32).sin() * 30. + t * 12.) % w,
+                    ((i * 71) as f32 + t * 40.) % h,
+                    Color::new(1., 1., 1., 0.85),
+                )
+            } else {
+                (
+                    ((i * 157) as f32 + (t * 0.5 + i as f32).sin() * 25.) % w,
+                    h - ((i * 89) as f32 + t * 18.) % h,
+                    Color::new(0.55, 1., 0.75, 0.6),
+                )
+            };
+            draw_circle(x, y, 1.5 + (i % 3) as f32 * 0.7, c);
         }
     } else if !matches!(g.me.scene, Scene::Room(_)) {
         let (mo, w, h, t) = (now.month(), vw(), vh(), g.t);
