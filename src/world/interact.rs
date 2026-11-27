@@ -358,6 +358,7 @@ impl Game {
                     .into()
             }
             Tg::Bike => if self.me.riding { "Park the hover-bike" } else { "Ride the hover-bike" }.into(),
+            Tg::Local(i) if i == MECHANIC => "Upgrade ship (Dena)".into(),
             Tg::Local(i) => format!("Talk to {}", LOCALS[i].1),
             Tg::FGate => "Gate back to Hollowbrook".into(),
             Tg::Fugitive(_) => "Detain".into(),

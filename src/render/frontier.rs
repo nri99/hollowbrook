@@ -547,19 +547,37 @@ pub(super) fn woods_door(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(Vec3
 
 pub const SHIP_RAMP_C: Color = Color::new(0.48, 0.5, 0.52, 1.);
 
-/// Your ship: a weathered, patched-up freighter on stubby legs with a lowered ramp and a holding pod.
+/// (hull, accent, engine_glow) palette for a ship given its `[thrusters, hyperdrive, hull, scanner]` upgrades.
+pub(super) fn ship_colors(up: [u8; 4]) -> (Color, Color, Color) {
+    let (hull, accent) = match up[2].min(SHIP_UP_MAX) {
+        0 => (Color::new(0.62, 0.64, 0.66, 1.), Color::new(0.55, 0.36, 0.24, 1.)),
+        1 => (Color::new(0.74, 0.77, 0.81, 1.), Color::new(0.24, 0.48, 0.78, 1.)),
+        2 => (Color::new(0.36, 0.40, 0.46, 1.), Color::new(0.86, 0.68, 0.28, 1.)),
+        _ => (Color::new(0.20, 0.23, 0.30, 1.), Color::new(0.96, 0.78, 0.32, 1.)),
+    };
+    let glow = match up[0].min(SHIP_UP_MAX) {
+        0 => Color::new(0.45, 0.75, 1.0, 1.),
+        1 => Color::new(0.35, 0.95, 1.0, 1.),
+        2 => Color::new(1.0, 0.75, 0.28, 1.),
+        _ => Color::new(0.82, 0.52, 1.0, 1.),
+    };
+    (hull, accent, glow)
+}
+
+/// Your ship: a freighter on stubby legs with a lowered ramp, holding pod, and visual upgrades from `up`.
 pub(super) fn ship(
     r: &mut R,
     cx: f32,
     cz: f32,
     base_y: f32,
+    up: [u8; 4],
     t: f32,
     night: f32,
     labels: &mut Vec<(Vec3, String, Color)>,
     label: &str,
 ) {
-    let hull = Color::new(0.62, 0.64, 0.66, 1.);
-    let rust = Color::new(0.55, 0.36, 0.24, 1.);
+    let (hull, accent, glow) = ship_colors(up);
+    let (thr, hyp, hlv, scn) = (up[0], up[1], up[2], up[3]);
     let c = vec3(cx, base_y + 1.05, cz);
     for (dx, dz) in [(-2.0, -1.2), (2.0, -1.2), (-2.0, 1.2), (2.0, 1.2)] {
         r.seg(
@@ -572,32 +590,84 @@ pub(super) fn ship(
     }
     r.sphere(c, vec3(2.9, 0.75, 1.55), hull); // main hull
     r.cube(c + vec3(0., -0.2, 0.), vec3(2.1, 0.3, 1.05), sh(hull, 0.9)); // belly keel under the rounded hull
-    r.sphere(c + vec3(-1.2, 0.55, -0.3), vec3(0.7, 0.18, 0.5), rust); // patched plates
-    r.cube(c + vec3(1.1, 0.42, 0.9), vec3(0.45, 0.08, 0.32), sh(rust, 1.1));
+    r.sphere(c + vec3(-1.2, 0.55, -0.3), vec3(0.7, 0.18, 0.5), accent); // patched/accent plates
+    r.cube(c + vec3(1.1, 0.42, 0.9), vec3(0.45, 0.08, 0.32), sh(accent, 1.1));
     r.cube(c + vec3(0.2, 0.62, -0.6), vec3(0.6, 0.05, 0.25), sh(hull, 0.8));
+    if hlv >= 1 {
+        // swept aft wing fairings (kept aft of the ramp)
+        for sz in [-1f32, 1.] {
+            r.cube(c + vec3(-1.25, 0.12, sz * 1.55), vec3(0.65, 0.05, 0.48), sh(hull, 0.88));
+            r.cube(c + vec3(-1.45, 0.14, sz * 1.92), vec3(0.35, 0.06, 0.12), accent);
+        }
+    }
+    if hlv >= 2 {
+        r.cube(c + vec3(0.1, 0.72, 0.), vec3(1.35, 0.08, 0.34), sh(hull, 0.85)); // armoured spine
+        for sz in [-1f32, 1.] {
+            r.cube(c + vec3(1.75, 0.1, sz * 1.05), vec3(0.32, 0.04, 0.26), accent);
+            // forward canards
+        }
+    }
+    if hlv >= 3 {
+        for sz in [-1f32, 1.] {
+            r.cube(c + vec3(-2.4, 0.55, sz * 0.95), vec3(0.32, 0.34, 0.05), sh(hull, 0.82)); // tail stabilizers
+            r.cube(c + vec3(-2.45, 0.86, sz * 0.95), vec3(0.22, 0.04, 0.06), accent);
+        }
+        r.cube(c + vec3(2.2, 0.05, 0.), vec3(0.5, 0.04, 0.64), accent); // cockpit trim
+    }
     // cockpit at the front (+x), dark glass with a sky glint
     r.sphere(c + vec3(2.45, 0.35, 0.), vec3(0.7, 0.45, 0.62), Color::new(0.18, 0.22, 0.28, 1.));
     r.cube(c + vec3(2.7, 0.55, 0.25), vec3(0.18, 0.04, 0.12), Color::new(0.75, 0.85, 0.95, 1.));
-    // twin engines at the back with a soft glow
-    for dz in [-0.75, 0.75] {
-        r.with(
-            Mat4::from_rotation_translation(
-                Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
-                c + vec3(-2.6, 0.0, dz),
-            ),
-            |r| {
-                r.cyl(vec3(0., -0.6, 0.), 0.42, 1.2, sh(hull, 0.85));
-                r.cyl(vec3(0., -0.66, 0.), 0.32, 0.08, Color::new(0.25, 0.25, 0.27, 1.));
-            },
-        );
+    // twin engines at the back with a soft glow (+ dorsal center booster from thruster lv 2)
+    let nac_r = 0.42 + thr.min(SHIP_UP_MAX) as f32 * 0.04;
+    let draw_nacelle = |r: &mut R, off: Vec3, rad: f32| {
+        r.with(Mat4::from_rotation_translation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_2), c + off), |r| {
+            r.cyl(vec3(0., -0.6, 0.), rad, 1.2, sh(hull, 0.85));
+            r.cyl(vec3(0., -0.66, 0.), rad * 0.76, 0.08, Color::new(0.25, 0.25, 0.27, 1.));
+        });
         let u = r.unlit;
         r.unlit = true;
-        let k = 0.7 + 0.3 * (t * 6. + dz).sin();
-        r.sphere(c + vec3(-3.25, 0.0, dz), Vec3::splat(0.26), Color::new(0.45 * k, 0.75 * k, 1. * k, 1.));
+        let k = 0.7 + 0.3 * (t * 6. + off.z).sin();
+        r.sphere(
+            c + off + vec3(-0.65, 0., 0.),
+            Vec3::splat(rad * 0.62),
+            Color::new(glow.r * k, glow.g * k, glow.b * k, 1.),
+        );
+        r.unlit = u;
+    };
+    for dz in [-0.75, 0.75] {
+        draw_nacelle(r, vec3(-2.6, 0.0, dz), nac_r);
+    }
+    if thr >= 2 {
+        draw_nacelle(r, vec3(-2.5, 0.44, 0.0), nac_r * 0.85);
+    }
+    if hyp >= 1 {
+        let u = r.unlit;
+        r.unlit = true;
+        let pulse = 0.7 + 0.3 * (t * 4.).sin();
+        let hc = Color::new(0.45 * pulse, 0.85 * pulse, 1., 1.);
+        for sz in [-0.45, 0.45] {
+            r.cube(c + vec3(-1.0, 0.72, sz), vec3(0.55, 0.05, 0.06), hc); // hyperdrive coils
+        }
+        if hyp >= 2 {
+            r.cube(c + vec3(-1.55, 0.88, 0.), vec3(0.08, 0.08, 0.56), hc); // warp conduit
+        }
         r.unlit = u;
     }
     r.cube(c + vec3(-0.6, 1.0, 0.), vec3(0.08, 0.32, 0.03), sh(hull, 0.8)); // antenna mast
     r.cube(c + vec3(-0.6, 1.32, 0.), vec3(0.25, 0.03, 0.03), sh(hull, 0.8));
+    if scn >= 1 {
+        r.cyl(c + vec3(0.55, 0.74, 0.), 0.05, 0.2, Color::new(0.3, 0.32, 0.35, 1.));
+        r.disc(c + vec3(0.55, 0.96, 0.), vec2(0.28 + scn as f32 * 0.04, 0.28 + scn as f32 * 0.04), sh(hull, 1.1));
+        let u = r.unlit;
+        r.unlit = true;
+        if (t * 2.5).sin() > 0. {
+            r.sphere(c + vec3(0.55, 1.02, 0.), Vec3::splat(0.06), Color::new(0.4, 1., 0.85, 1.));
+        }
+        r.unlit = u;
+        if scn >= 2 {
+            r.cube(c + vec3(-0.2, 1.02, -0.35), vec3(0.03, 0.28, 0.03), accent);
+        }
+    }
     // lowered ramp to the holding pod, with a warm light inside
     let (top_y, bot_y) = (base_y + 0.75, 0.02);
     r.quad(

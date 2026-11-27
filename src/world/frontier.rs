@@ -52,9 +52,10 @@ pub const LOCALS: [((f32, f32), &str, &str); 4] = [
     ((8.5, 14.6), "Old Sel", "Spice, rope, sun-cloth. Everything a long walk needs."),
     ((21.0, 14.6), "Kip", "Water's two coins a cup today. The oasis is free, if you like grit."),
     ((18.5, 11.6), "Moss", "I hear things. For 60 coins I'll tell you which way your mark went."),
-    ((27.5, 27.0), "Dena", "That ship of yours rattles. Keep the bike out of the dunes and it'll last."),
+    ((27.5, 27.0), "Dena", "Want to tune up that freighter? Bring coins and I'll bolt on real hardware."),
 ];
 pub const INFORMANT: usize = 2;
+pub const MECHANIC: usize = 3;
 pub const HINT_PRICE: u32 = 60;
 /// Townsfolk drift around their spot; the same function drives drawing and talking.
 pub fn local_pos(i: usize, t: f32) -> Vec2 {
@@ -349,7 +350,8 @@ impl Game {
             return Err("Lock them in your ship's holding pod first.");
         }
         self.w.p.marks += MARKS[b.tier as usize];
-        let reward = BOUNTY_REWARD[b.tier as usize];
+        let base = BOUNTY_REWARD[b.tier as usize];
+        let reward = base + base * bounty_bonus_pct(self.w.p.ship_up[2]) / 100;
         let before = rank_of(self.w.p.bounties_done);
         self.w.p.money = self.w.p.money.saturating_add(reward);
         self.w.p.bounties_done += 1;
@@ -413,8 +415,12 @@ impl Game {
     pub fn armor_pieces(&self) -> u32 {
         self.w.p.armor.count_ones()
     }
-    /// Talk to townsperson `i`. The informant sells a live bearing on your target, once per bounty.
+    /// Talk to townsperson `i`. The informant sells a live bearing on your target; Dena opens the shipyard.
     pub fn talk_local(&mut self, i: usize) {
+        if i == MECHANIC {
+            self.me.ui = Ui::ShipYard(0);
+            return;
+        }
         let (_, name, line) = LOCALS[i];
         if i == INFORMANT {
             match self.w.p.bounty.as_ref() {

@@ -12,6 +12,40 @@ pub const PLANETS: [(&str, &str); 3] = [
 ];
 /// Seconds spent in the light-speed tunnel.
 pub const JUMP_TIME: f32 = 2.6;
+/// Ship upgrades bought from Dena in Dustreach: (name, [lv1..3 coin costs], description).
+pub const SHIP_UP_MAX: u8 = 3;
+pub const SHIP_UPS: [(&str, [u32; 3], &str); 4] = [
+    ("Thrusters", [1200, 2800, 5500], "Faster thrust, boost speed and turning in space."),
+    ("Hyperdrive", [1500, 3200, 6000], "Shorter light-speed jumps and wider orbital landing range."),
+    ("Hull & Wings", [1000, 2500, 5000], "Upgraded hull & wings, sharper brakes, and +15/30/50% bounty pay."),
+    ("Scanner", [1200, 2800, 5200], "Resource beacons on planets and extra crystals/glowcaps per spot."),
+];
+pub fn ship_tier(up: [u8; 4]) -> u8 {
+    up.iter().map(|&lv| lv.min(SHIP_UP_MAX)).sum()
+}
+pub fn jump_time(hyper_lv: u8) -> f32 {
+    (JUMP_TIME - hyper_lv.min(SHIP_UP_MAX) as f32 * 0.55).max(0.9)
+}
+pub fn land_range(hyper_lv: u8) -> f32 {
+    PLANET_R + 4. + hyper_lv.min(SHIP_UP_MAX) as f32 * 2.
+}
+pub fn bounty_bonus_pct(hull_lv: u8) -> u32 {
+    [0, 15, 30, 50][hull_lv.min(SHIP_UP_MAX) as usize]
+}
+pub fn sample_yield(scan_lv: u8, spot: usize) -> u16 {
+    match scan_lv.min(SHIP_UP_MAX) {
+        0 => 1,
+        1 => {
+            if spot.is_multiple_of(2) {
+                2
+            } else {
+                1
+            }
+        }
+        2 => 2,
+        _ => 3,
+    }
+}
 /// Planet radius in flight space (the planet sits at the origin).
 pub const PLANET_R: f32 = 5.;
 /// Landing-site maps (Glacia and Verdance share a layout generator).
@@ -185,8 +219,26 @@ impl Game {
         self.snd.push(Snd::Door);
         self.note("Engines hot. W thrust, A/D turn, Shift boost, N nav computer, E to land near the planet.");
     }
+    /// Upgrade system `k` of the active player's ship at Dena's shipyard.
+    pub fn upgrade_ship(&mut self, k: usize) -> Result<u8, &'static str> {
+        let &(name, costs, _) = SHIP_UPS.get(k).ok_or("Unknown ship system.")?;
+        let lv = self.w.p.ship_up[k];
+        if lv >= SHIP_UP_MAX {
+            return Err("Already at maximum level.");
+        }
+        let cost = costs[lv as usize];
+        if self.w.p.money < cost {
+            return Err("Not enough coins.");
+        }
+        self.w.p.money -= cost;
+        self.w.p.ship_up[k] = lv + 1;
+        self.snd.push(Snd::Coin);
+        self.note(format!("Upgraded {name} to Lv {}!", lv + 1));
+        Ok(lv + 1)
+    }
     /// Pick a destination in the nav computer: jump to light speed.
     pub fn plot_jump(&mut self, dest: u8) -> Result<(), &'static str> {
+        let hyper = self.w.p.ship_up[1];
         let f = self.me.flight.as_mut().ok_or("You need to be flying.")?;
         if f.jump > 0. {
             return Err("Already in the light-speed tunnel.");
@@ -195,7 +247,7 @@ impl Game {
             return Err("You're already in this system.");
         }
         f.dest = dest;
-        f.jump = JUMP_TIME;
+        f.jump = jump_time(hyper);
         f.vel = Vec2::ZERO;
         self.snd.push(Snd::Swim);
         self.note(format!("Jumping to light speed... next stop, {}.", PLANETS[dest as usize].0));
@@ -207,7 +259,7 @@ impl Game {
         if f.jump > 0. {
             return Err("Wait until you drop out of light speed.");
         }
-        if f.pos.length() > PLANET_R + 4. {
+        if f.pos.length() > land_range(self.w.p.ship_up[1]) {
             return Err("Fly closer to the planet to land.");
         }
         self.me.flight = None;
@@ -231,7 +283,8 @@ impl Game {
             if f.jump <= 0. {
                 f.jump = 0.;
                 f.sys = f.dest;
-                f.pos = vec2(0., PLANET_R + 11.);
+                let drop = (11. - self.w.p.ship_up[1].min(SHIP_UP_MAX) as f32 * 1.5).max(6.5);
+                f.pos = vec2(0., PLANET_R + drop);
                 f.vel = Vec2::ZERO;
                 f.yaw = 0.;
                 self.me.flight = Some(f);
@@ -244,8 +297,10 @@ impl Game {
             self.me.flight = Some(f);
             return;
         }
+        let thr = self.w.p.ship_up[0].min(SHIP_UP_MAX) as f32;
+        let hull = self.w.p.ship_up[2].min(SHIP_UP_MAX) as f32;
         let turn = (inp.d(D) || inp.d(Right)) as i32 as f32 - (inp.d(A) || inp.d(Left)) as i32 as f32;
-        f.yaw += turn * 2.6 * dt;
+        f.yaw += turn * (2.6 + thr * 0.45) * dt;
         let boost = inp.d(LeftShift) || inp.d(RightShift);
         f.thrust = if inp.d(W) || inp.d(Up) {
             if boost {
@@ -256,12 +311,12 @@ impl Game {
         } else {
             0.
         };
-        f.vel += fwd(f.yaw) * f.thrust * 11. * dt;
+        f.vel += fwd(f.yaw) * f.thrust * (11. + thr * 3.5) * dt;
         if inp.d(S) || inp.d(Down) {
-            f.vel *= 1. - (3. * dt).min(1.);
+            f.vel *= 1. - ((3. + hull * 1.2) * dt).min(1.);
         }
         f.vel *= 1. - (0.7 * dt).min(1.);
-        let top = if boost { 15. } else { 9. };
+        let top = if boost { 15. + thr * 4. } else { 9. + thr * 2.5 };
         if f.vel.length() > top {
             f.vel = f.vel.normalize() * top;
         }
@@ -293,12 +348,25 @@ impl Game {
             return;
         }
         let d = SAMPLE_ITEM[(k as usize).clamp(1, 2) - 1];
-        if !self.add(d) {
+        let want = sample_yield(self.w.p.ship_up[3], i);
+        let mut got = 0u16;
+        for _ in 0..want {
+            if self.add(d) {
+                got += 1;
+            } else {
+                break;
+            }
+        }
+        if got == 0 {
             return self.note("Your pockets are full.");
         }
         self.w.p.samples.push((self.w.day, k, i as u8));
         self.w.p.samples.retain(|&(day, _, _)| day + 2 >= self.w.day);
         self.snd.push(Snd::Rustle);
-        self.note(format!("Gathered a {}. It sells well back home.", def(d).name));
+        if got == 1 {
+            self.note(format!("Gathered a {}. It sells well back home.", def(d).name));
+        } else {
+            self.note(format!("Scanner haul: {got}x {}!", def(d).name));
+        }
     }
 }

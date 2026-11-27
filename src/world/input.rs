@@ -608,6 +608,17 @@ impl Game {
                     }
                 }
             }
+            Ui::ShipYard(s) => {
+                let s = mv(s, SHIP_UPS.len() + 1);
+                self.me.ui = Ui::ShipYard(s);
+                if esc || (ok && s == SHIP_UPS.len()) {
+                    self.me.ui = Ui::Play
+                } else if ok {
+                    if let Err(e) = self.upgrade_ship(s) {
+                        self.note(e)
+                    }
+                }
+            }
             Ui::Bounty(s) => {
                 let s = mv(s, 8);
                 self.me.ui = Ui::Bounty(s);

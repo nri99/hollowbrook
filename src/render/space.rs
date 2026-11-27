@@ -22,10 +22,19 @@ fn space_light() -> Light {
 /// Your ship in flight, forward is -z: a plated, weathered freighter. Layered hull plates with panel seams and
 /// scorch marks, a glass canopy with you at the controls, twin engine nacelles with intake rings and thrust glow,
 /// stubby wings with blinking navigation lights, a sensor dish and antenna. `look` is the pilot's outfit.
-fn flier(r: &mut R, p: Vec3, yaw: f32, thrust: f32, t: f32, pilot: (usize, (Option<u16>, Option<u16>, u8))) {
-    let hull = Color::new(0.66, 0.67, 0.69, 1.);
+pub fn flier(
+    r: &mut R,
+    p: Vec3,
+    yaw: f32,
+    thrust: f32,
+    up: [u8; 4],
+    t: f32,
+    pilot: (usize, (Option<u16>, Option<u16>, u8)),
+) {
+    let (hull_base, accent, glow) = ship_colors(up);
+    let (thr, hyp, hlv, scn) = (up[0], up[1], up[2], up[3]);
+    let hull = sh(hull_base, 1.05);
     let dark = Color::new(0.32, 0.33, 0.36, 1.);
-    let rust = Color::new(0.56, 0.38, 0.27, 1.);
     let seam = Color::new(0.24, 0.25, 0.27, 1.);
     let bank = -thrust.min(1.) * 0.0;
     r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(-yaw) * Quat::from_rotation_z(bank), p), |r| {
@@ -38,11 +47,14 @@ fn flier(r: &mut R, p: Vec3, yaw: f32, thrust: f32, t: f32, pilot: (usize, (Opti
             r.cube(vec3(0., 0.365, z), vec3(0.43, 0.006, 0.012), seam); // panel seams across the spine
         }
         r.cube(vec3(0.0, 0.365, 0.35), vec3(0.008, 0.006, 0.95), seam);
-        r.cube(vec3(0.22, 0.37, 0.65), vec3(0.14, 0.01, 0.22), rust); // patched plates and scorch marks
-        r.cube(vec3(-0.25, 0.37, -0.2), vec3(0.1, 0.01, 0.15), sh(rust, 0.8));
+        r.cube(vec3(0.22, 0.37, 0.65), vec3(0.14, 0.01, 0.22), accent); // patched/accent plates
+        r.cube(vec3(-0.25, 0.37, -0.2), vec3(0.1, 0.01, 0.15), sh(accent, 0.8));
         r.cube(vec3(0.3, 0.3, 1.1), vec3(0.08, 0.02, 0.18), Color::new(0.2, 0.18, 0.17, 1.));
         // nose and cockpit: a framed glass canopy with the pilot inside
         r.sphere(vec3(0., -0.02, -1.35), vec3(0.4, 0.26, 0.42), sh(hull, 0.95));
+        if hlv >= 3 {
+            r.cube(vec3(0., 0.04, -1.15), vec3(0.36, 0.03, 0.38), accent); // gold canopy collar
+        }
         r.with(Mat4::from_scale_rotation_translation(Vec3::splat(0.42), Quat::IDENTITY, vec3(0., 0.08, -0.82)), |r| {
             human(r, pilot.0, pilot.1, Vec3::ZERO, PI, 0., 0., 1, None, t, 0.) // seated at the controls
         });
@@ -55,46 +67,96 @@ fn flier(r: &mut R, p: Vec3, yaw: f32, thrust: f32, t: f32, pilot: (usize, (Opti
         }
         r.seg(vec3(-0.3, 0.32, -0.5), vec3(0.3, 0.32, -0.5), 0.02, dark);
         // wings with navigation lights (red port, green starboard, white tail strobe)
+        let span = 0.42 + hlv.min(SHIP_UP_MAX) as f32 * 0.12;
         for sx in [-1f32, 1.] {
-            r.cube(vec3(sx * 0.95, -0.02, 0.45), vec3(0.42, 0.035, 0.42), sh(hull, 0.88));
-            r.cube(vec3(sx * 1.2, -0.02, 0.62), vec3(0.18, 0.04, 0.16), dark);
+            r.cube(vec3(sx * (0.53 + span), -0.02, 0.45), vec3(span, 0.035, 0.42), sh(hull, 0.88));
+            r.cube(vec3(sx * (0.53 + span * 1.4), -0.02, 0.62), vec3(0.18, 0.04, 0.16), dark);
+            if hlv >= 1 {
+                r.cube(vec3(sx * (0.55 + span * 1.9), 0.04, 0.5), vec3(0.04, 0.1, 0.24), accent);
+                // winglets
+            }
+            if hlv >= 2 {
+                r.cube(vec3(sx * 0.56, 0.0, -0.88), vec3(0.22, 0.025, 0.16), accent);
+                // forward canards
+            }
+            if hlv >= 3 {
+                r.cube(vec3(sx * 0.64, 0.25, 1.3), vec3(0.03, 0.24, 0.24), sh(hull, 0.82));
+                // tail stabilizers
+            }
             let on = (t * 2.2).fract() < 0.18;
             let u = r.unlit;
             r.unlit = true;
             let c = if sx < 0. { Color::new(1., 0.25, 0.2, 1.) } else { Color::new(0.3, 1., 0.45, 1.) };
             r.sphere(
-                vec3(sx * 1.37, 0.02, 0.45),
+                vec3(sx * (0.55 + span * 1.95), 0.02, 0.45),
                 Vec3::splat(if on { 0.06 } else { 0.04 }),
                 if on { c } else { sh(c, 0.45) },
             );
             r.unlit = u;
         }
-        // twin nacelles: intake rings, housings, exhaust glow that lengthens with thrust
-        for sx in [-0.52, 0.52] {
-            r.with(Mat4::from_rotation_translation(Quat::from_rotation_x(FRAC_PI_2), vec3(sx, 0.02, 0.95)), |r| {
-                r.cyl(vec3(0., -0.55, 0.), 0.24, 1.1, sh(hull, 0.85));
-                r.cyl(vec3(0., -0.6, 0.), 0.27, 0.1, dark); // intake ring
-                r.cyl(vec3(0., 0.5, 0.), 0.21, 0.12, seam); // exhaust collar
+        // twin nacelles (+ dorsal booster from thrusters lv 2): intake rings, housings, exhaust glow
+        let nac_r = 0.24 + thr.min(SHIP_UP_MAX) as f32 * 0.03;
+        let plume_scale = 1. + thr.min(SHIP_UP_MAX) as f32 * 0.25;
+        let draw_nac = |r: &mut R, pos: Vec3, rad: f32| {
+            r.with(Mat4::from_rotation_translation(Quat::from_rotation_x(FRAC_PI_2), pos), |r| {
+                r.cyl(vec3(0., -0.55, 0.), rad, 1.1, sh(hull, 0.85));
+                r.cyl(vec3(0., -0.6, 0.), rad * 1.12, 0.1, dark); // intake ring
+                r.cyl(vec3(0., 0.5, 0.), rad * 0.88, 0.12, seam); // exhaust collar
             });
             let u = r.unlit;
             r.unlit = true;
-            let k = 0.55 + 0.45 * thrust.min(1.) + 0.06 * (t * 24. + sx).sin();
-            r.sphere(vec3(sx, 0.02, 1.62), vec3(0.17, 0.17, 0.08), Color::new(0.75 * k, 0.9 * k, 1., 1.));
+            let k = 0.55 + 0.45 * thrust.min(1.) + 0.06 * (t * 24. + pos.x).sin();
+            r.sphere(
+                pos + vec3(0., 0., 0.67),
+                vec3(rad * 0.72, rad * 0.72, 0.08),
+                Color::new(glow.r * k, glow.g * k, glow.b * k, 1.),
+            );
             let a = r.alpha;
             r.alpha = 0.55;
             r.sphere(
-                vec3(sx, 0.02, 1.75 + 0.35 * thrust),
-                vec3(0.14, 0.14, 0.18 + 0.5 * thrust),
-                Color::new(0.35 * k, 0.65 * k, 1. * k, 1.),
+                pos + vec3(0., 0., 0.8 + 0.35 * thrust * plume_scale),
+                vec3(rad * 0.6, rad * 0.6, (0.18 + 0.5 * thrust) * plume_scale),
+                Color::new(glow.r * 0.85 * k, glow.g * 0.9 * k, glow.b * k, 1.),
             );
             r.alpha = a;
+            r.unlit = u;
+        };
+        for sx in [-0.52, 0.52] {
+            draw_nac(r, vec3(sx, 0.02, 0.95), nac_r);
+        }
+        if thr >= 2 {
+            draw_nac(r, vec3(0., 0.38, 0.98), nac_r * 0.82);
+        }
+        if hyp >= 1 {
+            let u = r.unlit;
+            r.unlit = true;
+            let pulse = 0.7 + 0.3 * (t * 4.).sin();
+            let hc = Color::new(0.45 * pulse, 0.85 * pulse, 1., 1.);
+            for sx in [-0.28, 0.28] {
+                r.cube(vec3(sx, 0.38, 0.45), vec3(0.05, 0.04, 0.42), hc);
+            }
+            if hyp >= 2 {
+                r.cube(vec3(0., 0.45, 0.75), vec3(0.36, 0.05, 0.07), hc);
+            }
             r.unlit = u;
         }
         // dorsal sensor dish and antenna
         r.cyl(vec3(-0.18, 0.36, 0.55), 0.03, 0.12, dark);
+        let dish_r = 0.16 + scn.min(SHIP_UP_MAX) as f32 * 0.04;
         r.with(Mat4::from_rotation_translation(Quat::from_rotation_x(-0.5), vec3(-0.18, 0.5, 0.55)), |r| {
-            r.disc(Vec3::ZERO, vec2(0.16, 0.16), sh(hull, 1.1))
+            r.disc(Vec3::ZERO, vec2(dish_r, dish_r), sh(hull, 1.1))
         });
+        if scn >= 1 {
+            let u = r.unlit;
+            r.unlit = true;
+            if (t * 2.5).sin() > 0. {
+                r.sphere(vec3(-0.18, 0.58, 0.55), Vec3::splat(0.045), Color::new(0.4, 1., 0.85, 1.));
+            }
+            r.unlit = u;
+            if scn >= 2 {
+                r.seg(vec3(-0.22, 0.36, 1.0), vec3(-0.24, 0.75, 1.1), 0.01, accent);
+            }
+        }
         r.seg(vec3(0.2, 0.36, 1.0), vec3(0.22, 0.75, 1.1), 0.01, dark);
         let u = r.unlit;
         r.unlit = true;
@@ -117,7 +179,7 @@ pub(super) fn space_view(g: &Game, f: &Flight, vp: Option<(f32, f32)>) {
     }
     if f.jump > 0. {
         // the light-speed tunnel: stars stretch into streaks rushing past, then a flash on arrival
-        let p = 1. - f.jump / JUMP_TIME;
+        let p = (1. - f.jump / jump_time(g.w.p.ship_up[1])).clamp(0., 1.);
         let (cx, cy) = (w / 2., h / 2.);
         let maxr = (w * w + h * h).sqrt() * 0.6;
         draw_circle(cx, cy, h * (0.05 + 0.1 * p), Color::new(0.75, 0.88, 1., 0.25));
@@ -208,13 +270,22 @@ pub(super) fn space_view(g: &Game, f: &Flight, vp: Option<(f32, f32)>) {
     }
     let ma = t * 0.12 + f.sys as f32;
     r.sphere(vec3(ma.cos() * 13., -1., ma.sin() * 13.), Vec3::splat(0.9), Color::new(0.7, 0.7, 0.74, 1.)); // a moon
-    flier(&mut r, vec3(f.pos.x, 0.6, f.pos.y), f.yaw, f.thrust, t, (g.me.id, (g.w.p.shirt, g.w.p.hat, g.w.p.hair)));
+    flier(
+        &mut r,
+        vec3(f.pos.x, 0.6, f.pos.y),
+        f.yaw,
+        f.thrust,
+        g.w.p.ship_up,
+        t,
+        (g.me.id, (g.w.p.shirt, g.w.p.hat, g.w.p.hair)),
+    );
     let mut names: Vec<(Vec3, String)> = vec![];
     for o in g.others.iter().filter(|o| sees_in_space(&g.me, o)) {
         let of = o.flight.unwrap();
         let pr = g.w.others.iter().find(|p| p.id == o.id);
         let look = pr.map_or((None, None, 0), |p| (p.shirt, p.hat, p.hair));
-        flier(&mut r, vec3(of.pos.x, 0.6, of.pos.y), of.yaw, of.thrust, t, (o.id, look));
+        let up = pr.map_or([0; 4], |p| p.ship_up);
+        flier(&mut r, vec3(of.pos.x, 0.6, of.pos.y), of.yaw, of.thrust, up, t, (o.id, look));
         names.push((vec3(of.pos.x, 1.8, of.pos.y), pr.map_or("Player 2".to_string(), |p| p.name.clone())));
     }
     r.flush();
@@ -229,7 +300,7 @@ pub(super) fn space_view(g: &Game, f: &Flight, vp: Option<(f32, f32)>) {
             draw_text(&s, x - tw / 2., y, 20., Color::new(0.85, 0.95, 1., 1.));
         }
     }
-    let near = f.pos.length() < PLANET_R + 4.;
+    let near = f.pos.length() < land_range(g.w.p.ship_up[1]);
     let lines = [
         format!("{}  -  {}", PLANETS[f.sys as usize].0, PLANETS[f.sys as usize].1),
         if near { "Press E to land".into() } else { String::new() },
@@ -263,6 +334,45 @@ pub(super) fn nav_menu(g: &Game, sel: usize, sw: f32) {
     items.push("Cancel".into());
     list(&items, Some(sel), x0 + 30., 175.);
     txt("W/S choose   Enter jump to light speed   Esc cancel", x0 + 30., 355., 18., Color::new(0.45, 0.3, 0.2, 1.));
+}
+
+/// Dena's shipyard menu: upgrade the active player's spaceship with coins.
+pub(super) fn shipyard_menu(g: &Game, sel: usize, sw: f32) {
+    let pw = (sw - 40.).min(700.);
+    let x0 = sw / 2. - pw / 2.;
+    panel(x0, 70., pw, 430.);
+    txt("Dena's Ship Yard", x0 + 20., 105., 24., Color::new(0.45, 0.3, 0.2, 1.));
+    let quote = "\"Bring coins, and I'll turn that rattling freighter into something mean.\"";
+    for (k, l) in wrap_txt(quote, ((pw - 50.) / 10.) as usize).iter().enumerate() {
+        txt(l, x0 + 20., 132. + k as f32 * 20., 17., DARKGRAY);
+    }
+    txt(
+        &format!("Coins: {}   Ship tier: {}/12", g.w.p.money, ship_tier(g.w.p.ship_up)),
+        x0 + 20.,
+        190.,
+        20.,
+        Color::new(0.45, 0.3, 0.2, 1.),
+    );
+    let mut items: Vec<String> = SHIP_UPS
+        .iter()
+        .enumerate()
+        .map(|(k, (name, costs, _))| {
+            let lv = g.w.p.ship_up[k];
+            if lv >= SHIP_UP_MAX {
+                format!("{name}  (MAX)")
+            } else {
+                format!("{name}  Lv {lv}->{}  -  {}c", lv + 1, costs[lv as usize])
+            }
+        })
+        .collect();
+    items.push("Close".into());
+    list(&items, Some(sel), x0 + 30., 230.);
+    if let Some((_, _, desc)) = SHIP_UPS.get(sel) {
+        for (k, l) in wrap_txt(desc, ((pw - 60.) / 10.) as usize).iter().enumerate() {
+            txt(l, x0 + 30., 392. + k as f32 * 20., 17., DARKGRAY);
+        }
+    }
+    txt("W/S choose   Enter upgrade   Esc close", x0 + 30., 478., 18., Color::new(0.45, 0.3, 0.2, 1.));
 }
 
 /// Cool blue light for Glacia, teal twilight for Verdance.
@@ -417,6 +527,14 @@ pub(super) fn planet_scene(r: &mut R, g: &Game, k: u8, lt: &Light, labels: &mut 
             }
         }
         r.unlit = u;
+        if g.w.p.ship_up[3] >= 1 {
+            let (a0, u0) = (r.alpha, r.unlit);
+            r.alpha = 0.16;
+            r.unlit = true;
+            r.cyl(p, 0.08, 2.5, Color::new(0.4, 0.95, 1., 1.)); // scanner resource beacon
+            r.alpha = a0;
+            r.unlit = u0;
+        }
         if me.distance(vec2(p.x, p.z)) < 2.5 {
             labels.push((p + vec3(0., 0.8, 0.), def(SAMPLE_ITEM[i]).name.into(), Color::new(0.85, 1., 0.95, 1.)));
         }
@@ -575,6 +693,12 @@ pub(super) fn cockpit_scene(r: &mut R, g: &Game, k: u8, lt: &Light, labels: &mut
     // front console: a long desk with glowing screens and blinking buttons
     r.cube(vec3(w / 2., 0.42, 0.5), vec3(w / 2. - 0.1, 0.42, 0.42), Color::new(0.36, 0.37, 0.4, 1.));
     r.cube(vec3(w / 2., 0.86, 0.6), vec3(w / 2. - 0.1, 0.03, 0.34), Color::new(0.24, 0.25, 0.28, 1.));
+    let up = g.w.p.ship_up;
+    let (_, accent, glow) = ship_colors(up);
+    if up[2] >= 1 {
+        r.cube(vec3(w / 2., 0.89, 0.6), vec3(w / 2. - 0.12, 0.015, 0.35), accent);
+        // upgraded console trim
+    }
     let u = r.unlit;
     r.unlit = true;
     for (i, x) in [1.2f32, 2.4, 3.6, 4.8].iter().enumerate() {
@@ -597,10 +721,21 @@ pub(super) fn cockpit_scene(r: &mut R, g: &Game, k: u8, lt: &Light, labels: &mut
             r.sphere(vec3(*x - 0.2 + j as f32 * 0.2, 0.9, 0.75), Vec3::splat(0.03), if on { c } else { sh(c, 0.3) });
         }
     }
+    if up[1] >= 1 {
+        // hyperdrive holographic orb above the console
+        let a = r.alpha;
+        r.alpha = 0.55;
+        r.sphere(vec3(w / 2., 1.18 + (t * 2.).sin() * 0.03, 0.62), Vec3::splat(0.12), glow);
+        r.alpha = a;
+    }
+    if up[3] >= 1 {
+        // glowing scanner radar disc on the right console
+        r.disc(vec3(4.2, 0.91, 0.65), vec2(0.18, 0.18), Color::new(0.25, 0.95, 0.8, 0.75));
+    }
     r.unlit = u;
     // the pilot's seat
     let (sx, sz) = (CK_SEAT.0 as f32 + 0.5, CK_SEAT.1 as f32 + 0.5);
-    let leather = Color::new(0.45, 0.28, 0.2, 1.);
+    let leather = if up[2] >= 2 { accent } else { Color::new(0.45, 0.28, 0.2, 1.) };
     r.cyl(vec3(sx, 0., sz), 0.08, 0.35, trim);
     r.cube(vec3(sx, 0.42, sz), vec3(0.3, 0.06, 0.28), leather);
     r.cube(vec3(sx, 0.78, sz + 0.25), vec3(0.3, 0.36, 0.05), leather);
@@ -747,7 +882,12 @@ pub fn draw_pads(
                         g.w.others.iter().find(|p| p.id == o.id).map_or("Player 2", |p| p.name.as_str())
                     )
                 };
-                ship(r, cx, cz, PAD_TOP, t, night, labels, &label)
+                let up = if o.id == g.me.id {
+                    g.w.p.ship_up
+                } else {
+                    g.w.others.iter().find(|p| p.id == o.id).map_or([0; 4], |p| p.ship_up)
+                };
+                ship(r, cx, cz, PAD_TOP, up, t, night, labels, &label)
             }
             None => {
                 if me.distance(vec2(cx, fz + fd)) < 3.5 {

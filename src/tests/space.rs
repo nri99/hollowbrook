@@ -294,3 +294,127 @@ fn ship_ramp_aligns_with_ramp_of_on_every_pad_and_planet() {
         }
     }
 }
+
+#[test]
+fn ship_upgrades_buy_persist_and_improve_flight_and_gathering() {
+    let mut g = two(at(11, 10, 0, 0));
+    g.swap(Scene::Frontier);
+    g.me.scene = Scene::Frontier;
+    // talking to Dena opens the shipyard menu
+    g.talk_local(MECHANIC);
+    assert_eq!(g.me.ui, Ui::ShipYard(0));
+    g.me.ui = Ui::Play;
+    // coin check, buying 1..=3, max cap, save/reload, and 2P independence
+    g.w.p.money = 1000;
+    assert_eq!(g.upgrade_ship(0), Err("Not enough coins."));
+    g.w.p.money = 50_000;
+    for lv in 1..=SHIP_UP_MAX {
+        assert_eq!(g.upgrade_ship(0), Ok(lv));
+    }
+    assert_eq!(g.upgrade_ship(0), Err("Already at maximum level."));
+    assert_eq!(g.w.p.ship_up[0], SHIP_UP_MAX);
+    assert_eq!(ship_tier(g.w.p.ship_up), SHIP_UP_MAX);
+    g.activate(1);
+    assert_eq!(g.w.p.ship_up, [0; 4], "ship upgrades are per player");
+    g.activate(0);
+    let g2 = reload(&g, "ship_upgrades");
+    assert_eq!(g2.w.p.ship_up, [SHIP_UP_MAX, 0, 0, 0]);
+    assert!(g2.check().is_empty());
+
+    // Thrusters lv 3 moves further and turns faster than lv 0
+    g.activate(0);
+    g.swap(Scene::Cockpit(0));
+    g.me.scene = Scene::Cockpit(0);
+    g.take_off();
+    fly(&mut g, &[KeyCode::W, KeyCode::D], &[], 20);
+    let f0 = g.me.flight.unwrap();
+    g.activate(1);
+    g.swap(Scene::Cockpit(0));
+    g.me.scene = Scene::Cockpit(0);
+    g.take_off();
+    fly(&mut g, &[KeyCode::W, KeyCode::D], &[], 20);
+    let f1 = g.me.flight.unwrap();
+    let start = vec2(0., PLANET_R + 3.);
+    assert!(f0.pos.distance(start) > f1.pos.distance(start), "upgraded thrusters fly faster");
+    assert!(
+        (f0.yaw - std::f32::consts::PI).abs() > (f1.yaw - std::f32::consts::PI).abs(),
+        "upgraded thrusters turn faster"
+    );
+
+    // Hyperdrive lv 3 gives shorter jump and wider landing range
+    g.activate(0);
+    for _ in 0..SHIP_UP_MAX {
+        g.upgrade_ship(1).unwrap();
+    }
+    g.plot_jump(1).unwrap();
+    let j0 = g.me.flight.unwrap().jump;
+    g.activate(1);
+    g.plot_jump(1).unwrap();
+    let j1 = g.me.flight.unwrap().jump;
+    assert!(j0 < j1, "upgraded hyperdrive jumps faster ({j0} < {j1})");
+    g.activate(0);
+    fly(&mut g, &[], &[], (j0 / 0.05) as usize + 2);
+    g.me.flight.as_mut().unwrap().pos = vec2(0., PLANET_R + 8.0);
+    assert!(g.land().is_ok(), "hyperdrive lv 3 lands from orbit further out");
+    g.activate(1);
+    fly(&mut g, &[], &[], (j1 / 0.05) as usize + 2);
+    g.me.flight.as_mut().unwrap().pos = vec2(0., PLANET_R + 8.0);
+    assert!(g.land().is_err(), "stock ship cannot land from that far out");
+
+    // Hull & Wings lv 3 gives +50% bounty reward
+    g.activate(0);
+    for _ in 0..SHIP_UP_MAX {
+        g.upgrade_ship(2).unwrap();
+    }
+    g.swap(Scene::Frontier);
+    g.me.scene = Scene::Frontier;
+    g.take_bounty(0).unwrap();
+    let b = g.w.p.bounty.as_mut().unwrap();
+    b.caught = true;
+    b.delivered = true;
+    let pay = g.turn_in().unwrap();
+    assert_eq!(pay, BOUNTY_REWARD[0] * 3 / 2);
+
+    // Scanner lv 3 gathers 3 items per planet spot vs 1 at lv 0
+    for _ in 0..SHIP_UP_MAX {
+        g.upgrade_ship(3).unwrap();
+    }
+    g.take_sample(1, 0);
+    let p0_count: u16 = g.w.p.inv.iter().filter(|s| s.def == SAMPLE_ITEM[0]).map(|s| s.qty).sum();
+    assert_eq!(p0_count, 3);
+    g.activate(1);
+    g.take_sample(1, 0);
+    let p1_count: u16 = g.w.p.inv.iter().filter(|s| s.def == SAMPLE_ITEM[0]).map(|s| s.qty).sum();
+    assert_eq!(p1_count, 1);
+    assert!(g.check().is_empty());
+}
+
+#[test]
+fn upgraded_ship_visuals_change_on_pad_and_in_flight() {
+    use crate::render::{draw_pads, flier, light, R};
+    let mut g = g0(at(11, 10, 0, 0));
+    g.swap(Scene::Frontier);
+    g.me.scene = Scene::Frontier;
+    g.me.ipos = vec2(10., 18.);
+
+    let mut r0 = R::new(0., Vec2::ZERO, &light(12., false), (1e5, 2e5));
+    r0.keep = true;
+    let mut l0 = vec![];
+    draw_pads(&mut r0, &g, 0, 0., 0., &mut l0, false);
+
+    g.w.p.ship_up = [3, 3, 3, 3];
+    let mut r1 = R::new(0., Vec2::ZERO, &light(12., false), (1e5, 2e5));
+    r1.keep = true;
+    let mut l1 = vec![];
+    draw_pads(&mut r1, &g, 0, 0., 0., &mut l1, false);
+    assert!(r1.verts().len() > r0.verts().len(), "upgraded ship on pad has extra geometry");
+
+    let mut f0 = R::new(0., Vec2::ZERO, &light(12., false), (1e5, 2e5));
+    f0.keep = true;
+    flier(&mut f0, Vec3::ZERO, 0., 1., [0; 4], 0., (0, (None, None, 0)));
+
+    let mut f1 = R::new(0., Vec2::ZERO, &light(12., false), (1e5, 2e5));
+    f1.keep = true;
+    flier(&mut f1, Vec3::ZERO, 0., 1., [3, 3, 3, 3], 0., (0, (None, None, 0)));
+    assert!(f1.verts().len() > f0.verts().len(), "upgraded ship in flight has extra geometry");
+}

@@ -292,6 +292,9 @@ pub struct Profile {
     pub armor: u8,
     #[serde(default)]
     pub pal: bool,
+    /// Ship upgrades: [thrusters, hyperdrive, hull, scanner], each 0..=SHIP_UP_MAX.
+    #[serde(default)]
+    pub ship_up: [u8; 4],
     /// Resources gathered on other planets: (day, planet, spot).
     #[serde(default)]
     pub samples: Vec<(i64, u8, u8)>,
@@ -377,6 +380,7 @@ impl Profile {
             marks: 0,
             armor: 0,
             pal: false,
+            ship_up: [0; 4],
             samples: vec![],
             stories: vec![],
             id,
@@ -650,6 +654,7 @@ pub enum Ui {
     Kiosk(usize),
     Bounty(usize),
     Forge(usize),
+    ShipYard(usize),
     Nav(usize),
     Title(usize),
     Help,
@@ -1150,6 +1155,9 @@ impl Game {
             }
             if p.story > 2 || (p.story != 0 && p.stories.get(p.story as usize).is_some_and(|v| !v.is_empty())) {
                 bad.push(format!("{who}: story {} has furniture in two places", p.story))
+            }
+            if p.ship_up.iter().any(|&lv| lv > SHIP_UP_MAX) {
+                bad.push(format!("{who}: invalid ship upgrade level {:?}", p.ship_up))
             }
             uids.extend(p.inv.iter().chain(p.storage.iter()).map(|s| s.uid).filter(|&u| u != 0));
             uids.extend(p.room.iter().chain(p.stories.iter().flatten()).map(|f| f.uid));

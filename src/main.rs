@@ -2381,6 +2381,35 @@ async fn autotest(g: &mut Game, c: &Clock, dir: &str) {
         g.activate(0);
         wait(g, c, 20).await;
         shot!("mp_verdance");
+    } else if phase == "52" {
+        // Shipyard & upgraded spaceship: Dena's upgrade menu, maxed ship on pad, cockpit, and flight.
+        g.w.p.money = 20_000;
+        g.swap(Scene::Frontier);
+        g.me.scene = Scene::Frontier;
+        g.me.ipos = vec2(F_RAMP.0 + 1.5, F_RAMP.1 + 1.5);
+        g.me.cam = g.me.ipos;
+        g.talk_local(MECHANIC);
+        wait(g, c, 10).await;
+        shot!("sy_menu");
+        press(g, c, KeyCode::Escape).await;
+        g.w.p.ship_up = [3, 3, 3, 3];
+        g.me.ipos = vec2(F_RAMP.0 - 1.0, F_RAMP.1 + 1.2);
+        g.me.cam = g.me.ipos;
+        g.me.face = vec2(0., -1.);
+        wait(g, c, 25).await;
+        shot!("sy_pad");
+        g.swap(Scene::Cockpit(0));
+        g.me.scene = Scene::Cockpit(0);
+        g.me.ipos = vec2(CK_STAND.0, CK_STAND.1 + 0.4);
+        g.me.cam = g.me.ipos;
+        g.me.face = vec2(0., -1.);
+        wait(g, c, 20).await;
+        shot!("sy_cockpit");
+        g.take_off();
+        for _ in 0..25 {
+            step(g, c, &[KeyCode::W, KeyCode::D], &[]).await;
+        }
+        shot!("sy_space");
     } else if phase == "occl" {
         // Occlusion sweep (needs HOLLOWBROOK_MARK_PLAYER): stand on every 2nd walkable tile of each outdoor scene,
         // render, and check the magenta marker on the player is visible. Prints "OCCLUDED <scene> <x> <z>".
