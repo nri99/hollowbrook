@@ -430,31 +430,60 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
     if matches!(g.me.scene, Scene::Frontier | Scene::Planet(2)) {
         hud_cam(vp);
         frontier_sky(g, &lt, vw(), vh()); // Verdance is a moon of the same ringed giant
-    } else if g.me.scene == Scene::Town && rainbow_now(g, now) {
+    } else if g.me.scene == Scene::Planet(1) {
+        // faint polar aurora ribbon over Glacia's ice cliffs
         hud_cam(vp);
         let (w, h) = (vw(), vh());
-        let cols = [
-            (0.95, 0.35, 0.35),
-            (0.98, 0.65, 0.3),
-            (0.98, 0.92, 0.4),
-            (0.45, 0.85, 0.45),
-            (0.4, 0.6, 0.95),
-            (0.65, 0.45, 0.85),
-        ];
-        let (cx, cy, r0) = (w * 0.55, h * 0.62, h * 0.72); // a wide arc whose top shows in the sky above the rooftops
-        for (k, c) in cols.iter().enumerate() {
-            let rr = r0 - k as f32 * h * 0.012;
-            for s in 0..48 {
-                let (a0, a1) =
-                    (std::f32::consts::PI * (1. + s as f32 / 48.), std::f32::consts::PI * (1. + (s + 1) as f32 / 48.));
-                draw_line(
-                    cx + a0.cos() * rr,
-                    cy + a0.sin() * rr * 0.8,
-                    cx + a1.cos() * rr,
-                    cy + a1.sin() * rr * 0.8,
-                    h * 0.012,
-                    Color::new(c.0, c.1, c.2, 0.32),
-                );
+        let cols = [Color::new(0.35, 0.95, 0.72, 0.18), Color::new(0.45, 0.75, 1., 0.14)];
+        for (band, col) in cols.iter().enumerate() {
+            let y0 = h * (0.1 + band as f32 * 0.045);
+            for s in 0..24 {
+                let x0 = s as f32 / 24. * w;
+                let x1 = (s + 1) as f32 / 24. * w;
+                let dy0 = (s as f32 * 0.4 + g.t * 0.35 + band as f32).sin() * h * 0.025;
+                let dy1 = ((s + 1) as f32 * 0.4 + g.t * 0.35 + band as f32).sin() * h * 0.025;
+                draw_line(x0, y0 + dy0, x1, y0 + dy1, h * 0.022, *col);
+            }
+        }
+    } else if matches!(g.me.scene, Scene::Town | Scene::Islet) {
+        hud_cam(vp);
+        let (w, h) = (vw(), vh());
+        let ca = 0.55 * (1. - lt.night * 0.7);
+        let cloud = Color::new(1., 0.98, 0.95, ca);
+        for k in 0..5 {
+            let cy = h * (0.07 + (k % 3) as f32 * 0.045);
+            let cx = ((k as f32 * 0.23 * w + g.t * (6. + (k % 2) as f32 * 3.)) % (w + 160.)) - 80.;
+            let r = h * (0.024 + (k % 2) as f32 * 0.008);
+            draw_circle(cx, cy, r, cloud);
+            draw_circle(cx - r * 0.9, cy + r * 0.25, r * 0.75, cloud);
+            draw_circle(cx + r * 0.95, cy + r * 0.2, r * 0.8, cloud);
+        }
+        if g.me.scene == Scene::Town && rainbow_now(g, now) {
+            let cols = [
+                (0.95, 0.35, 0.35),
+                (0.98, 0.65, 0.3),
+                (0.98, 0.92, 0.4),
+                (0.45, 0.85, 0.45),
+                (0.4, 0.6, 0.95),
+                (0.65, 0.45, 0.85),
+            ];
+            let (cx, cy, r0) = (w * 0.55, h * 0.62, h * 0.72); // a wide arc whose top shows in the sky above the rooftops
+            for (k, c) in cols.iter().enumerate() {
+                let rr = r0 - k as f32 * h * 0.012;
+                for s in 0..48 {
+                    let (a0, a1) = (
+                        std::f32::consts::PI * (1. + s as f32 / 48.),
+                        std::f32::consts::PI * (1. + (s + 1) as f32 / 48.),
+                    );
+                    draw_line(
+                        cx + a0.cos() * rr,
+                        cy + a0.sin() * rr * 0.8,
+                        cx + a1.cos() * rr,
+                        cy + a1.sin() * rr * 0.8,
+                        h * 0.012,
+                        Color::new(c.0, c.1, c.2, 0.32),
+                    );
+                }
             }
         }
     }

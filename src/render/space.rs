@@ -201,6 +201,17 @@ pub(super) fn space_view(g: &Game, f: &Flight, vp: Option<(f32, f32)>) {
         txt(&msg, w / 2. - tw / 2., h - 70., 26., Color::new(0.85, 0.92, 1., 1.));
         return;
     }
+    // subtle nebula glow behind the starfield
+    let neb = match f.sys {
+        1 => Color::new(0.2, 0.55, 0.95, 0.06),
+        2 => Color::new(0.2, 0.85, 0.55, 0.06),
+        _ => Color::new(0.55, 0.32, 0.85, 0.06),
+    };
+    for i in 0..4u32 {
+        let x = ((hash(i as i32, 31) % 4000) as f32 - f.pos.x * 4.).rem_euclid(w);
+        let y = ((hash(i as i32, 47) % 4000) as f32 - f.pos.y * 4.).rem_euclid(h);
+        draw_circle(x, y, h * (0.24 + (i % 2) as f32 * 0.08), neb);
+    }
     // star field with slight parallax as you fly
     for i in 0..180u32 {
         let layer = 0.3 + (i % 3) as f32 * 0.35;

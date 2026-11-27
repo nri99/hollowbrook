@@ -306,8 +306,8 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
         let at = vec3(s.pos.x, 0.8, s.pos.y);
         if s.kind == 0 {
             r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(yaw), at), |r| {
-                r.cube(Vec3::ZERO, vec3(0.03, 0.03, 0.24), Color::new(0.65, 0.97, 1., 1.));
-                r.cube(Vec3::ZERO, vec3(0.06, 0.06, 0.14), Color::new(0.4, 0.85, 1., 0.5));
+                r.cube(Vec3::ZERO, vec3(0.025, 0.025, 0.48), Color::new(0.85, 1., 1., 1.));
+                r.cube(Vec3::ZERO, vec3(0.06, 0.06, 0.36), Color::new(0.25, 0.85, 1., 0.55));
             });
         } else {
             let a = t * 14.;
@@ -1020,6 +1020,18 @@ fn draw_struct(
                 r.cube(vec3(px, 0.52, fz + fd + 0.68), vec3(0.03, 0.52, 0.03), BEAM);
                 lantern(r, vec3(px, 0.92, fz + fd + 0.68), night);
             }
+            // glowing cantina sign over the awning
+            r.cube(vec3(fx + fw / 2., 1.5, fz + fd + 0.04), vec3(0.75, 0.14, 0.02), Color::new(0.2, 0.18, 0.18, 1.));
+            let u = r.unlit;
+            r.unlit = true;
+            for (bi, bc) in
+                [Color::new(1., 0.65, 0.22, 1.), Color::new(0.35, 0.92, 1., 1.), Color::new(1., 0.65, 0.22, 1.)]
+                    .iter()
+                    .enumerate()
+            {
+                r.cube(vec3(fx + fw / 2. - 0.4 + bi as f32 * 0.4, 1.5, fz + fd + 0.06), vec3(0.14, 0.05, 0.01), *bc);
+            }
+            r.unlit = u;
             labels.push((vec3(fx + fw / 2., 2.75, fz + fd / 2.), "Longhouse".into(), Color::new(1., 0.86, 0.6, 1.)));
         }
         2 => {
@@ -1137,8 +1149,9 @@ pub(super) fn frontier_sky(g: &Game, lt: &Light, w: f32, h: f32) {
     let k = 1. - lt.night * 0.5;
     let glow = 0.6 + lt.night * 0.35;
     let drift = (g.hr as f32 + g.t / 3600.) * 6.;
-    // the gas giant: soft banded disc partly hidden behind its ring
-    let (px, py, pr) = (w * 0.72 - drift, h * 0.17, h * 0.13);
+    // the gas giant: soft banded disc partly hidden behind its ring (larger over Verdance)
+    let scale = if matches!(g.me.scene, Scene::Planet(2)) { h * 0.16 } else { h * 0.13 };
+    let (px, py, pr) = (w * 0.72 - drift, h * 0.17, scale);
     let band =
         [Color::new(0.93, 0.78, 0.62, glow), Color::new(0.85, 0.62, 0.5, glow), Color::new(0.96, 0.86, 0.72, glow)];
     draw_circle(px, py, pr, band[0]);
@@ -1171,7 +1184,15 @@ pub(super) fn frontier_sky(g: &Game, lt: &Light, w: f32, h: f32) {
     let (mx, my) = (w * 0.9 - drift * 0.3, h * 0.07); // clear of the info panel at top left
     draw_circle(mx, my, h * 0.028, Color::new(0.95 * k + 0.05, 0.95 * k + 0.05, 1., glow + 0.1));
     draw_circle(mx + h * 0.008, my - h * 0.004, h * 0.007, Color::new(0.75, 0.75, 0.82, glow));
-    // crater
+    // twin suns in the Dustreach sky
+    if g.me.scene == Scene::Frontier {
+        let sa = (1. - lt.night * 0.85) * 0.85;
+        let (sx, sy) = (w * 0.42 - drift * 0.5, h * 0.13);
+        draw_circle(sx, sy, h * 0.042, Color::new(1., 0.92, 0.62, sa * 0.28));
+        draw_circle(sx, sy, h * 0.026, Color::new(1., 0.94, 0.74, sa));
+        draw_circle(sx + h * 0.055, sy + h * 0.024, h * 0.024, Color::new(1., 0.68, 0.38, sa * 0.25));
+        draw_circle(sx + h * 0.055, sy + h * 0.024, h * 0.015, Color::new(1., 0.74, 0.45, sa));
+    }
 }
 
 /// Dust devils spinning across the salt flats, and the bleached ribcage of some enormous desert beast.
@@ -1208,6 +1229,18 @@ pub(super) fn frontier_wilds(r: &mut R, t: f32) {
     r.sphere(c + vec3(2.5, 0.35, 0.), vec3(0.45, 0.32, 0.38), bone); // skull
     r.sphere(c + vec3(2.75, 0.4, 0.18), Vec3::splat(0.09), Color::new(0.25, 0.2, 0.18, 1.));
     r.seg(c + vec3(2.7, 0.55, 0.2), c + vec3(3.2, 1.0, 0.45), 0.05, bone); // horn
+                                                                           // moisture vaporators out along the northern mesa rim
+    for (vx, vz) in [(11.5f32, -1.2f32), (31.5, -1.2), (48.5, -1.2)] {
+        let p = vec3(vx, 0., vz);
+        r.cyl(p, 0.12, 2.2, Color::new(0.68, 0.68, 0.7, 1.));
+        r.cube(p + vec3(0., 1.25, 0.), vec3(0.24, 0.12, 0.24), Color::new(0.5, 0.52, 0.55, 1.));
+        let u = r.unlit;
+        r.unlit = true;
+        if (t * 2. + vx).sin() > 0. {
+            r.sphere(p + vec3(0., 2.28, 0.), Vec3::splat(0.05), Color::new(1., 0.3, 0.2, 1.));
+        }
+        r.unlit = u;
+    }
 }
 
 /// The natural stone arch over the oasis trail (faded and drawn after the player when it is in the way).

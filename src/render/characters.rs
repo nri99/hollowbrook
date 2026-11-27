@@ -105,8 +105,11 @@ pub fn human_g(
             r.cube(vec3(0., 0.15, 0.), vec3(0.16, 0.16, 0.11), shirt);
             r.cube(vec3(0., 0.02, 0.), vec3(0.165, 0.03, 0.115), pants);
             if gear.armor & 2 != 0 {
+                let cape = Color::new(0.38, 0.22, 0.16, 1.);
                 r.cube(vec3(0., 0.17, 0.02), vec3(0.175, 0.12, 0.12), ARMOR_PLATE); // chest plate
                 r.cube(vec3(0., 0.17, 0.142), vec3(0.1, 0.02, 0.01), ARMOR_TRIM);
+                r.cube(vec3(0., 0.11, -0.135), vec3(0.18, 0.17, 0.018), cape); // short weathered cape
+                r.cube(vec3(0., 0.27, -0.11), vec3(0.2, 0.03, 0.04), sh(cape, 0.8));
                 for s in [-1f32, 1.] {
                     r.sphere(vec3(s * 0.2, 0.3, 0.), vec3(0.09, 0.06, 0.09), sh(ARMOR_PLATE, 0.9))
                     // shoulder pad
@@ -159,8 +162,10 @@ pub fn human_g(
                     }
                     if helmet {
                         // the helmet replaces any hat, so the two never clash
+                        let visor = Color::new(0.12, 0.14, 0.18, 1.);
                         r.sphere(vec3(0., 0.19, 0.), vec3(0.33, 0.31, 0.33), ARMOR_PLATE); // shell, above the eyes
-                        r.cube(vec3(0., 0.17, 0.31), vec3(0.2, 0.045, 0.03), Color::new(0.12, 0.14, 0.18, 1.)); // visor
+                        r.cube(vec3(0., 0.17, 0.31), vec3(0.2, 0.04, 0.03), visor); // T-visor bar
+                        r.cube(vec3(0., 0.09, 0.315), vec3(0.038, 0.085, 0.03), visor); // T-visor stem
                         r.cube(vec3(0., 0.49, 0.), vec3(0.03, 0.05, 0.22), ARMOR_TRIM);
                         // crest
                     }

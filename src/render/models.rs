@@ -245,8 +245,9 @@ pub(super) fn building(r: &mut R, bi: usize, night: f32, paint: Option<((f32, f3
     }
     let (rhw, rhd, rh) = (w / 2. + 0.25, d / 2. + 0.3, if civic { 1.0 } else { 0.85 });
     r.roof(c + vec3(0., hg, 0.), rhw, rhd, rh, roof);
-    // shingle courses: darker strips laid parallel to the ridge on both slopes, just above the surface
-    // (skipped while the house is faded out of the camera's way, so no stripes cross the player)
+    r.cube(c + vec3(0., hg + rh + 0.015, 0.), vec3(rhw + 0.02, 0.035, 0.05), sh(roof, 0.72)); // ridge beam
+                                                                                              // shingle courses: darker strips laid parallel to the ridge on both slopes, just above the surface
+                                                                                              // (skipped while the house is faded out of the camera's way, so no stripes cross the player)
     for sz in if r.alpha > 0.99 { [-1f32, 1.].as_slice() } else { [].as_slice() } {
         let sz = *sz;
         let nrm = vec3(0., rhd, sz * rh).normalize();
@@ -276,6 +277,8 @@ pub(super) fn building(r: &mut R, bi: usize, night: f32, paint: Option<((f32, f3
     let fz = z + d - 0.05;
     r.cube(vec3(dx, 0.52, fz), vec3(0.3, 0.52, 0.06), Color::new(0.45, 0.28, 0.18, 1.));
     r.sphere(vec3(dx + 0.18, 0.5, fz + 0.07), Vec3::splat(0.04), GOLD);
+    r.cube(vec3(dx, 0.03, fz + 0.18), vec3(0.42, 0.03, 0.16), Color::new(0.74, 0.72, 0.68, 1.)); // doorstep
+    r.cube(vec3(dx, 0.064, fz + 0.19), vec3(0.28, 0.006, 0.11), sh(roof, 0.85)); // doormat
     let lit = night > 0.35;
     let win = if lit { Color::new(1., 0.85, 0.5, 1.) } else { Color::new(0.68, 0.84, 0.95, 1.) };
     for wx in [x + 0.5, x + w - 0.5] {
@@ -303,6 +306,13 @@ pub(super) fn building(r: &mut R, bi: usize, night: f32, paint: Option<((f32, f3
             WHITE,
         );
         r.cube(vec3(wx, 0.735, fz + 0.045), vec3(0.27, 0.025, 0.1), WHITE);
+        if !civic {
+            r.cube(vec3(wx, 0.72, fz + 0.12), vec3(0.22, 0.05, 0.055), WOOD); // window flower box
+            r.cube(vec3(wx, 0.775, fz + 0.12), vec3(0.2, 0.025, 0.04), Color::new(0.28, 0.62, 0.28, 1.));
+            for (fk, fc) in [PINK, YELLOW, WHITE].iter().enumerate() {
+                r.sphere(vec3(wx - 0.12 + fk as f32 * 0.12, 0.815, fz + 0.125), Vec3::splat(0.036), *fc);
+            }
+        }
     }
     match b.kind {
         BK::Shop => {
