@@ -19,8 +19,8 @@ pub const PW: i32 = 30;
 pub const PH: i32 = 22;
 /// Your ship parks at the top middle (tiles x 13..19, z 3..7); its ramp faces south.
 pub const P_SHIP: (i32, i32, i32, i32) = (13, 3, 6, 4);
-pub const P_RAMP: (f32, f32) = (16.0, 8.1);
-pub const P_SPAWN: (f32, f32) = (16.0, 9.2);
+pub const P_RAMP: (f32, f32) = (16.0, 7.6);
+pub const P_SPAWN: (f32, f32) = (16.0, 8.2);
 /// Resource spots per planet (gathered once a day per player) and the item each gives.
 pub const SAMPLE_SPOTS: [[(i32, i32); 6]; 2] = [
     [(5, 10), (24, 9), (9, 18), (21, 18), (27, 14), (3, 16)],
@@ -33,19 +33,14 @@ pub const P_POND: [(f32, f32, f32, f32); 2] = [(9.0, 14.0, 3.2, 2.2), (21.0, 13.
 /// Landing pads, one per player (index = pad_of(player id)): Dustreach and the landing sites. Pad 0 keeps the
 /// original spot (F_RAMP / P_SHIP / P_RAMP / P_SPAWN are pad 0).
 pub const F_PADS: [(i32, i32, i32, i32); 2] = [(21, 22, 6, 4), (41, 23, 6, 4)];
-pub const P_PADS: [(i32, i32, i32, i32); 2] = [(13, 3, 6, 4), (22, 3, 6, 4)];
+pub const P_PADS: [(i32, i32, i32, i32); 2] = [P_SHIP, (22, 3, 6, 4)];
 pub fn pad_of(id: usize) -> usize {
     id.min(1)
 }
 /// Where you stand to board the ship on pad `i`: Dustreach (planet 0) or a landing site.
 pub fn ramp_of(planet: u8, i: usize) -> Vec2 {
-    if planet == 0 {
-        let (x, z, w, d) = F_PADS[i];
-        vec2(x as f32 + w as f32 / 2., (z + d) as f32 + 0.6)
-    } else {
-        let (x, z, w, d) = P_PADS[i];
-        vec2(x as f32 + w as f32 / 2., (z + d) as f32 + 1.1)
-    }
+    let (x, z, w, d) = if planet == 0 { F_PADS[i] } else { P_PADS[i] };
+    vec2(x as f32 + w as f32 / 2., (z + d) as f32 + 0.6)
 }
 /// Is this player's ship parked on `planet` (and not flying)?
 pub fn ship_parked(p: &Player, planet: u8) -> bool {
@@ -119,7 +114,7 @@ pub fn ptile(k: u8, x: i32, z: i32) -> u8 {
     if dx * dx + dz * dz < 1. {
         return SEA;
     }
-    if (15..=16).contains(&x) && (8..=12).contains(&z) || (z == 12 && (4..=26).contains(&x)) {
+    if (15..=16).contains(&x) && (7..=12).contains(&z) || (z == 12 && (4..=26).contains(&x)) {
         return PATH;
     }
     let clear = SAMPLE_SPOTS[i].iter().any(|&(px, pz)| (px - x).abs() <= 1 && (pz - z).abs() <= 1)

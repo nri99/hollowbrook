@@ -331,8 +331,7 @@ pub(super) fn planet_scene(r: &mut R, g: &Game, k: u8, lt: &Light, labels: &mut 
                 [col(0, 0), col(1, 0), col(1, 1), col(0, 1)],
             );
             let inside = (1..PW - 1).contains(&x) && (1..PH - 1).contains(&z);
-            let (sx, sz, sw, sd) = P_SHIP;
-            let ship_tile = x >= sx && x < sx + sw && z >= sz && z < sz + sd;
+            let ship_tile = P_PADS.iter().any(|&(sx, sz, sw, sd)| x >= sx && x < sx + sw && z >= sz && z < sz + sd);
             if c == ROCK && !ship_tile {
                 let blocks = (x as f32 + 0.5 - me.x).abs() < 1.0 && fz + 0.5 > me.y + 0.2 && fz + 0.5 < me.y + 2.8;
                 if blocks {
@@ -425,7 +424,7 @@ pub(super) fn planet_scene(r: &mut R, g: &Game, k: u8, lt: &Light, labels: &mut 
     let shc = Color::new(0., 0., 0., 0.2);
     r.disc(vec3(me.x, 0.02, me.y), vec2(0.32, 0.26), shc);
     others(r, g, t); // other players exploring this planet
-    human(
+    human_g(
         r,
         g.me.id,
         (g.w.p.shirt, g.w.p.hat, g.w.p.hair),
@@ -437,6 +436,7 @@ pub(super) fn planet_scene(r: &mut R, g: &Game, k: u8, lt: &Light, labels: &mut 
         None,
         t,
         g.me.swing,
+        Gear { armor: g.w.p.armor, tracker: None },
     );
     mark_player(r, vec3(me.x, 0., me.y));
     // things between the camera and you, faded and drawn after you
@@ -670,7 +670,7 @@ pub(super) fn cockpit_scene(r: &mut R, g: &Game, k: u8, lt: &Light, labels: &mut
     }
     let shc = Color::new(0., 0., 0., 0.22);
     r.disc(vec3(me.x, 0.02, me.y), vec2(0.32, 0.26), shc);
-    human(
+    human_g(
         r,
         g.me.id,
         (g.w.p.shirt, g.w.p.hat, g.w.p.hair),
@@ -682,12 +682,16 @@ pub(super) fn cockpit_scene(r: &mut R, g: &Game, k: u8, lt: &Light, labels: &mut
         None,
         t,
         g.me.swing,
+        Gear { armor: g.w.p.armor, tracker: None },
     );
 }
 
-/// Landing pads on `planet` (0 Dustreach): each shows its owner's ship when parked there, otherwise an empty raised
-/// platform with hazard edges and beacons. Pads that block the view of you are drawn in the faded pass (`faded`).
-pub(super) fn draw_pads(
+pub const PAD_DECK_C: Color = Color::new(0.5, 0.5, 0.52, 1.);
+const PAD_TOP: f32 = 0.30;
+
+/// Landing pads on `planet` (0 Dustreach): each shows a raised platform with hazard edges and beacons, plus its
+/// owner's ship on top when parked there. Pads that block the view of you are drawn in the faded pass (`faded`).
+pub fn draw_pads(
     r: &mut R,
     g: &Game,
     planet: u8,
@@ -705,7 +709,34 @@ pub(super) fn draw_pads(
             continue;
         }
         let owner = std::iter::once(&g.me).chain(g.others.iter()).find(|p| pad_of(p.id) == i && ship_parked(p, planet));
-        let (cx, cz) = (fx + fw / 2., if planet == 0 { fz + fd / 2. } else { fz + fd / 2. - 1. });
+        let (cx, cz) = (fx + fw / 2., fz + fd / 2.);
+        // landing platform: always drawn (both empty and with a ship parked on top)
+        r.cube(vec3(cx, 0.15, cz), vec3(fw / 2. - 0.2, 0.15, fd / 2. - 0.2), PAD_DECK_C);
+        for k in 0..((fw as i32 - 1) * 2) {
+            let sx = fx + 0.35 + k as f32 * 0.5;
+            for zz in [fz + 0.25, fz + fd - 0.25] {
+                r.cube(
+                    vec3(sx, 0.305, zz),
+                    vec3(0.12, 0.004, 0.05),
+                    if k % 2 == 0 { Color::new(0.9, 0.75, 0.2, 1.) } else { Color::new(0.15, 0.15, 0.15, 1.) },
+                );
+            }
+        }
+        r.disc(vec3(cx, 0.31, cz), vec2(1.1, 1.1), Color::new(0.38, 0.38, 0.4, 1.));
+        r.disc(vec3(cx, 0.312, cz), vec2(0.9, 0.9), PAD_DECK_C);
+        let u = r.unlit;
+        r.unlit = true;
+        let on = ((t * 1.5 + i as f32) % 1.) < 0.3;
+        for (bx, bz) in
+            [(fx + 0.3, fz + 0.3), (fx + fw - 0.3, fz + 0.3), (fx + 0.3, fz + fd - 0.3), (fx + fw - 0.3, fz + fd - 0.3)]
+        {
+            r.sphere(
+                vec3(bx, 0.36, bz),
+                Vec3::splat(0.06),
+                if on { Color::new(1., 0.35, 0.2, 1.) } else { Color::new(0.4, 0.15, 0.1, 1.) },
+            );
+        }
+        r.unlit = u;
         match owner {
             Some(o) => {
                 let label = if o.id == g.me.id {
@@ -716,47 +747,16 @@ pub(super) fn draw_pads(
                         g.w.others.iter().find(|p| p.id == o.id).map_or("Player 2", |p| p.name.as_str())
                     )
                 };
-                ship(r, cx, cz, t, night, labels, &label)
+                ship(r, cx, cz, PAD_TOP, t, night, labels, &label)
             }
             None => {
-                // an empty landing platform: a raised deck with hazard edges and blinking beacons
-                let deck = Color::new(0.5, 0.5, 0.52, 1.);
-                r.cube(vec3(cx, 0.15, fz + fd / 2.), vec3(fw / 2. - 0.2, 0.15, fd / 2. - 0.2), deck);
-                for k in 0..((fw as i32 - 1) * 2) {
-                    let sx = fx + 0.35 + k as f32 * 0.5;
-                    for zz in [fz + 0.25, fz + fd - 0.25] {
-                        r.cube(
-                            vec3(sx, 0.305, zz),
-                            vec3(0.12, 0.004, 0.05),
-                            if k % 2 == 0 { Color::new(0.9, 0.75, 0.2, 1.) } else { Color::new(0.15, 0.15, 0.15, 1.) },
-                        );
-                    }
-                }
-                r.disc(vec3(cx, 0.31, fz + fd / 2.), vec2(1.1, 1.1), Color::new(0.38, 0.38, 0.4, 1.));
-                r.disc(vec3(cx, 0.312, fz + fd / 2.), vec2(0.9, 0.9), deck);
-                let u = r.unlit;
-                r.unlit = true;
-                let on = ((t * 1.5 + i as f32) % 1.) < 0.3;
-                for (bx, bz) in [
-                    (fx + 0.3, fz + 0.3),
-                    (fx + fw - 0.3, fz + 0.3),
-                    (fx + 0.3, fz + fd - 0.3),
-                    (fx + fw - 0.3, fz + fd - 0.3),
-                ] {
-                    r.sphere(
-                        vec3(bx, 0.36, bz),
-                        Vec3::splat(0.06),
-                        if on { Color::new(1., 0.35, 0.2, 1.) } else { Color::new(0.4, 0.15, 0.1, 1.) },
-                    );
-                }
-                r.unlit = u;
                 if me.distance(vec2(cx, fz + fd)) < 3.5 {
                     let whose = if i == pad_of(g.me.id) {
                         "Your landing pad".to_string()
                     } else {
                         "Player 2's pad".to_string()
                     };
-                    labels.push((vec3(cx, 1.0, fz + fd / 2.), whose, Color::new(1., 0.9, 0.7, 1.)));
+                    labels.push((vec3(cx, 1.0, cz), whose, Color::new(1., 0.9, 0.7, 1.)));
                 }
             }
         }

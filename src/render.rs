@@ -59,6 +59,8 @@ pub struct R {
     pub fog: (f32, f32),
     pub unlit: bool,
     pub alpha: f32,
+    /// Headless tests: keep every vertex instead of flushing to the GPU (read them with `verts`).
+    pub keep: bool,
 }
 impl R {
     pub fn new(curve: f32, c0: Vec2, lt: &Light, fog: (f32, f32)) -> R {
@@ -75,7 +77,12 @@ impl R {
             fog,
             unlit: false,
             alpha: 1.,
+            keep: false,
         }
+    }
+    /// Vertices built since the last flush (all of them when `keep` is set).
+    pub fn verts(&self) -> &[Vertex] {
+        &self.v
     }
     fn vtx(&mut self, p: Vec3, n: Vec3, c: Color) {
         let w = self.xf.transform_point3(p);
@@ -102,7 +109,7 @@ impl R {
     }
     // macroquad clamps a single draw call (~10k vertices / 5k indices), so flush in small batches
     fn base(&mut self, n: usize) -> u16 {
-        if self.v.len() + n > 2400 || self.i.len() > 4400 {
+        if !self.keep && (self.v.len() + n > 2400 || self.i.len() > 4400) {
             self.flush()
         }
         self.v.len() as u16

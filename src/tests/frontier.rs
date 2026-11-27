@@ -300,3 +300,85 @@ fn fresh_bounties_after_all_three_are_brought_in() {
     let g2 = reload(&g, "batches");
     assert_eq!(g2.bounty_batch(g2.w.day), 2);
 }
+
+/// Armour is worn on the body (bug: it used to be cubes at fixed offsets): in every pose, gait, tool swing, facing,
+/// swim depth and ride height, every plate stays on the body it covers, and the helmet replaces any hat.
+#[test]
+fn armour_stays_on_the_body_in_every_pose() {
+    use crate::render::{human_g, light, Gear, ARMOR_PLATE, R};
+    let key = |c: Color| Vertex::new(0., 0., 0., 0., 0., c).color;
+    let plate = [key(ARMOR_PLATE), key(Color::new(0.58 * 0.9, 0.62 * 0.9, 0.68 * 0.9, 1.))];
+    let hat = key(Color::new(def(67).col.0, def(67).col.1, def(67).col.2, 1.));
+    for pose in [0u8, 1, 2] {
+        for (anim, spd) in [(0., 0.), (1.3, 2.5), (2.9, 6.)] {
+            for swing in [0., 0.4] {
+                for yaw in [0., 1.9] {
+                    for y in [0., -0.55, 0.34] {
+                        let draw = |armor: u8| {
+                            let mut r = R::new(0., Vec2::ZERO, &light(12., false), (1e5, 2e5));
+                            r.keep = true;
+                            r.unlit = true;
+                            let pos = vec3(3., y, -2.);
+                            let gear = Gear { armor, tracker: None };
+                            human_g(&mut r, 0, (None, Some(67), 1), pos, yaw, anim, spd, pose, None, 1., swing, gear);
+                            r.verts().to_vec()
+                        };
+                        let (body, worn) = (draw(0), draw(0b1111));
+                        let case = format!("pose {pose} spd {spd} swing {swing} yaw {yaw} y {y}");
+                        let pieces: Vec<Vec3> =
+                            worn.iter().filter(|v| plate.contains(&v.color)).map(|v| v.position).collect();
+                        assert!(pieces.len() > 300, "{case}: armour missing");
+                        for p in pieces {
+                            let d = body.iter().map(|v| v.position.distance(p)).fold(f32::MAX, f32::min);
+                            assert!(d < 0.2, "{case}: armour plate at {p} is {d:.2} away from the body");
+                        }
+                        assert!(body.iter().any(|v| v.color == hat), "{case}: hat drawn without a helmet");
+                        assert!(!worn.iter().any(|v| v.color == hat), "{case}: hat clashes with the helmet");
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn other_player_shows_armour_bike_and_companion() {
+    use crate::render::{light, others, ARMOR_PLATE, R};
+    let mut g = two(at(11, 10, 0, 0));
+    for id in 0..2 {
+        g.activate(id);
+        g.swap(Scene::Frontier);
+        g.me.scene = Scene::Frontier;
+    }
+    g.activate(1);
+    g.w.p.armor = 0b1111;
+    g.w.p.pal = true;
+    g.me.riding = true;
+    g.me.ipos = vec2(15., 15.);
+    g.me.pal_pos = vec2(16., 15.5);
+    g.activate(0);
+    let mut r = R::new(0., Vec2::ZERO, &light(12., false), (1e5, 2e5));
+    r.keep = true;
+    r.unlit = true;
+    others(&mut r, &g, 0.);
+    let key = |c: Color| Vertex::new(0., 0., 0., 0., 0., c).color;
+    let plate = [key(ARMOR_PLATE), key(Color::new(0.58 * 0.9, 0.62 * 0.9, 0.68 * 0.9, 1.))];
+    let bike_paint = key(Color::new(0.62, 0.22, 0.18, 1.));
+    let pal_fur = key(Color::new(0.92, 0.66, 0.4, 1.));
+    let armour_verts: Vec<Vec3> = r.verts().iter().filter(|v| plate.contains(&v.color)).map(|v| v.position).collect();
+    assert!(!armour_verts.is_empty(), "other player's armour missing");
+    let min_y = armour_verts.iter().map(|p| p.y).fold(f32::MAX, f32::min);
+    assert!((min_y - 0.34).abs() < 0.01, "other player's armour should sit at bike ride height, min_y={min_y}");
+    assert!(
+        r.verts()
+            .iter()
+            .any(|v| v.color == bike_paint && vec2(v.position.x, v.position.z).distance(vec2(15., 15.)) < 1.2),
+        "other player's hover-bike missing"
+    );
+    assert!(
+        r.verts()
+            .iter()
+            .any(|v| v.color == pal_fur && vec2(v.position.x, v.position.z).distance(vec2(16., 15.5)) < 0.5),
+        "other player's sand-hopper companion missing"
+    );
+}

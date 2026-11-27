@@ -346,7 +346,7 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
     hunter_gear(r, g, t);
     let shc = Color::new(0., 0., 0., 0.2);
     r.disc(vec3(g.me.ipos.x, 0.02, g.me.ipos.y), vec2(0.32, 0.26), shc);
-    human(
+    human_g(
         r,
         g.me.id,
         (g.w.p.shirt, g.w.p.hat, g.w.p.hair),
@@ -358,6 +358,7 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
         g.w.p.equip,
         t,
         g.me.swing,
+        Gear { armor: g.w.p.armor, tracker: g.bounty_dist() },
     );
     mark_player(r, vec3(g.me.ipos.x, if g.me.riding { 0.34 } else { 0. }, g.me.ipos.y));
     // structures and rocks that block the view, faded, after the player so the player shows through
@@ -544,11 +545,14 @@ pub(super) fn woods_door(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(Vec3
     }
 }
 
+pub const SHIP_RAMP_C: Color = Color::new(0.48, 0.5, 0.52, 1.);
+
 /// Your ship: a weathered, patched-up freighter on stubby legs with a lowered ramp and a holding pod.
 pub(super) fn ship(
     r: &mut R,
     cx: f32,
     cz: f32,
+    base_y: f32,
     t: f32,
     night: f32,
     labels: &mut Vec<(Vec3, String, Color)>,
@@ -556,10 +560,15 @@ pub(super) fn ship(
 ) {
     let hull = Color::new(0.62, 0.64, 0.66, 1.);
     let rust = Color::new(0.55, 0.36, 0.24, 1.);
-    let c = vec3(cx, 1.05, cz);
+    let c = vec3(cx, base_y + 1.05, cz);
     for (dx, dz) in [(-2.0, -1.2), (2.0, -1.2), (-2.0, 1.2), (2.0, 1.2)] {
-        r.seg(c + vec3(dx, -0.2, dz), vec3(cx + dx * 1.08, 0., cz + dz * 1.1), 0.06, Color::new(0.35, 0.36, 0.38, 1.)); // landing legs
-        r.cyl(vec3(cx + dx * 1.08, 0., cz + dz * 1.1), 0.18, 0.05, Color::new(0.3, 0.3, 0.32, 1.));
+        r.seg(
+            c + vec3(dx, -0.2, dz),
+            vec3(cx + dx * 1.08, base_y, cz + dz * 1.1),
+            0.06,
+            Color::new(0.35, 0.36, 0.38, 1.),
+        ); // landing legs
+        r.cyl(vec3(cx + dx * 1.08, base_y, cz + dz * 1.1), 0.18, 0.05, Color::new(0.3, 0.3, 0.32, 1.));
     }
     r.sphere(c, vec3(2.9, 0.75, 1.55), hull); // main hull
     r.cube(c + vec3(0., -0.2, 0.), vec3(2.1, 0.3, 1.05), sh(hull, 0.9)); // belly keel under the rounded hull
@@ -590,29 +599,33 @@ pub(super) fn ship(
     r.cube(c + vec3(-0.6, 1.0, 0.), vec3(0.08, 0.32, 0.03), sh(hull, 0.8)); // antenna mast
     r.cube(c + vec3(-0.6, 1.32, 0.), vec3(0.25, 0.03, 0.03), sh(hull, 0.8));
     // lowered ramp to the holding pod, with a warm light inside
-    let ramp = Color::new(0.48, 0.5, 0.52, 1.);
+    let (top_y, bot_y) = (base_y + 0.75, 0.02);
     r.quad(
-        vec3(cx - 0.5, 0.75, cz + 1.25),
-        vec3(cx + 0.5, 0.75, cz + 1.25),
-        vec3(cx + 0.5, 0.02, cz + 2.55),
-        vec3(cx - 0.5, 0.02, cz + 2.55),
-        vec3(0., 0.87, 0.5),
-        ramp,
+        vec3(cx - 0.5, top_y, cz + 1.25),
+        vec3(cx + 0.5, top_y, cz + 1.25),
+        vec3(cx + 0.5, bot_y, cz + 2.55),
+        vec3(cx - 0.5, bot_y, cz + 2.55),
+        vec3(0., 1.3, top_y - bot_y).normalize(),
+        SHIP_RAMP_C,
     );
     for k in 0..4 {
         let f = (k as f32 + 0.5) / 4.;
-        r.cube(vec3(cx, 0.75 - 0.73 * f + 0.01, cz + 1.25 + 1.3 * f), vec3(0.48, 0.008, 0.02), sh(ramp, 0.75));
+        r.cube(
+            vec3(cx, top_y + (bot_y - top_y) * f + 0.01, cz + 1.25 + 1.3 * f),
+            vec3(0.48, 0.008, 0.02),
+            sh(SHIP_RAMP_C, 0.75),
+        );
     }
     let u = r.unlit;
     r.unlit = true;
-    r.cube(vec3(cx, 1.05, cz + 1.28), vec3(0.42, 0.3, 0.02), Color::new(1., 0.8 + 0.1 * night, 0.5, 1.));
+    r.cube(vec3(cx, base_y + 1.05, cz + 1.28), vec3(0.42, 0.3, 0.02), Color::new(1., 0.8 + 0.1 * night, 0.5, 1.));
     r.unlit = u;
-    labels.push((vec3(cx, 2.6, cz), label.into(), Color::new(0.85, 0.92, 1., 1.)));
+    labels.push((vec3(cx, base_y + 2.6, cz), label.into(), Color::new(0.85, 0.92, 1., 1.)));
 }
 
 /// The companion: a round little sand-hopper with long ears and glowing antenna tips. It hops, and its tips
 /// flash when the bounty is close.
-fn sand_hopper(r: &mut R, p: Vec2, t: f32, alert: bool) {
+pub(super) fn sand_hopper(r: &mut R, p: Vec2, t: f32, alert: bool) {
     let hop = ((t * 5.).sin().abs()) * 0.12;
     let base = vec3(p.x, hop, p.y);
     let fur = Color::new(0.92, 0.66, 0.4, 1.);
@@ -641,51 +654,9 @@ fn sand_hopper(r: &mut R, p: Vec2, t: f32, alert: bool) {
     }
 }
 
-/// Armour pieces the player has earned, the wrist tracker, and stars while dazed.
+/// Stars over the player's head while dazed (armour and the wrist tracker are worn on the body, see `human_g`).
 fn hunter_gear(r: &mut R, g: &Game, t: f32) {
     let p = vec3(g.me.ipos.x, if g.me.riding { 0.34 } else { 0. }, g.me.ipos.y); // ride height, like the body
-    let yaw = yaw_of(g.me.face);
-    let plate = Color::new(0.58, 0.62, 0.68, 1.);
-    let trim = Color::new(0.8, 0.55, 0.3, 1.);
-    let a = g.w.p.armor;
-    let hunting = g.bounty_dist();
-    r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(yaw), p), |r| {
-        if a & 1 != 0 {
-            r.sphere(vec3(0., 1.07, 0.), vec3(0.33, 0.31, 0.33), plate); // helmet shell
-            r.cube(vec3(0., 1.05, 0.29), vec3(0.22, 0.05, 0.04), Color::new(0.12, 0.14, 0.18, 1.)); // visor slit
-            r.cube(vec3(0., 1.36, 0.), vec3(0.03, 0.05, 0.22), trim); // crest
-        }
-        if a & 2 != 0 {
-            r.cube(vec3(0., 0.6, 0.06), vec3(0.2, 0.13, 0.12), plate); // chest plate
-            r.cube(vec3(0., 0.6, 0.19), vec3(0.12, 0.02, 0.01), trim);
-            for sx in [-0.22, 0.22] {
-                r.sphere(vec3(sx, 0.72, 0.), vec3(0.09, 0.06, 0.09), sh(plate, 0.9));
-                // shoulder pads
-            }
-        }
-        if a & 4 != 0 {
-            for sx in [-0.24, 0.24] {
-                r.cube(vec3(sx, 0.48, 0.03), vec3(0.05, 0.07, 0.05), plate); // gauntlets
-            }
-        }
-        if a & 8 != 0 {
-            for sx in [-0.09, 0.09] {
-                r.cube(vec3(sx, 0.07, 0.02), vec3(0.07, 0.07, 0.09), plate); // boots
-            }
-        }
-        if let Some(d) = hunting {
-            // wrist tracker: a brass dial whose light blinks faster, and turns from amber to red, as you close in
-            r.cube(vec3(-0.25, 0.5, 0.06), vec3(0.04, 0.025, 0.05), Color::new(0.75, 0.6, 0.3, 1.));
-            let rate = (12. / d.max(0.5)).clamp(1.5, 14.);
-            if (t * rate).sin() > 0. {
-                let u = r.unlit;
-                r.unlit = true;
-                let c = if d < 6. { Color::new(1., 0.2, 0.15, 1.) } else { Color::new(1., 0.7, 0.2, 1.) };
-                r.sphere(vec3(-0.25, 0.53, 0.06), Vec3::splat(0.028), c);
-                r.unlit = u;
-            }
-        }
-    });
     if g.me.dazed > 0. {
         let u = r.unlit;
         r.unlit = true;
@@ -731,7 +702,7 @@ pub(super) fn forge_menu(g: &Game, sel: usize, sw: f32) {
 }
 
 /// A hover-bike: a long low body, twin forward engine pods, a seat and a soft blue hover glow underneath.
-fn hover_bike(r: &mut R, p: Vec2, yaw: f32, t: f32) {
+pub(super) fn hover_bike(r: &mut R, p: Vec2, yaw: f32, t: f32) {
     let bob = (t * 2.2).sin() * 0.03;
     let paint = Color::new(0.62, 0.22, 0.18, 1.);
     let metal = Color::new(0.45, 0.47, 0.5, 1.);
@@ -1177,35 +1148,4 @@ fn draw_arch(r: &mut R) {
     }
     r.cube(vec3(ax + 1.5, 2.55, az + 0.5), vec3(1.55, 0.22, 0.42), sh(ROCK_C, 0.95));
     r.cube(vec3(ax + 1.5, 2.36, az + 0.5), vec3(1.2, 0.06, 0.38), sh(ROCK_C, 0.8));
-}
-
-/// Armour pieces (bit per ARMOR piece) on any player at `p` facing `yaw`, so everyone sees everyone's armour.
-pub(super) fn armor_on(r: &mut R, p: Vec3, yaw: f32, a: u8) {
-    let plate = Color::new(0.58, 0.62, 0.68, 1.);
-    let trim = Color::new(0.8, 0.55, 0.3, 1.);
-    r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(yaw), p), |r| {
-        if a & 1 != 0 {
-            r.sphere(vec3(0., 1.07, 0.), vec3(0.33, 0.31, 0.33), plate); // helmet shell
-            r.cube(vec3(0., 1.05, 0.29), vec3(0.22, 0.05, 0.04), Color::new(0.12, 0.14, 0.18, 1.)); // visor slit
-            r.cube(vec3(0., 1.36, 0.), vec3(0.03, 0.05, 0.22), trim); // crest
-        }
-        if a & 2 != 0 {
-            r.cube(vec3(0., 0.6, 0.06), vec3(0.2, 0.13, 0.12), plate); // chest plate
-            r.cube(vec3(0., 0.6, 0.19), vec3(0.12, 0.02, 0.01), trim);
-            for sx in [-0.22, 0.22] {
-                r.sphere(vec3(sx, 0.72, 0.), vec3(0.09, 0.06, 0.09), sh(plate, 0.9));
-                // shoulder pads
-            }
-        }
-        if a & 4 != 0 {
-            for sx in [-0.24, 0.24] {
-                r.cube(vec3(sx, 0.48, 0.03), vec3(0.05, 0.07, 0.05), plate); // gauntlets
-            }
-        }
-        if a & 8 != 0 {
-            for sx in [-0.09, 0.09] {
-                r.cube(vec3(sx, 0.07, 0.02), vec3(0.07, 0.07, 0.09), plate); // boots
-            }
-        }
-    });
 }

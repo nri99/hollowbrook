@@ -9,6 +9,13 @@ pub(super) fn shirt_base(id: usize) -> Color {
         Color::new(0.3, 0.66, 0.48, 1.)
     }
 }
+/// Hunter gear worn on the body: `armor` has one bit per ARMOR piece (1 helmet, 2 chest, 4 gauntlets, 8 boots);
+/// `tracker` is the distance to the bounty target while hunting (wrist tracker shown, blinking faster when close).
+#[derive(Clone, Copy, Default)]
+pub struct Gear {
+    pub armor: u8,
+    pub tracker: Option<f32>,
+}
 /// `look` = (shirt, hat, hairstyle index) from the player's profile.
 pub fn human(
     r: &mut R,
@@ -23,6 +30,27 @@ pub fn human(
     t: f32,
     swing: f32,
 ) {
+    human_g(r, id, look, pos, yaw, anim, spd, pose, tool, t, swing, Gear::default())
+}
+pub const ARMOR_PLATE: Color = Color::new(0.58, 0.62, 0.68, 1.);
+pub const ARMOR_TRIM: Color = Color::new(0.8, 0.55, 0.3, 1.);
+/// `human` wearing `gear`. Every armour piece is drawn inside the transform of the limb it covers, so it follows
+/// walking, running, sitting, lying, swimming and tool swings.
+pub fn human_g(
+    r: &mut R,
+    id: usize,
+    look: (Option<u16>, Option<u16>, u8),
+    pos: Vec3,
+    yaw: f32,
+    anim: f32,
+    spd: f32,
+    pose: u8,
+    tool: Option<u16>,
+    t: f32,
+    swing: f32,
+    gear: Gear,
+) {
+    let helmet = gear.armor & 1 != 0;
     let (skin, hair, _default_shirt, pants, shoe) = if id == 0 {
         (
             Color::new(0.98, 0.82, 0.68, 1.),
@@ -66,12 +94,24 @@ pub fn human(
             let a = if pose == 1 { -FRAC_PI_2 } else { sw * s };
             r.with(Mat4::from_translation(vec3(s * 0.085, 0.28 + hip, 0.)) * Mat4::from_rotation_x(a), |r| {
                 r.cube(vec3(0., -0.12, 0.), vec3(0.06, 0.12, 0.065), pants);
-                r.cube(vec3(0., -0.255, 0.03), vec3(0.065, 0.035, 0.095), shoe)
+                r.cube(vec3(0., -0.255, 0.03), vec3(0.065, 0.035, 0.095), shoe);
+                if gear.armor & 8 != 0 {
+                    r.cube(vec3(0., -0.2, 0.02), vec3(0.075, 0.08, 0.1), ARMOR_PLATE); // boot
+                    r.cube(vec3(0., -0.12, 0.), vec3(0.07, 0.012, 0.075), ARMOR_TRIM)
+                }
             })
         }
         r.with(Mat4::from_translation(vec3(0., 0.28 + hip + bob, 0.)) * Mat4::from_rotation_x(lean), |r| {
             r.cube(vec3(0., 0.15, 0.), vec3(0.16, 0.16, 0.11), shirt);
             r.cube(vec3(0., 0.02, 0.), vec3(0.165, 0.03, 0.115), pants);
+            if gear.armor & 2 != 0 {
+                r.cube(vec3(0., 0.17, 0.02), vec3(0.175, 0.12, 0.12), ARMOR_PLATE); // chest plate
+                r.cube(vec3(0., 0.17, 0.142), vec3(0.1, 0.02, 0.01), ARMOR_TRIM);
+                for s in [-1f32, 1.] {
+                    r.sphere(vec3(s * 0.2, 0.3, 0.), vec3(0.09, 0.06, 0.09), sh(ARMOR_PLATE, 0.9))
+                    // shoulder pad
+                }
+            }
             for s in [-1f32, 1.] {
                 let a = if pose == 1 {
                     -0.6
@@ -83,6 +123,23 @@ pub fn human(
                 r.with(Mat4::from_translation(vec3(s * 0.2, 0.28, 0.)) * Mat4::from_rotation_x(a), |r| {
                     r.cube(vec3(0., -0.1, 0.), vec3(0.05, 0.1, 0.055), shirt);
                     r.sphere(vec3(0., -0.22, 0.), Vec3::splat(0.055), skin);
+                    if gear.armor & 4 != 0 {
+                        r.cube(vec3(0., -0.15, 0.), vec3(0.062, 0.06, 0.067), ARMOR_PLATE)
+                        // gauntlet
+                    }
+                    if let (Some(d), true) = (gear.tracker, s < 0.) {
+                        // wrist tracker: a brass dial whose light blinks faster, and turns from amber to red, as
+                        // you close in
+                        r.cube(vec3(s * 0.07, -0.15, 0.), vec3(0.02, 0.045, 0.05), Color::new(0.75, 0.6, 0.3, 1.));
+                        let rate = (12. / d.max(0.5)).clamp(1.5, 14.);
+                        if (t * rate).sin() > 0. {
+                            let u = r.unlit;
+                            r.unlit = true;
+                            let c = if d < 6. { Color::new(1., 0.2, 0.15, 1.) } else { Color::new(1., 0.7, 0.2, 1.) };
+                            r.sphere(vec3(s * 0.095, -0.15, 0.), Vec3::splat(0.026), c);
+                            r.unlit = u;
+                        }
+                    }
                     if s > 0. {
                         if let Some(tl) = tool {
                             r.with(Mat4::from_translation(vec3(0., -0.22, 0.03)), |r| draw_tool(r, tl))
@@ -97,10 +154,17 @@ pub fn human(
                     r.sphere(Vec3::ZERO, vec3(0.28, 0.27, 0.27), skin);
                     r.sphere(vec3(0., 0.08, -0.03), vec3(0.295, 0.25, 0.28), hair);
                     r.cube(vec3(0., 0.17, 0.19), vec3(0.2, 0.055, 0.07), hair);
-                    if look.2 % 2 == 1 {
+                    if look.2 % 2 == 1 && !helmet {
                         r.sphere(vec3(0., 0.2, -0.27), Vec3::splat(0.11), hair)
                     }
-                    match look.1 {
+                    if helmet {
+                        // the helmet replaces any hat, so the two never clash
+                        r.sphere(vec3(0., 0.19, 0.), vec3(0.33, 0.31, 0.33), ARMOR_PLATE); // shell, above the eyes
+                        r.cube(vec3(0., 0.17, 0.31), vec3(0.2, 0.045, 0.03), Color::new(0.12, 0.14, 0.18, 1.)); // visor
+                        r.cube(vec3(0., 0.49, 0.), vec3(0.03, 0.05, 0.22), ARMOR_TRIM);
+                        // crest
+                    }
+                    match look.1.filter(|_| !helmet) {
                         Some(67) => {
                             r.cyl(vec3(0., 0.2, 0.), 0.42, 0.025, rgb(def(67).col));
                             r.cyl(vec3(0., 0.22, 0.), 0.24, 0.16, rgb(def(67).col));

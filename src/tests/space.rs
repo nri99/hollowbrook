@@ -221,3 +221,76 @@ fn each_player_has_their_own_ship_and_sees_the_other() {
     assert_eq!(g.me.ship_at, 0);
     assert!(g.check().is_empty());
 }
+
+#[test]
+fn ship_ramp_aligns_with_ramp_of_on_every_pad_and_planet() {
+    use crate::render::{draw_pads, light, PAD_DECK_C, R, SHIP_RAMP_C};
+    let mut g = two(at(11, 10, 0, 0));
+    let ramp_col = Vertex::new(0., 0., 0., 0., 0., SHIP_RAMP_C).color;
+    let deck_col = Vertex::new(0., 0., 0., 0., 0., PAD_DECK_C).color;
+    for planet in [0u8, 1, 2] {
+        let sc = if planet == 0 { Scene::Frontier } else { Scene::Planet(planet) };
+        for id in 0..2 {
+            g.activate(id);
+            g.swap(sc);
+            g.me.scene = sc;
+            g.me.flight = None;
+            g.me.ship_at = planet;
+            g.me.ipos = vec2(10., 18.);
+        }
+        g.activate(0);
+        let mut r = R::new(0., Vec2::ZERO, &light(12., false), (1e5, 2e5));
+        r.keep = true;
+        r.unlit = true;
+        let mut labels = vec![];
+        draw_pads(&mut r, &g, planet, 0., 0., &mut labels, false);
+        for i in 0..2 {
+            let (px, pz, pw, pd) = if planet == 0 { F_PADS[i] } else { P_PADS[i] };
+            assert!(
+                r.verts().iter().any(|v| {
+                    v.color == deck_col
+                        && v.position.x >= px as f32
+                        && v.position.x <= (px + pw) as f32
+                        && v.position.z >= pz as f32
+                        && v.position.z <= (pz + pd) as f32
+                }),
+                "planet {planet} pad {i}: landing pad deck missing under parked ship"
+            );
+            let r_pos = ramp_of(planet, i);
+            let verts: Vec<Vec3> = r
+                .verts()
+                .iter()
+                .filter(|v| v.color == ramp_col && v.position.x >= px as f32 && v.position.x <= (px + pw) as f32)
+                .map(|v| v.position)
+                .collect();
+            assert!(!verts.is_empty(), "planet {planet} pad {i}: missing ramp vertices");
+            let max_z = verts.iter().map(|p| p.z).fold(f32::MIN, f32::max);
+            let foot: Vec<Vec3> = verts.iter().copied().filter(|p| (p.z - max_z).abs() < 0.05).collect();
+            let min_x = foot.iter().map(|p| p.x).fold(f32::MAX, f32::min);
+            let max_x = foot.iter().map(|p| p.x).fold(f32::MIN, f32::max);
+            let mid_x = (min_x + max_x) / 2.;
+            assert!((mid_x - r_pos.x).abs() < 0.05, "planet {planet} pad {i}: ramp x {mid_x} != {}", r_pos.x);
+            assert!((max_z - r_pos.y).abs() < 0.15, "planet {planet} pad {i}: ramp z {max_z} != {}", r_pos.y);
+            assert!(max_z > (pz + pd) as f32, "planet {planet} pad {i}: ramp foot {max_z} inside solid pad");
+        }
+        for id in 0..2 {
+            g.activate(id);
+            let r_pos = ramp_of(planet, pad_of(id));
+            assert!(g.free(r_pos), "planet {planet} player {id}: ramp_of not walkable");
+            g.me.ipos = r_pos;
+            g.me.face = vec2(0., -1.);
+            assert_eq!(g.target(), Some(Tg::Ship), "planet {planet} player {id}: can't target ship at ramp_of");
+            g.swap(Scene::Cockpit(planet));
+            g.me.scene = Scene::Cockpit(planet);
+            g.swap(sc);
+            g.me.scene = sc;
+            assert!(g.free(g.me.ipos), "planet {planet} player {id}: stepped out onto blocked tile");
+            assert!(
+                g.me.ipos.distance(r_pos) < 1.0,
+                "planet {planet} player {id}: step-out {:?} too far from ramp {:?}",
+                g.me.ipos,
+                r_pos
+            );
+        }
+    }
+}

@@ -1564,16 +1564,17 @@ pub(super) fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: 
     }
 }
 /// Other local players who are in the same scene as the viewing player.
-pub(super) fn others(r: &mut R, g: &Game, t: f32) {
+pub fn others(r: &mut R, g: &Game, t: f32) {
     for o in g.others.iter().filter(|o| sees(&g.me, o)) {
         let p = if o.scene == Scene::Town { o.pos } else { o.ipos };
+        let pr = g.w.others.iter().find(|pr| pr.id == o.id);
         let pose = match o.pose {
             Pose::Stand => 0,
             Pose::Sit(_) => 1,
             Pose::Lie(_) => 2,
         };
         let tool = if o.scene == Scene::Town {
-            g.w.others.iter().find(|pr| pr.id == o.id).and_then(|pr| {
+            pr.and_then(|pr| {
                 pr.equip.map(|t| {
                     t + 1000
                         * UPGRADABLE.iter().position(|&u| u == t).and_then(|k| pr.tool_lv.get(k).copied()).unwrap_or(0)
@@ -1583,21 +1584,35 @@ pub(super) fn others(r: &mut R, g: &Game, t: f32) {
         } else {
             None
         };
-        if pose == 0 {
+        let riding = o.scene == Scene::Frontier && o.riding;
+        if pose == 0 && !riding {
             r.disc(vec3(p.x, 0.02, p.y), vec2(0.32, 0.26), Color::new(0., 0., 0., 0.22))
         }
-        let shirt =
-            g.w.others.iter().find(|pr| pr.id == o.id).map_or((None, None, 0), |pr| (pr.shirt, pr.hat, pr.hair));
+        let shirt = pr.map_or((None, None, 0), |pr| (pr.shirt, pr.hat, pr.hair));
         let sy = if o.scene == Scene::Town && tile_at(&g.map, p.x.floor() as i32, p.y.floor() as i32) == SEA {
             -0.55
         } else {
             0.
         };
-        human(r, o.id, shirt, vec3(p.x, sy, p.y), yaw_of(o.face), o.anim, o.spd, pose, tool, t, o.swing);
-        if matches!(o.scene, Scene::Frontier | Scene::Planet(_)) && pose == 0 {
-            let a = g.w.others.iter().find(|pr| pr.id == o.id).map_or(0, |pr| pr.armor);
-            armor_on(r, vec3(p.x, if o.riding { 0.34 } else { sy }, p.y), yaw_of(o.face), a);
+        if riding {
+            hover_bike(r, p, yaw_of(o.face), t);
         }
+        if o.scene == Scene::Frontier && pr.is_some_and(|pr| pr.pal) {
+            let pal_p = if o.pal_pos != Vec2::ZERO { o.pal_pos } else { p - o.face.normalize_or_zero() * 0.8 };
+            let alert = pr
+                .and_then(|pr| pr.bounty.as_ref())
+                .is_some_and(|b| !b.caught && p.distance(vec2(b.pos[0][0], b.pos[0][1])) < 6.);
+            sand_hopper(r, pal_p, t, alert);
+        }
+        // armour is hunter gear: worn in Dustreach, on planets and aboard ships, in every pose
+        let armor = if matches!(o.scene, Scene::Frontier | Scene::Planet(_) | Scene::Cockpit(_)) {
+            pr.map_or(0, |pr| pr.armor)
+        } else {
+            0
+        };
+        let y = if riding { 0.34 } else { sy };
+        let gear = Gear { armor, tracker: None };
+        human_g(r, o.id, shirt, vec3(p.x, y, p.y), yaw_of(o.face), o.anim, o.spd, pose, tool, t, o.swing, gear);
     }
 }
 

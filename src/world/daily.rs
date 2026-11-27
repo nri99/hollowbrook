@@ -575,7 +575,7 @@ impl Game {
             }
             Scene::Planet(k) => {
                 let r = ramp_of(k, pad_of(self.me.id));
-                self.me.ipos = r + vec2(0., 1.1);
+                self.me.ipos = r + vec2(0., 0.6);
                 self.me.face = vec2(0., 1.);
                 self.me.cam = self.me.ipos
             }
