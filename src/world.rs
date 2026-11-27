@@ -27,6 +27,8 @@ mod tools;
 pub const INV_CAP: usize = 16;
 pub const STORE_CAP: usize = 40;
 pub const STACK: u16 = 10;
+/// Cracks per day for the geode rock; each gives one Geode Crystal (item 177). Provisional.
+pub const GEODE_MAX: u8 = 3;
 pub const PR: f32 = 0.28;
 pub const SHOP: usize = 0;
 pub const HOME: usize = 1;
@@ -486,6 +488,11 @@ pub struct World {
     pub branches: Vec<(i32, i32)>,
     #[serde(default)]
     pub rocks_hit: Vec<(i32, i32)>,
+    /// Today's geode rock (cracks open up to GEODE_MAX times with the shovel, one Geode Crystal each).
+    #[serde(default)]
+    pub geode_rock: Option<(i32, i32)>,
+    #[serde(default)]
+    pub geode_hits: u8,
     /// islet collectibles (islet coordinates), refreshed daily
     #[serde(default)]
     pub iground: Vec<GItem>,
@@ -534,6 +541,8 @@ impl World {
             built: vec![],
             branches: vec![],
             rocks_hit: vec![],
+            geode_rock: None,
+            geode_hits: 0,
             iground: vec![],
             p: Profile::new(0, name, door_stand(HOME)),
             others: vec![],

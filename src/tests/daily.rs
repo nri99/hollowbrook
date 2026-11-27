@@ -74,3 +74,25 @@ fn clock_rollback() {
     assert!(!g.catch_up(at(9, 7, 0, 0)));
     assert_eq!(g.w.day, d)
 }
+
+#[test]
+fn daily_geode_rock() {
+    let mut g = g0(at(11, 10, 0, 0));
+    assert!(g.catch_up(at(12, 7, 0, 0))); // geodes appear with each morning's refresh
+    let rock = g.w.geode_rock.expect("a geode rock each day");
+    g.w.p.equip = Some(62);
+    g.me.face = vec2(0., -1.);
+    g.me.pos = tc(rock) + vec2(0., 0.9);
+    let money = g.w.p.money;
+    for _ in 0..(GEODE_MAX + 2) {
+        g.use_tool();
+    }
+    let crystals: u16 = g.w.p.inv.iter().filter(|s| s.def == 177).map(|s| s.qty).sum();
+    assert_eq!((crystals, g.w.geode_hits, g.w.p.money), (GEODE_MAX as u16, GEODE_MAX, money), "crystals, not coins");
+    let g2 = reload(&g, "geode");
+    assert_eq!(g2.w.geode_hits, GEODE_MAX);
+    assert!(g2.check().is_empty());
+    let mut g3 = g2;
+    assert!(g3.catch_up(at(13, 7, 0, 0)));
+    assert_eq!(g3.w.geode_hits, 0, "a fresh geode tomorrow");
+}

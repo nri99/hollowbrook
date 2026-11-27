@@ -156,6 +156,18 @@ impl Game {
                 self.fx.push((vec3(t.0 as f32 + 0.5, 0.05, t.1 as f32 + 0.5), 0., 1));
                 if self.tile(t.0, t.1) == ROCK {
                     self.snd.push(Snd::Dig);
+                    if self.w.geode_rock == Some(t) {
+                        if self.w.geode_hits >= GEODE_MAX {
+                            return self.note("The geode is all cracked open for today.");
+                        }
+                        if !self.add(177) {
+                            return self.note("Your pockets are full.");
+                        }
+                        self.w.geode_hits += 1;
+                        self.snd.push(Snd::Dig);
+                        return self
+                            .note(format!("Crack! A Geode Crystal tumbles out ({}/{GEODE_MAX}).", self.w.geode_hits));
+                    }
                     if self.w.rocks_hit.contains(&t) {
                         return self.note("This rock has nothing more to give today.");
                     }

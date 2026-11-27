@@ -1423,6 +1423,23 @@ pub(super) fn town(r: &mut R, g: &Game, lt: &Light, now: NaiveDateTime, labels: 
             })
         }
     }
+    // today's geode rock glints with a few crystals until it has been cracked open GEODE_MAX times
+    if let Some((gx, gz)) = g.w.geode_rock.filter(|_| g.w.geode_hits < GEODE_MAX) {
+        let p = tc((gx, gz));
+        let u = r.unlit;
+        r.unlit = true;
+        for k in 0..3 {
+            let a = k as f32 * 2.1 + t * 0.6;
+            let tw = 0.6 + 0.4 * (t * 5. + k as f32 * 1.7).sin();
+            r.cone(
+                vec3(p.x + a.cos() * 0.28, 0.32, p.y + 0.3 + a.sin() * 0.08),
+                0.05,
+                0.14,
+                Color::new(0.65 * tw, 0.55 * tw, 1., 1.),
+            );
+        }
+        r.unlit = u;
+    }
     for it in &g.w.ground {
         let c = rgb(def(it.def).col);
         match def(it.def).k {

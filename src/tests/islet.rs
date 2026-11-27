@@ -787,6 +787,7 @@ fn release_content_acquisition_audit() {
     src.extend(SEEDS);
     src.extend(GEAR.iter().map(|g| g.0)); // Dustreach gear: bought at the Guild Post board
     src.extend(SAMPLE_ITEM); // gathered on Glacia and Verdance
+    src.push(177); // Geode Crystal from the daily geode rock
     src.extend(FLOWERS);
     src.push(CAN);
     src.push(169);

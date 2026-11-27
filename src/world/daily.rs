@@ -152,6 +152,13 @@ impl Game {
         self.w.trampled.clear();
         self.w.branches.clear();
         self.w.rocks_hit.clear();
+        self.w.geode_hits = 0;
+        // one of the town's real rocks (rand_tile only returns walkable tiles, so it can never pick a rock)
+        let rocks: Vec<(i32, i32)> = (0..H as i32)
+            .flat_map(|z| (0..W as i32).map(move |x| (x, z)))
+            .filter(|&(x, z)| self.tile(x, z) == ROCK)
+            .collect();
+        self.w.geode_rock = (!rocks.is_empty()).then(|| rocks[gen_range(0, rocks.len())]);
         self.refresh_islet();
         self.finish_mproject();
         self.assign_weekly();
