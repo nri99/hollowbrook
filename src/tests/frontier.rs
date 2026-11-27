@@ -319,7 +319,7 @@ fn armour_stays_on_the_body_in_every_pose() {
                             r.keep = true;
                             r.unlit = true;
                             let pos = vec3(3., y, -2.);
-                            let gear = Gear { armor, tracker: None };
+                            let gear = Gear { armor, ..Gear::default() };
                             human_g(&mut r, 0, (None, Some(67), 1), pos, yaw, anim, spd, pose, None, 1., swing, gear);
                             r.verts().to_vec()
                         };

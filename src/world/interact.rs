@@ -104,10 +104,20 @@ impl Game {
                         cand(tc((x, z)), 1.4, 0.9, Tg::Sample(s), None);
                     }
                 }
+                if let Some(b) = self.w.p.bounty.as_ref().filter(|b| !b.caught && b.planet == k) {
+                    for (i, p) in b.pos.iter().enumerate() {
+                        cand(vec2(p[0], p[1]), 1.4, 0.9, Tg::Fugitive(i), None)
+                    }
+                }
+            }
+            Scene::Cantina => {
+                cand(vec2(CT_EXIT.0, CT_EXIT.1), 1.4, 0.8, Tg::CantinaExit, None);
+                cand(vec2(CT_BROKER.0, CT_BROKER.1), 1.5, 0.8, Tg::CantinaBroker, None);
             }
             Scene::Frontier => {
                 cand(tc(F_BOARD), 1.6, 0.8, Tg::BountyBoard, None);
                 cand(vec2(F_BROKER.0, F_BROKER.1), 1.6, 0.8, Tg::GuildMaster, None);
+                cand(vec2(F_CANTINA.0, F_CANTINA.1), 1.6, 0.85, Tg::Cantina, None);
                 if let Some(r) = self.my_ramp() {
                     cand(r, 1.6, 0.8, Tg::Ship, None);
                 }
@@ -247,6 +257,9 @@ impl Game {
                 vec3(p.x, 1.9, p.y)
             }
             Tg::FGate => vec3(F_GATE.0 as f32 + 1., 2.6, F_GATE.1 as f32 + 0.5),
+            Tg::Cantina => vec3(F_CANTINA.0, 1.8, F_CANTINA.1),
+            Tg::CantinaExit => vec3(CT_EXIT.0, 1.4, CT_EXIT.1),
+            Tg::CantinaBroker => vec3(CT_BROKER.0, 1.6, CT_BROKER.1),
             Tg::Fugitive(i) => {
                 self.w.p.bounty.as_ref().and_then(|b| b.pos.get(i)).map_or(Vec3::ZERO, |p| vec3(p[0], 1.9, p[1]))
             }
@@ -361,6 +374,9 @@ impl Game {
             Tg::Local(i) if i == MECHANIC => "Upgrade ship (Dena)".into(),
             Tg::Local(i) => format!("Talk to {}", LOCALS[i].1),
             Tg::FGate => "Gate back to Hollowbrook".into(),
+            Tg::Cantina => "Enter the Longhouse Cantina".into(),
+            Tg::CantinaExit => "Step back outside".into(),
+            Tg::CantinaBroker => "Talk to the Off-world Broker".into(),
             Tg::Fugitive(_) => "Detain".into(),
             Tg::Plant(i) => {
                 let p = self.w.garden[i];
@@ -508,6 +524,9 @@ impl Game {
             Tg::Bike => self.toggle_bike(),
             Tg::Local(i) => self.talk_local(i),
             Tg::FGate => self.go(Scene::Town),
+            Tg::Cantina => self.go(Scene::Cantina),
+            Tg::CantinaExit => self.go(Scene::Frontier),
+            Tg::CantinaBroker => self.me.ui = Ui::Cantina(0),
             Tg::Fugitive(i) => self.detain(i),
             Tg::ArtStall => {
                 let r = self.art_buy();

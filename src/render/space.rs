@@ -281,6 +281,34 @@ pub(super) fn space_view(g: &Game, f: &Flight, vp: Option<(f32, f32)>) {
     }
     let ma = t * 0.12 + f.sys as f32;
     r.sphere(vec3(ma.cos() * 13., -1., ma.sin() * 13.), Vec3::splat(0.9), Color::new(0.7, 0.7, 0.74, 1.)); // a moon
+    for o in &g.me.space_objs {
+        if o.kind == 0 {
+            let u = r.unlit;
+            r.unlit = true;
+            r.cube(vec3(o.pos.x, 0.6, o.pos.y), Vec3::splat(0.32), Color::new(0.9, 0.68, 0.28, 1.));
+            r.sphere(vec3(o.pos.x, 0.98, o.pos.y), Vec3::splat(0.14), Color::new(0.4, 0.95, 1., 1.));
+            r.unlit = u;
+        } else {
+            let yaw = (f.pos - o.pos).x.atan2(-(f.pos - o.pos).y);
+            r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(-yaw), vec3(o.pos.x, 0.6, o.pos.y)), |r| {
+                r.sphere(Vec3::ZERO, vec3(0.42, 0.24, 0.9), Color::new(0.38, 0.16, 0.18, 1.));
+                r.cube(vec3(0., 0., 0.1), vec3(1.1, 0.04, 0.26), Color::new(0.24, 0.12, 0.14, 1.));
+                let u = r.unlit;
+                r.unlit = true;
+                r.sphere(vec3(0., 0.04, -0.7), Vec3::splat(0.12), Color::new(1., 0.3, 0.25, 1.));
+                r.unlit = u;
+            });
+        }
+    }
+    let u = r.unlit;
+    r.unlit = true;
+    for b in &g.me.space_bolts {
+        let yaw = b.vel.x.atan2(-b.vel.y);
+        r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(-yaw), vec3(b.pos.x, 0.6, b.pos.y)), |r| {
+            r.cube(Vec3::ZERO, vec3(0.06, 0.06, 0.55), Color::new(0.45, 1., 0.55, 1.));
+        });
+    }
+    r.unlit = u;
     flier(
         &mut r,
         vec3(f.pos.x, 0.6, f.pos.y),
@@ -296,6 +324,37 @@ pub(super) fn space_view(g: &Game, f: &Flight, vp: Option<(f32, f32)>) {
         let pr = g.w.others.iter().find(|p| p.id == o.id);
         let look = pr.map_or((None, None, 0), |p| (p.shirt, p.hat, p.hair));
         let up = pr.map_or([0; 4], |p| p.ship_up);
+        for o in &g.me.space_objs {
+            if o.kind == 0 {
+                let u = r.unlit;
+                r.unlit = true;
+                r.cube(vec3(o.pos.x, 0.6, o.pos.y), Vec3::splat(0.32), Color::new(0.9, 0.68, 0.28, 1.));
+                r.sphere(vec3(o.pos.x, 0.98, o.pos.y), Vec3::splat(0.14), Color::new(0.4, 0.95, 1., 1.));
+                r.unlit = u;
+            } else {
+                let yaw = (f.pos - o.pos).x.atan2(-(f.pos - o.pos).y);
+                r.with(
+                    Mat4::from_rotation_translation(Quat::from_rotation_y(-yaw), vec3(o.pos.x, 0.6, o.pos.y)),
+                    |r| {
+                        r.sphere(Vec3::ZERO, vec3(0.42, 0.24, 0.9), Color::new(0.38, 0.16, 0.18, 1.));
+                        r.cube(vec3(0., 0., 0.1), vec3(1.1, 0.04, 0.26), Color::new(0.24, 0.12, 0.14, 1.));
+                        let u = r.unlit;
+                        r.unlit = true;
+                        r.sphere(vec3(0., 0.04, -0.7), Vec3::splat(0.12), Color::new(1., 0.3, 0.25, 1.));
+                        r.unlit = u;
+                    },
+                );
+            }
+        }
+        let u = r.unlit;
+        r.unlit = true;
+        for b in &g.me.space_bolts {
+            let yaw = b.vel.x.atan2(-b.vel.y);
+            r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(-yaw), vec3(b.pos.x, 0.6, b.pos.y)), |r| {
+                r.cube(Vec3::ZERO, vec3(0.06, 0.06, 0.55), Color::new(0.45, 1., 0.55, 1.));
+            });
+        }
+        r.unlit = u;
         flier(&mut r, vec3(of.pos.x, 0.6, of.pos.y), of.yaw, of.thrust, up, t, (o.id, look));
         names.push((vec3(of.pos.x, 1.8, of.pos.y), pr.map_or("Player 2".to_string(), |p| p.name.clone())));
     }
@@ -552,22 +611,27 @@ pub(super) fn planet_scene(r: &mut R, g: &Game, k: u8, lt: &Light, labels: &mut 
     }
     let shc = Color::new(0., 0., 0., 0.2);
     r.disc(vec3(me.x, 0.02, me.y), vec2(0.32, 0.26), shc);
+    draw_bounty_and_bolts(r, g, k, t);
+    if g.w.p.pal {
+        sand_hopper(r, g.me.pal_pos, t, g.bounty_dist().is_some_and(|d| d < 6.));
+    }
     others(r, g, t); // other players exploring this planet
+    let py = if g.me.jet > 0. { 0.45 } else { 0. };
     human_g(
         r,
         g.me.id,
         (g.w.p.shirt, g.w.p.hat, g.w.p.hair),
-        vec3(me.x, 0., me.y),
+        vec3(me.x, py, me.y),
         yaw_of(g.me.face),
         g.me.anim,
         g.me.spd,
         0,
-        None,
+        g.w.p.equip,
         t,
         g.me.swing,
-        Gear { armor: g.w.p.armor, tracker: None },
+        Gear { armor: g.w.p.armor, tracker: g.bounty_dist(), mando: g.w.p.mando, jet: g.me.jet },
     );
-    mark_player(r, vec3(me.x, 0., me.y));
+    mark_player(r, vec3(me.x, py, me.y));
     // things between the camera and you, faded and drawn after you
     let a = r.alpha;
     r.alpha = if marking() { 0. } else { 0.3 };
@@ -828,7 +892,7 @@ pub(super) fn cockpit_scene(r: &mut R, g: &Game, k: u8, lt: &Light, labels: &mut
         None,
         t,
         g.me.swing,
-        Gear { armor: g.w.p.armor, tracker: None },
+        Gear { armor: g.w.p.armor, tracker: None, mando: g.w.p.mando, jet: 0. },
     );
 }
 

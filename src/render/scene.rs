@@ -362,7 +362,7 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
             g.curve,
             g.me.cam,
         ),
-        Scene::Cockpit(_) => (
+        Scene::Cockpit(_) | Scene::Cantina => (
             Camera3D {
                 position: vec3(CK.0 as f32 / 2., 6.4, CK.1 as f32 + 4.6),
                 target: vec3(CK.0 as f32 / 2., 0.4, CK.1 as f32 / 2.),
@@ -389,7 +389,7 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
             )
         }
     };
-    let bg = if !matches!(g.me.scene, Scene::Room(_) | Scene::Cockpit(_)) {
+    let bg = if !matches!(g.me.scene, Scene::Room(_) | Scene::Cockpit(_) | Scene::Cantina) {
         lt.sky
     } else {
         Color::new(0.08, 0.06, 0.06, 1.)
@@ -404,7 +404,7 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
     }
     {
         hud_cam(vp);
-        let indoor = matches!(g.me.scene, Scene::Room(_) | Scene::Cockpit(_));
+        let indoor = matches!(g.me.scene, Scene::Room(_) | Scene::Cockpit(_) | Scene::Cantina);
         let (w, h) = (vw(), vh());
         // outdoors: deeper zenith fading to the horizon (fog) colour; indoors: warm dim glow behind the room instead of flat black
         let top = if indoor {
@@ -492,7 +492,11 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
         curve,
         c0,
         &lt,
-        if matches!(g.me.scene, Scene::Room(_) | Scene::Cockpit(_)) { (100., 200.) } else { (12., 21.) },
+        if matches!(g.me.scene, Scene::Room(_) | Scene::Cockpit(_) | Scene::Cantina) {
+            (100., 200.)
+        } else {
+            (12., 21.)
+        },
     );
     let mut labels: Vec<(Vec3, String, Color)> = vec![];
     match g.me.scene {
@@ -500,6 +504,7 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
         Scene::Frontier => frontier_scene(&mut r, g, &lt, &mut labels),
         Scene::Planet(k) => planet_scene(&mut r, g, k, &lt, &mut labels),
         Scene::Cockpit(k) => cockpit_scene(&mut r, g, k, &lt, &mut labels),
+        Scene::Cantina => cantina_scene(&mut r, g, &lt, &mut labels),
         Scene::Town => town(&mut r, g, &lt, now, &mut labels),
         Scene::Room(b) => room(&mut r, g, b, &lt, &mut labels),
     }
@@ -548,7 +553,7 @@ pub(super) fn view(g: &Game, now: NaiveDateTime, dbg: Option<&str>, vp: Option<(
             };
             draw_circle(x, y, 1.5 + (i % 3) as f32 * 0.7, c);
         }
-    } else if !matches!(g.me.scene, Scene::Room(_) | Scene::Cockpit(_)) {
+    } else if !matches!(g.me.scene, Scene::Room(_) | Scene::Cockpit(_) | Scene::Cantina) {
         let (mo, w, h, t) = (now.month(), vw(), vh(), g.t);
         match mo {
             3..=5 => {
@@ -1634,13 +1639,20 @@ pub fn others(r: &mut R, g: &Game, t: f32) {
             sand_hopper(r, pal_p, t, alert);
         }
         // armour is hunter gear: worn in Dustreach, on planets and aboard ships, in every pose
-        let armor = if matches!(o.scene, Scene::Frontier | Scene::Planet(_) | Scene::Cockpit(_)) {
-            pr.map_or(0, |pr| pr.armor)
+        let (armor, mando) =
+            if matches!(o.scene, Scene::Frontier | Scene::Planet(_) | Scene::Cockpit(_) | Scene::Cantina) {
+                pr.map_or((0, 0), |pr| (pr.armor, pr.mando))
+            } else {
+                (0, 0)
+            };
+        let y = if riding {
+            0.34
+        } else if o.jet > 0. {
+            0.45
         } else {
-            0
+            sy
         };
-        let y = if riding { 0.34 } else { sy };
-        let gear = Gear { armor, tracker: None };
+        let gear = Gear { armor, tracker: None, mando, jet: o.jet };
         human_g(r, o.id, shirt, vec3(p.x, y, p.y), yaw_of(o.face), o.anim, o.spd, pose, tool, t, o.swing, gear);
     }
 }

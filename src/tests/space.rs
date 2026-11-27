@@ -418,3 +418,78 @@ fn upgraded_ship_visuals_change_on_pad_and_in_flight() {
     flier(&mut f1, Vec3::ZERO, 0., 1., [3, 3, 3, 3], 0., (0, (None, None, 0)));
     assert!(f1.verts().len() > f0.verts().len(), "upgraded ship in flight has extra geometry");
 }
+
+#[test]
+fn mandalorian_gameplay_offworld_jetpack_companion_space_and_cantina() {
+    let mut g = g0(at(11, 10, 0, 0));
+    g.swap(Scene::Frontier);
+    g.me.scene = Scene::Frontier;
+    // Cantina enter, talk to broker, take off-world bounty on Glacia
+    g.swap(Scene::Cantina);
+    g.me.scene = Scene::Cantina;
+    assert!(g.free(g.me.ipos) && g.free(vec2(CT_BROKER.0, CT_BROKER.1)));
+    assert!(g.take_offworld_bounty(1).is_ok());
+    assert_eq!(g.w.p.bounty.as_ref().unwrap().planet, 1);
+    // On Glacia, detain & deliver -> Dustreach turn_in gives +500c bonus + 1 Beskar
+    g.swap(Scene::Planet(1));
+    g.me.scene = Scene::Planet(1);
+    assert!(g.bounty_dist().is_some());
+    g.detain(0);
+    g.deliver().unwrap();
+    g.swap(Scene::Frontier);
+    g.me.scene = Scene::Frontier;
+    let pay = g.turn_in().unwrap();
+    assert_eq!(pay, BOUNTY_REWARD[2] + 500);
+    assert_eq!(g.w.p.beskar, 1);
+
+    // Beskar forge: Jetpack requires full armour first, then unlocks Q dash + whistling darts + signet
+    g.w.p.marks = 20;
+    g.w.p.beskar = 5;
+    assert!(g.forge(4).is_err(), "jetpack needs full armour");
+    g.w.p.armor = 0b1111;
+    for k in 4..7 {
+        g.forge(k).unwrap();
+    }
+    assert_eq!(g.w.p.mando, 0b111);
+    g.jetpack_dash();
+    assert!(g.me.jet > 0.);
+    let p0 = g.me.ipos;
+    g.step_move(vec2(1., 0.), false, 0.1);
+    let jet_d = g.me.ipos.distance(p0);
+    g.me.jet = 0.;
+    let p1 = g.me.ipos;
+    g.step_move(vec2(-1., 0.), false, 0.1);
+    assert!(jet_d > g.me.ipos.distance(p1) * 1.8, "jetpack boosts speed");
+
+    // Whistling darts & companion sonic chirp stun targets
+    g.take_bounty(0).unwrap();
+    let tgt = g.w.p.bounty.as_ref().unwrap().pos[0];
+    g.me.ipos = vec2(tgt[0] + 2., tgt[1]);
+    g.whistling_darts();
+    assert!(g.w.p.bounty.as_ref().unwrap().stun > 0.);
+    g.w.p.pal = true;
+    {
+        let b = g.w.p.bounty.as_mut().unwrap();
+        b.stun = 0.;
+        b.run = 3.;
+    }
+    g.frontier_tick(0.05);
+    assert!(g.w.p.bounty.as_ref().unwrap().stun > 0., "companion chirp stuns fleeing runner");
+
+    // Spaceflight encounters & ship blasters
+    g.swap(Scene::Cockpit(0));
+    g.me.scene = Scene::Cockpit(0);
+    g.take_off();
+    assert!(!g.me.space_objs.is_empty());
+    let pir = g.me.space_objs.iter().find(|o| o.kind == 1).unwrap().pos;
+    g.me.flight.as_mut().unwrap().pos = pir + vec2(0., 3.0);
+    g.me.flight.as_mut().unwrap().yaw = 0.;
+    let m0 = g.w.p.marks;
+    let b0 = g.w.p.beskar;
+    fly(&mut g, &[], &[KeyCode::Space], 1);
+    assert!(g.w.p.marks > m0 && g.w.p.beskar > b0, "disabling pirate awards mark & beskar");
+
+    let g2 = reload(&g, "mando_all");
+    assert_eq!((g2.w.p.mando, g2.w.p.beskar), (g.w.p.mando, g.w.p.beskar));
+    assert!(g2.check().is_empty());
+}

@@ -43,6 +43,16 @@ pub const F_RAMP: (f32, f32) = (24.0, 26.6);
 pub const F_PAL_SPOT: (f32, f32) = (30.5, 18.5);
 /// Hunter armour forged by the guild master for guild marks: (name, marks).
 pub const ARMOR: [(&str, u32); 4] = [("Helmet", 3), ("Chest plate", 4), ("Gauntlets", 2), ("Boots", 2)];
+/// Mandalorian beskar gear forged by Varro: (name, marks, beskar, mando bit).
+pub const MANDO_FORGE: [(&str, u32, u32, u8); 3] =
+    [("Jetpack (Q dash)", 3, 1, 1), ("Whistling Darts (R)", 2, 1, 2), ("Clan Signet", 2, 1, 4)];
+/// Longhouse cantina entrance in Dustreach & interior coordinates (6x5 room).
+pub const F_CANTINA: (f32, f32) = (21.0, 9.5);
+pub const CT_EXIT: (f32, f32) = (3.0, 4.55);
+pub const CT_BROKER: (f32, f32) = (1.5, 1.8);
+pub fn ct_block(x: i32, z: i32) -> bool {
+    !(0..6).contains(&x) || !(0..5).contains(&z) || z == 0 || (x == 5 && (1..=2).contains(&z)) || (x == 0 && z == 1)
+}
 /// Guild marks paid per bounty tier, on top of the coins.
 pub const MARKS: [u32; 3] = [1, 2, 3];
 /// Where the hover-bike parks beside your ship.
@@ -148,6 +158,9 @@ pub struct Bounty {
     /// The informant has been paid for this bounty: the HUD shows a live bearing.
     #[serde(default)]
     pub hinted: bool,
+    /// Planet index where the target is hiding (0 Dustreach, 1 Glacia, 2 Verdance).
+    #[serde(default)]
+    pub planet: u8,
 }
 /// Frontier gear (original designs, non-lethal, works only in Dustreach): item id, price, what it does.
 pub const GEAR: [(u16, u32, &str); 3] = [
@@ -317,8 +330,40 @@ impl Game {
             delivered: false,
             ambushed: false,
             hinted: false,
+            planet: 0,
         });
         Ok(format!("Bounty taken: {}. Last seen {}.", o.name, F_SPOTS[o.spot].1))
+    }
+    /// Accept an off-world cantina contract on Glacia (1) or Verdance (2).
+    pub fn take_offworld_bounty(&mut self, planet: u8) -> Result<String, &'static str> {
+        if self.w.p.bounty.is_some() {
+            return Err("Finish or drop your current bounty first.");
+        }
+        if !(1..=2).contains(&planet) {
+            return Err("No contract for that sector.");
+        }
+        let s = (self.w.day.rem_euclid(SAMPLE_SPOTS[0].len() as i64)) as usize;
+        let (sx, sz) = SAMPLE_SPOTS[(planet - 1) as usize][s];
+        let mut pos = vec![[sx as f32 + 0.5, sz as f32 + 0.5]];
+        for (dx, dz) in [(-1, 1), (1, -1)] {
+            let (tx, tz) = if p_walk(planet, sx + dx, sz + dz) { (sx + dx, sz + dz) } else { (sx, sz) };
+            pos.push([tx as f32 + 0.5, tz as f32 + 0.5]);
+        }
+        self.w.p.bounty = Some(Bounty {
+            day: self.w.day,
+            offer: 2,
+            tier: 2,
+            pos,
+            caught: false,
+            run: 0.,
+            stun: 0.,
+            delivered: false,
+            ambushed: false,
+            hinted: false,
+            planet,
+        });
+        let name = self.bounty_offers()[2].name;
+        Ok(format!("Off-world puck: {name} on {}. Fly there, stun & haul them back!", PLANETS[planet as usize].0))
     }
     pub fn drop_bounty(&mut self) {
         if self.w.p.bounty.take().is_some() {
@@ -350,15 +395,20 @@ impl Game {
             return Err("Lock them in your ship's holding pod first.");
         }
         self.w.p.marks += MARKS[b.tier as usize];
-        let base = BOUNTY_REWARD[b.tier as usize];
+        let base = BOUNTY_REWARD[b.tier as usize] + if b.planet > 0 { 500 } else { 0 };
         let reward = base + base * bounty_bonus_pct(self.w.p.ship_up[2]) / 100;
+        if b.planet > 0 {
+            self.w.p.beskar += 1;
+        }
         let before = rank_of(self.w.p.bounties_done);
         self.w.p.money = self.w.p.money.saturating_add(reward);
         self.w.p.bounties_done += 1;
-        let set_done = {
+        let set_done = if b.planet == 0 {
             let batch = self.bounty_batch(b.day);
             self.w.p.bounty_log.push((b.day, b.offer + 3 * batch));
             self.bounty_batch(b.day) > batch
+        } else {
+            false
         };
         self.w.p.bounty_log.retain(|&(d, _)| d + 7 >= self.w.day);
         self.w.p.bounty = None;
@@ -373,10 +423,15 @@ impl Game {
         }
         Ok(reward)
     }
-    /// Distance from the active player to their target, if a hunt is on.
+    /// Distance from the active player to their target on the current planet, if a hunt is on.
     pub fn bounty_dist(&self) -> Option<f32> {
-        let b = self.w.p.bounty.as_ref()?;
-        (!b.caught).then(|| self.me.ipos.distance(vec2(b.pos[0][0], b.pos[0][1])))
+        let cur = match self.me.scene {
+            Scene::Frontier => 0,
+            Scene::Planet(k) => k,
+            _ => return None,
+        };
+        let b = self.w.p.bounty.as_ref().filter(|b| !b.caught && b.planet == cur)?;
+        Some(self.me.ipos.distance(vec2(b.pos[0][0], b.pos[0][1])))
     }
     pub fn tracker_word(&self) -> &'static str {
         match self.bounty_dist() {
@@ -397,8 +452,28 @@ impl Game {
         self.note(format!("{name} is locked in the holding pod. Collect the pay at the Guild Post board."));
         Ok(())
     }
-    /// The guild master forges armour piece `k` for guild marks.
+    /// The guild master forges armour piece `k` (0..4) or beskar gear (`4..7`).
     pub fn forge(&mut self, k: usize) -> Result<(), &'static str> {
+        if let Some(&(name, marks, beskar, bit)) = k.checked_sub(ARMOR.len()).and_then(|i| MANDO_FORGE.get(i)) {
+            if self.w.p.mando & bit != 0 {
+                return Err("You already carry that.");
+            }
+            if bit == 1 && self.w.p.armor != 0b1111 {
+                return Err("Forge all 4 armour pieces first for a jetpack.");
+            }
+            if self.w.p.marks < marks {
+                return Err("Not enough guild marks.");
+            }
+            if self.w.p.beskar < beskar {
+                return Err("Need Beskar ore (from orbit or off-world hunts).");
+            }
+            self.w.p.marks -= marks;
+            self.w.p.beskar -= beskar;
+            self.w.p.mando |= bit;
+            self.snd.push(Snd::Coin);
+            self.note(format!("Varro forges your {name}. This is the way."));
+            return Ok(());
+        }
         let (name, cost) = ARMOR[k];
         if self.w.p.armor & (1 << k) != 0 {
             return Err("You already wear that piece.");
@@ -411,6 +486,42 @@ impl Game {
         self.snd.push(Snd::Coin);
         self.note(format!("The guild master hammers out your {name}. You wear it in Dustreach."));
         Ok(())
+    }
+    /// Short jetpack burst (`Q`) in Dustreach or on planets.
+    pub fn jetpack_dash(&mut self) {
+        if self.w.p.mando & 1 == 0 || !matches!(self.me.scene, Scene::Frontier | Scene::Planet(_)) {
+            return;
+        }
+        if self.me.jet_cd > 0. {
+            return self.note("Jetpack recharging...");
+        }
+        self.me.jet = 0.55;
+        self.me.jet_cd = 2.5;
+        self.snd.push(Snd::Swim);
+    }
+    /// Whistling darts (`R`): stuns an uncaught target on the current planet within range.
+    pub fn whistling_darts(&mut self) {
+        if self.w.p.mando & 2 == 0 || !matches!(self.me.scene, Scene::Frontier | Scene::Planet(_)) {
+            return;
+        }
+        let cur = if self.me.scene == Scene::Frontier {
+            0
+        } else if let Scene::Planet(k) = self.me.scene {
+            k
+        } else {
+            return;
+        };
+        self.snd.push(Snd::Blip);
+        self.me.swing = 0.35;
+        if let Some(b) = self.w.p.bounty.as_mut().filter(|b| !b.caught && b.planet == cur) {
+            let p = vec2(b.pos[0][0], b.pos[0][1]);
+            if p.distance(self.me.ipos) < 7.5 {
+                b.stun = 4.0;
+                b.run = b.run.min(0.);
+                return self.note("Whistling darts lock on! Target stunned.");
+            }
+        }
+        self.note("Whistling darts find no target in range.");
     }
     pub fn armor_pieces(&self) -> u32 {
         self.w.p.armor.count_ones()
@@ -493,9 +604,9 @@ impl Game {
         self.note(format!("Bought the {}. Space to use it, Tab to switch.", def(d).name));
         Ok(())
     }
-    /// Use the equipped gear (called from use_tool). Gear stays holstered outside Dustreach.
+    /// Use the equipped gear (called from use_tool). Works in Dustreach and on landing sites.
     pub(super) fn use_gear(&mut self, d: u16) {
-        if self.me.scene != Scene::Frontier {
+        if !matches!(self.me.scene, Scene::Frontier | Scene::Planet(_)) {
             return self.note("Hollowbrook is peaceful. Your gear stays holstered here.");
         }
         if self.me.swing > 0. {
@@ -533,15 +644,25 @@ impl Game {
         }
     }
     pub fn frontier_tick(&mut self, dt: f32) {
+        self.me.jet = (self.me.jet - dt).max(0.);
+        self.me.jet_cd = (self.me.jet_cd - dt).max(0.);
+        self.me.pal_cd = (self.me.pal_cd - dt).max(0.);
         if self.me.flight.is_some() {
             return; // nothing on the ground moves for you while you're flying
         }
-        if self.me.scene != Scene::Frontier {
-            self.me.bolts.clear();
-            self.me.standoff = 0.;
-            self.me.riding = false; // the bike stays in Dustreach
-            return;
-        }
+        let planet = match self.me.scene {
+            Scene::Frontier => 0,
+            Scene::Planet(k) => {
+                self.me.riding = false;
+                k
+            }
+            _ => {
+                self.me.bolts.clear();
+                self.me.standoff = 0.;
+                self.me.riding = false; // the bike stays in Dustreach
+                return;
+            }
+        };
         let me = self.me.ipos;
         // shots in flight: walls stop them; the real target is stunned, lookalikes just flinch
         let mut bolts = std::mem::take(&mut self.me.bolts);
@@ -552,10 +673,12 @@ impl Game {
             s.pos += s.vel * dt;
             s.life -= dt;
             let t = tile_of(s.pos);
-            if s.life <= 0. || !matches!(ftile(fmap, t.0, t.1), SAND | PATH) {
+            let clear =
+                if planet == 0 { matches!(ftile(fmap, t.0, t.1), SAND | PATH) } else { p_walk(planet, t.0, t.1) };
+            if s.life <= 0. || !clear {
                 return false;
             }
-            if let Some(b) = bounty.as_mut().filter(|b| !b.caught) {
+            if let Some(b) = bounty.as_mut().filter(|b| !b.caught && b.planet == planet) {
                 if let Some(i) = b.pos.iter().position(|p| vec2(p[0], p[1]).distance(s.pos) < 0.45) {
                     if i == 0 {
                         b.stun = if s.kind == 1 { 5. } else { 2.5 };
@@ -572,15 +695,32 @@ impl Game {
             self.note("Stunned! Detain them now.");
         }
         self.me.dazed = (self.me.dazed - dt).max(0.);
-        // the companion trots along just behind and beside you
+        // the companion trots along beside you, points out lookalikes, and startles fleeing targets
+        let mut pal_chirp = false;
         if self.w.p.pal {
             let f = self.me.face.normalize_or_zero();
-            let want = me - f * 0.8 + vec2(-f.y, f.x) * 0.45;
+            let mut want = me - f * 0.8 + vec2(-f.y, f.x) * 0.45;
+            if let Some(b) = self.w.p.bounty.as_mut().filter(|b| !b.caught && b.planet == planet) {
+                let tgt = vec2(b.pos[0][0], b.pos[0][1]);
+                if b.pos.len() > 1 && me.distance(tgt) < 6. {
+                    want = tgt + vec2(0.7, 0.2); // lookalike reveal
+                }
+                if b.run > 0. && b.stun <= 0. && me.distance(tgt) < 3.5 && self.me.pal_cd <= 0. {
+                    b.stun = 2.0;
+                    b.run = 0.;
+                    self.me.pal_cd = 10.;
+                    pal_chirp = true;
+                }
+            }
             if self.me.pal_pos == Vec2::ZERO || self.me.pal_pos.distance(want) > 6. {
                 self.me.pal_pos = want;
             } else {
                 self.me.pal_pos += (want - self.me.pal_pos) * (dt * 4.).min(1.);
             }
+        }
+        if pal_chirp {
+            self.snd.push(Snd::Blip);
+            self.note("Your sand-hopper's chirp startles the fugitive!");
         }
         // the tracker beeps faster the closer the target is
         if let Some(d) = self.bounty_dist() {
@@ -592,7 +732,7 @@ impl Game {
         }
         let armor = self.w.p.armor.count_ones() as f32;
         let mut ambush = false;
-        let Some(b) = self.w.p.bounty.as_mut() else { return };
+        let Some(b) = self.w.p.bounty.as_mut().filter(|b| b.planet == planet) else { return };
         if b.caught {
             if !b.delivered {
                 // a detained target walks behind you to the ship
@@ -666,7 +806,8 @@ impl Game {
         for d in [away, (away + side).normalize(), (away - side).normalize(), side, -side] {
             let n = p + d * 4.2 * dt;
             let t = tile_of(n);
-            if f_walk(&self.fmap, t.0, t.1) {
+            let ok = if planet == 0 { f_walk(&self.fmap, t.0, t.1) } else { p_walk(planet, t.0, t.1) };
+            if ok {
                 b.pos[0] = [n.x, n.y];
                 break;
             }

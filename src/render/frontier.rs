@@ -251,74 +251,8 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
     if g.me.ipos.distance(vec2(F_BROKER.0, F_BROKER.1)) < 3.5 {
         labels.push((vec3(F_BROKER.0, 1.9, F_BROKER.1), "Guild Master Varro".into(), Color::new(1., 0.9, 0.7, 1.)));
     }
-    // the active player's bounty: target (and lookalikes), each with a scarf
-    if let Some(b) = g.w.p.bounty.as_ref().filter(|b| !b.delivered) {
-        let looks = [(Some(63), Some(67), 1), (Some(65), Some(67), 1), (Some(64), Some(67), 1)];
-        for (i, p) in b.pos.iter().enumerate().filter(|(i, _)| !b.caught || *i == 0) {
-            let pos = vec3(p[0], 0., p[1]);
-            let running =
-                i == 0 && ((b.run > 0. && b.stun <= 0.) || (b.caught && vec2(p[0], p[1]).distance(g.me.ipos) > 1.2));
-            let face = if running && !b.caught { vec2(p[0], p[1]) - g.me.ipos } else { g.me.ipos - vec2(p[0], p[1]) };
-            if b.caught {
-                // binders on the wrists
-                r.cube(vec3(p[0], 0.45, p[1]), vec3(0.16, 0.04, 0.12), Color::new(0.3, 0.32, 0.36, 1.));
-            }
-            r.disc(vec3(pos.x, 0.02, pos.z), vec2(0.3, 0.24), Color::new(0., 0., 0., 0.18));
-            human(
-                r,
-                1,
-                looks[i % 3],
-                pos,
-                yaw_of(face.normalize_or_zero()),
-                t * 3.,
-                if running { 4.2 } else { 0. },
-                0,
-                None,
-                t,
-                0.,
-            );
-            if i == 0 && b.stun > 0. {
-                let u = r.unlit;
-                r.unlit = true;
-                for k in 0..3 {
-                    let a = t * 5. + k as f32 * 2.1;
-                    r.sphere(
-                        pos + vec3(a.cos() * 0.28, 1.5, a.sin() * 0.28),
-                        Vec3::splat(0.05),
-                        Color::new(1., 0.92, 0.35, 1.),
-                    );
-                }
-                r.unlit = u;
-            }
-            let sc = SCARVES[i % 3].1;
-            let scol = Color::new(sc.0, sc.1, sc.2, 1.);
-            let fwd = face.normalize_or_zero();
-            r.cube(pos + vec3(0., 0.74, 0.), vec3(0.22, 0.06, 0.2), scol); // wrapped scarf
-            let tail = pos + vec3(fwd.x * 0.2, 0.6, fwd.y * 0.2);
-            r.cube(tail, vec3(0.06, 0.13, 0.06), sh(scol, 0.85)); // loose end hanging at the front
-        }
-    }
-    // gear shots in flight
-    let u = r.unlit;
-    r.unlit = true;
-    for s in &g.me.bolts {
-        let yaw = s.vel.x.atan2(s.vel.y);
-        let at = vec3(s.pos.x, 0.8, s.pos.y);
-        if s.kind == 0 {
-            r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(yaw), at), |r| {
-                r.cube(Vec3::ZERO, vec3(0.025, 0.025, 0.48), Color::new(0.85, 1., 1., 1.));
-                r.cube(Vec3::ZERO, vec3(0.06, 0.06, 0.36), Color::new(0.25, 0.85, 1., 0.55));
-            });
-        } else {
-            let a = t * 14.;
-            let off = vec3(a.cos() * 0.22, 0., a.sin() * 0.22);
-            r.seg(at - off, at + off, 0.012, Color::new(0.85, 0.8, 0.6, 1.));
-            for p in [at - off, at + off] {
-                r.sphere(p, Vec3::splat(0.05), Color::new(0.25, 0.25, 0.28, 1.));
-            }
-        }
-    }
-    r.unlit = u;
+    // the active player's bounty (if on this planet) and bolts in flight
+    draw_bounty_and_bolts(r, g, 0, t);
     // tumbleweeds rolling down the cross street
     for k in 0..2 {
         let x = ((t * 1.3 + k as f32 * 13.) % 32.) - 1.;
@@ -346,11 +280,18 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
     hunter_gear(r, g, t);
     let shc = Color::new(0., 0., 0., 0.2);
     r.disc(vec3(g.me.ipos.x, 0.02, g.me.ipos.y), vec2(0.32, 0.26), shc);
+    let py = if g.me.riding {
+        0.34
+    } else if g.me.jet > 0. {
+        0.45
+    } else {
+        0.
+    };
     human_g(
         r,
         g.me.id,
         (g.w.p.shirt, g.w.p.hat, g.w.p.hair),
-        vec3(g.me.ipos.x, if g.me.riding { 0.34 } else { 0. }, g.me.ipos.y),
+        vec3(g.me.ipos.x, py, g.me.ipos.y),
         yaw_of(g.me.face),
         g.me.anim,
         g.me.spd,
@@ -358,9 +299,9 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
         g.w.p.equip,
         t,
         g.me.swing,
-        Gear { armor: g.w.p.armor, tracker: g.bounty_dist() },
+        Gear { armor: g.w.p.armor, tracker: g.bounty_dist(), mando: g.w.p.mando, jet: g.me.jet },
     );
-    mark_player(r, vec3(g.me.ipos.x, if g.me.riding { 0.34 } else { 0. }, g.me.ipos.y));
+    mark_player(r, vec3(g.me.ipos.x, py, g.me.ipos.y));
     // structures and rocks that block the view, faded, after the player so the player shows through
     let a_view = r.alpha;
     r.alpha = if marking() { 0. } else { 0.3 };
@@ -412,7 +353,12 @@ pub(super) fn frontier_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(
 
 /// The bounty panel under the messages while a hunt is on.
 pub(super) fn bounty_hud(g: &Game, sw: f32) {
-    if g.me.scene != Scene::Frontier || g.me.flight.is_some() {
+    let cur = match g.me.scene {
+        Scene::Frontier => 0,
+        Scene::Planet(k) => k,
+        _ => return,
+    };
+    if g.me.flight.is_some() {
         return;
     }
     if g.me.standoff > 0. {
@@ -431,17 +377,21 @@ pub(super) fn bounty_hud(g: &Game, sw: f32) {
     let bw = (sw - 24.).min(520.);
     draw_rectangle(12., 186., bw, 52., Color::new(0.3, 0.16, 0.08, 0.85));
     let line = if b.delivered {
-        format!("{} is in your holding pod. Collect the pay at the board.", o.name)
+        format!("{} is in your holding pod. Collect pay at the Dustreach board.", o.name)
     } else if b.caught {
         format!("{} detained. Walk them to your ship's holding pod.", o.name)
+    } else if b.planet != cur {
+        format!("Off-world bounty: {} on {}", o.name, PLANETS[b.planet as usize].0)
     } else {
         format!("Bounty: {}   Tracker: {}", o.name, g.tracker_word())
     };
     txt(&line, 22., 207., 21., WHITE);
-    let sub = if b.hinted && !b.caught {
+    let sub = if b.planet != cur && !b.caught {
+        format!("Board your ship and fly to {}.", PLANETS[b.planet as usize].0)
+    } else if b.hinted && !b.caught {
         format!("Moss says: head {} from here.", bearing(g.me.ipos, vec2(b.pos[0][0], b.pos[0][1])))
     } else if b.tier == 2 && !b.caught {
-        format!("Last seen {}. Wears a {} scarf.", F_SPOTS[o.spot].1, SCARVES[0].0)
+        format!("Wears a {} scarf. Look out for lookalikes.", SCARVES[0].0)
     } else {
         format!("Last seen {}.", F_SPOTS[o.spot].1)
     };
@@ -738,20 +688,95 @@ fn hunter_gear(r: &mut R, g: &Game, t: f32) {
     }
 }
 
-/// The guild master's forge: armour pieces for guild marks, with a rumour about your current target.
+/// Draw the active player's bounty target/lookalikes (if on `planet`) and any stun/tangle bolts in flight.
+pub(super) fn draw_bounty_and_bolts(r: &mut R, g: &Game, planet: u8, t: f32) {
+    if let Some(b) = g.w.p.bounty.as_ref().filter(|b| !b.delivered && b.planet == planet) {
+        let looks = [(Some(63), Some(67), 1), (Some(65), Some(67), 1), (Some(64), Some(67), 1)];
+        for (i, p) in b.pos.iter().enumerate().filter(|(i, _)| !b.caught || *i == 0) {
+            let pos = vec3(p[0], 0., p[1]);
+            let running =
+                i == 0 && ((b.run > 0. && b.stun <= 0.) || (b.caught && vec2(p[0], p[1]).distance(g.me.ipos) > 1.2));
+            let face = if running && !b.caught { vec2(p[0], p[1]) - g.me.ipos } else { g.me.ipos - vec2(p[0], p[1]) };
+            if b.caught {
+                r.cube(vec3(p[0], 0.45, p[1]), vec3(0.16, 0.04, 0.12), Color::new(0.3, 0.32, 0.36, 1.));
+            }
+            r.disc(vec3(pos.x, 0.02, pos.z), vec2(0.3, 0.24), Color::new(0., 0., 0., 0.18));
+            human(
+                r,
+                1,
+                looks[i % 3],
+                pos,
+                yaw_of(face.normalize_or_zero()),
+                t * 3.,
+                if running { 4.2 } else { 0. },
+                0,
+                None,
+                t,
+                0.,
+            );
+            if i == 0 && b.stun > 0. {
+                let u = r.unlit;
+                r.unlit = true;
+                for k in 0..3 {
+                    let a = t * 5. + k as f32 * 2.1;
+                    r.sphere(
+                        pos + vec3(a.cos() * 0.28, 1.5, a.sin() * 0.28),
+                        Vec3::splat(0.05),
+                        Color::new(1., 0.92, 0.35, 1.),
+                    );
+                }
+                r.unlit = u;
+            }
+            let sc = SCARVES[i % 3].1;
+            let scol = Color::new(sc.0, sc.1, sc.2, 1.);
+            let fwd = face.normalize_or_zero();
+            r.cube(pos + vec3(0., 0.74, 0.), vec3(0.22, 0.06, 0.2), scol);
+            let tail = pos + vec3(fwd.x * 0.2, 0.6, fwd.y * 0.2);
+            r.cube(tail, vec3(0.06, 0.13, 0.06), sh(scol, 0.85));
+        }
+    }
+    let u = r.unlit;
+    r.unlit = true;
+    for s in &g.me.bolts {
+        let yaw = s.vel.x.atan2(s.vel.y);
+        let at = vec3(s.pos.x, 0.8, s.pos.y);
+        if s.kind == 0 {
+            r.with(Mat4::from_rotation_translation(Quat::from_rotation_y(yaw), at), |r| {
+                r.cube(Vec3::ZERO, vec3(0.025, 0.025, 0.48), Color::new(0.85, 1., 1., 1.));
+                r.cube(Vec3::ZERO, vec3(0.06, 0.06, 0.36), Color::new(0.25, 0.85, 1., 0.55));
+            });
+        } else {
+            let a = t * 14.;
+            let off = vec3(a.cos() * 0.22, 0., a.sin() * 0.22);
+            r.seg(at - off, at + off, 0.012, Color::new(0.85, 0.8, 0.6, 1.));
+            for p in [at - off, at + off] {
+                r.sphere(p, Vec3::splat(0.05), Color::new(0.25, 0.25, 0.28, 1.));
+            }
+        }
+    }
+    r.unlit = u;
+}
+
+/// The guild master's forge: armour pieces & beskar gadgets, with a rumour about your current target.
 pub(super) fn forge_menu(g: &Game, sel: usize, sw: f32) {
     let pw = (sw - 40.).min(700.);
     let x0 = sw / 2. - pw / 2.;
-    panel(x0, 70., pw, 420.);
+    panel(x0, 70., pw, 495.);
     txt("Guild Master Varro", x0 + 20., 105., 24., Color::new(0.45, 0.3, 0.2, 1.));
     let rumour = match g.w.p.bounty.as_ref().filter(|b| !b.caught) {
         Some(b) => format!("\"{}\"", RUMOURS[b.tier as usize]),
-        None => "\"Bring them in, and I'll make you armour worth wearing.\"".into(),
+        None => "\"Bring them in, and I'll forge Beskar worthy of a bounty hunter.\"".into(),
     };
     for (k, l) in wrap_txt(&rumour, ((pw - 50.) / 10.) as usize).iter().enumerate() {
         txt(l, x0 + 20., 132. + k as f32 * 20., 17., DARKGRAY);
     }
-    txt(&format!("Guild marks: {}", g.w.p.marks), x0 + 20., 190., 20., Color::new(0.45, 0.3, 0.2, 1.));
+    txt(
+        &format!("Guild marks: {}   Beskar: {}", g.w.p.marks, g.w.p.beskar),
+        x0 + 20.,
+        190.,
+        20.,
+        Color::new(0.45, 0.3, 0.2, 1.),
+    );
     let mut items: Vec<String> = ARMOR
         .iter()
         .enumerate()
@@ -765,10 +790,81 @@ pub(super) fn forge_menu(g: &Game, sel: usize, sw: f32) {
             },
         )
         .collect();
+    for &(n, m, b, bit) in &MANDO_FORGE {
+        if g.w.p.mando & bit != 0 {
+            items.push(format!("{n}  (owned)"));
+        } else {
+            items.push(format!("Forge {n}  -  {m}m + {b} Beskar"));
+        }
+    }
     items.push("Close".into());
     list(&items, Some(sel), x0 + 30., 230.);
-    txt("Earn marks by bringing in bounties: 1 / 2 / 3 by difficulty.", x0 + 30., 400., 17., DARKGRAY);
-    txt("W/S choose   Enter forge   Esc close", x0 + 30., 470., 18., Color::new(0.45, 0.3, 0.2, 1.));
+    txt("Find Beskar in space orbit, Glacia/Verdance, or off-world bounties.", x0 + 30., 470., 17., DARKGRAY);
+    txt("W/S choose   Enter forge   Esc close", x0 + 30., 540., 18., Color::new(0.45, 0.3, 0.2, 1.));
+}
+
+/// Longhouse cantina interior: bar, glowing bottles, booths, and off-world broker.
+pub(super) fn cantina_scene(r: &mut R, g: &Game, lt: &Light, labels: &mut Vec<(Vec3, String, Color)>) {
+    let t = g.t;
+    let (w, d) = (6f32, 5f32);
+    let floor = Color::new(0.54, 0.42, 0.3, 1.);
+    let wall = Color::new(0.78, 0.62, 0.46, 1.);
+    r.quad(vec3(0., 0., 0.), vec3(w, 0., 0.), vec3(w, 0., d), vec3(0., 0., d), Vec3::Y, floor);
+    r.quad(vec3(0., 0., 0.), vec3(w, 0., 0.), vec3(w, 2.4, 0.), vec3(0., 2.4, 0.), Vec3::Z, wall);
+    for x in [-0.08, w + 0.08] {
+        r.cube(vec3(x, 0.55, d / 2.), vec3(0.08, 0.55, d / 2.), sh(wall, 0.85));
+    }
+    // bar counter & glowing cantina bottles
+    r.cube(vec3(w / 2., 0.45, 0.65), vec3(2.4, 0.45, 0.35), BEAM);
+    let u = r.unlit;
+    r.unlit = true;
+    for k in 0..5 {
+        let col = [Color::new(0.3, 0.95, 1., 1.), Color::new(1., 0.65, 0.2, 1.), Color::new(0.5, 1., 0.5, 1.)][k % 3];
+        r.cyl(vec3(1.6 + k as f32 * 0.65, 0.9, 0.5), 0.06, 0.24, col);
+    }
+    r.unlit = u;
+    // back booth table
+    r.cube(vec3(5.3, 0.35, 1.8), vec3(0.45, 0.35, 0.65), sh(BEAM, 0.85));
+    lantern(r, vec3(w / 2., 1.8, 0.15), 1. - lt.night * 0.2);
+    // off-world broker in the left booth
+    human(r, 1, (Some(64), Some(68), 0), vec3(0.6, 0., 1.1), 0.6, 0., 0., 0, None, t, 0.);
+    if g.me.ipos.distance(vec2(CT_BROKER.0, CT_BROKER.1)) < 2.2 {
+        labels.push((vec3(0.6, 1.8, 1.1), "Off-world Broker".into(), Color::new(1., 0.9, 0.7, 1.)));
+    }
+    r.cube(vec3(CT_EXIT.0, 0.01, CT_EXIT.1 + 0.1), vec3(0.55, 0.01, 0.18), Color::new(0.55, 0.4, 0.25, 1.));
+    let me = g.me.ipos;
+    r.disc(vec3(me.x, 0.02, me.y), vec2(0.32, 0.26), Color::new(0., 0., 0., 0.2));
+    human_g(
+        r,
+        g.me.id,
+        (g.w.p.shirt, g.w.p.hat, g.w.p.hair),
+        vec3(me.x, 0., me.y),
+        yaw_of(g.me.face),
+        g.me.anim,
+        g.me.spd,
+        0,
+        None,
+        t,
+        g.me.swing,
+        Gear { armor: g.w.p.armor, tracker: None, mando: g.w.p.mando, jet: 0. },
+    );
+}
+
+/// Cantina booth menu: off-world contracts and Beskar trade.
+pub(super) fn cantina_menu(g: &Game, sel: usize, sw: f32) {
+    let pw = (sw - 40.).min(660.);
+    let x0 = sw / 2. - pw / 2.;
+    panel(x0, 90., pw, 340.);
+    txt("Longhouse Cantina  -  Off-world Booth", x0 + 20., 125., 24., Color::new(0.45, 0.3, 0.2, 1.));
+    txt(&format!("Coins: {}   Beskar: {}", g.w.p.money, g.w.p.beskar), x0 + 20., 158., 19., DARKGRAY);
+    let items = vec![
+        "Off-world puck: Glacia (+2100c + 1 Beskar)".to_string(),
+        "Off-world puck: Verdance (+2100c + 1 Beskar)".to_string(),
+        "Buy 1 Beskar ore  -  300c".to_string(),
+        "Close".to_string(),
+    ];
+    list(&items, Some(sel), x0 + 30., 200.);
+    txt("W/S choose   Enter accept   Esc close", x0 + 30., 395., 18., Color::new(0.45, 0.3, 0.2, 1.));
 }
 
 /// A hover-bike: a long low body, twin forward engine pods, a seat and a soft blue hover glow underneath.

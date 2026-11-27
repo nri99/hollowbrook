@@ -10,11 +10,14 @@ pub(super) fn shirt_base(id: usize) -> Color {
     }
 }
 /// Hunter gear worn on the body: `armor` has one bit per ARMOR piece (1 helmet, 2 chest, 4 gauntlets, 8 boots);
-/// `tracker` is the distance to the bounty target while hunting (wrist tracker shown, blinking faster when close).
+/// `tracker` is the distance to the bounty target while hunting; `mando` (1 jetpack, 2 darts, 4 signet); `jet` > 0
+/// shows thruster flames.
 #[derive(Clone, Copy, Default)]
 pub struct Gear {
     pub armor: u8,
     pub tracker: Option<f32>,
+    pub mando: u8,
+    pub jet: f32,
 }
 /// `look` = (shirt, hat, hairstyle index) from the player's profile.
 pub fn human(
@@ -114,6 +117,22 @@ pub fn human_g(
                     r.sphere(vec3(s * 0.2, 0.3, 0.), vec3(0.09, 0.06, 0.09), sh(ARMOR_PLATE, 0.9))
                     // shoulder pad
                 }
+            }
+            if gear.mando & 4 != 0 {
+                r.cube(vec3(0.24, 0.31, 0.), vec3(0.04, 0.04, 0.04), GOLD); // Clan Signet on right shoulder
+            }
+            if gear.mando & 1 != 0 {
+                // jetpack on the back
+                for sx in [-0.07f32, 0.07] {
+                    r.cyl(vec3(sx, 0.08, -0.17), 0.045, 0.22, ARMOR_PLATE);
+                    if gear.jet > 0. {
+                        let u = r.unlit;
+                        r.unlit = true;
+                        r.cone(vec3(sx, 0.07, -0.17), 0.045, -0.22, Color::new(1., 0.62, 0.2, 1.));
+                        r.unlit = u;
+                    }
+                }
+                r.cube(vec3(0., 0.19, -0.15), vec3(0.11, 0.07, 0.04), ARMOR_TRIM);
             }
             for s in [-1f32, 1.] {
                 let a = if pose == 1 {

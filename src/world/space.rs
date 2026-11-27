@@ -199,6 +199,26 @@ impl Game {
             self.go(if k == 0 { Scene::Frontier } else { Scene::Planet(k) });
         }
     }
+    /// Spawn salvage pods and a pirate interceptor in the current system's orbit.
+    pub fn spawn_space_objs(&mut self, sys: u8) {
+        self.me.space_objs.clear();
+        self.me.space_bolts.clear();
+        for i in 0..3u8 {
+            let a = sys as f32 * 1.4 + i as f32 * 2.1;
+            let rad = PLANET_R + 7.5 + i as f32 * 2.5;
+            self.me.space_objs.push(SpaceObj {
+                pos: vec2(a.cos() * rad, a.sin() * rad),
+                vel: vec2(-a.sin(), a.cos()) * 0.6,
+                kind: 0,
+            });
+        }
+        let a = sys as f32 * 0.9 + 1.1;
+        self.me.space_objs.push(SpaceObj {
+            pos: vec2(a.cos() * (PLANET_R + 12.), a.sin() * (PLANET_R + 12.)),
+            vel: Vec2::ZERO,
+            kind: 1,
+        });
+    }
     /// Climb aboard and lift off into the planet's orbit.
     pub fn take_off(&mut self) {
         let Scene::Cockpit(sys) = self.me.scene else {
@@ -216,8 +236,9 @@ impl Game {
             dest: sys,
             thrust: 0.,
         });
+        self.spawn_space_objs(sys);
         self.snd.push(Snd::Door);
-        self.note("Engines hot. W thrust, A/D turn, Shift boost, N nav computer, E to land near the planet.");
+        self.note("Engines hot. W thrust, A/D turn, Shift boost, Space fire, N nav, E land.");
     }
     /// Upgrade system `k` of the active player's ship at Dena's shipyard.
     pub fn upgrade_ship(&mut self, k: usize) -> Result<u8, &'static str> {
@@ -263,6 +284,8 @@ impl Game {
             return Err("Fly closer to the planet to land.");
         }
         self.me.flight = None;
+        self.me.space_objs.clear();
+        self.me.space_bolts.clear();
         let scene = Scene::Cockpit(f.sys);
         self.me.ship_at = f.sys; // your ship is now parked on this planet's pad
         self.me.scene = scene; // you are still in the pilot's seat; walk down the ramp to step outside
@@ -288,6 +311,7 @@ impl Game {
                 f.vel = Vec2::ZERO;
                 f.yaw = 0.;
                 self.me.flight = Some(f);
+                self.spawn_space_objs(f.sys);
                 self.note(format!(
                     "Arrived at {}, {}. Fly in and press E to land.",
                     PLANETS[f.sys as usize].0, PLANETS[f.sys as usize].1
@@ -331,7 +355,67 @@ impl Game {
             f.vel *= 0.5;
         }
         self.me.flight = Some(f);
-        if inp.p(N) || inp.p(Space) {
+        // space encounters & ship stun-blasters
+        if inp.p(Space) {
+            self.me.space_bolts.push(Bolt {
+                pos: f.pos + fwd(f.yaw) * 1.4,
+                vel: fwd(f.yaw) * 28. + f.vel,
+                life: 1.1,
+                kind: 0,
+            });
+            self.snd.push(Snd::Blip);
+        }
+        let mut bolts = std::mem::take(&mut self.me.space_bolts);
+        let mut objs = std::mem::take(&mut self.me.space_objs);
+        let (mut got_coins, mut got_marks, mut got_beskar) = (0u32, 0u32, 0u32);
+        bolts.retain_mut(|b| {
+            b.pos += b.vel * dt;
+            b.life -= dt;
+            b.life > 0.
+        });
+        objs.retain_mut(|o| {
+            if o.kind == 0 {
+                o.pos += o.vel * dt;
+                if o.pos.distance(f.pos) < 1.8 || bolts.iter().any(|b| b.pos.distance(o.pos) < 1.2) {
+                    bolts.retain(|b| b.pos.distance(o.pos) >= 1.2);
+                    got_coins += 150;
+                    if (o.pos.x as i32).abs() % 2 == 0 {
+                        got_beskar += 1;
+                    }
+                    return false;
+                }
+            } else {
+                let to = (f.pos - o.pos).normalize_or_zero();
+                o.pos += to * 2.8 * dt;
+                if bolts.iter().any(|b| b.pos.distance(o.pos) < 1.4) {
+                    bolts.retain(|b| b.pos.distance(o.pos) >= 1.4);
+                    got_marks += 1;
+                    got_coins += 200;
+                    got_beskar += 1;
+                    return false;
+                }
+                if o.pos.distance(f.pos) < 1.3 {
+                    if let Some(fl) = self.me.flight.as_mut() {
+                        fl.vel += (f.pos - o.pos).normalize_or_zero() * 5.;
+                    }
+                }
+            }
+            true
+        });
+        self.me.space_bolts = bolts;
+        self.me.space_objs = objs;
+        if got_coins > 0 || got_marks > 0 || got_beskar > 0 {
+            self.w.p.money = self.w.p.money.saturating_add(got_coins);
+            self.w.p.marks += got_marks;
+            self.w.p.beskar += got_beskar;
+            self.snd.push(Snd::Coin);
+            self.note(if got_marks > 0 {
+                format!("Pirate disabled! +{got_marks} mark, +{got_beskar} Beskar, +{got_coins}c")
+            } else {
+                format!("Salvage recovered! +{got_coins}c{}", if got_beskar > 0 { ", +1 Beskar" } else { "" })
+            });
+        }
+        if inp.p(N) {
             self.me.ui = Ui::Nav(0);
         } else if inp.p(E) {
             if let Err(e) = self.land() {
@@ -363,7 +447,10 @@ impl Game {
         self.w.p.samples.push((self.w.day, k, i as u8));
         self.w.p.samples.retain(|&(day, _, _)| day + 2 >= self.w.day);
         self.snd.push(Snd::Rustle);
-        if got == 1 {
+        if i == 0 {
+            self.w.p.beskar += 1;
+            self.note(format!("Gathered {got}x {} + 1 Beskar ore!", def(d).name));
+        } else if got == 1 {
             self.note(format!("Gathered a {}. It sells well back home.", def(d).name));
         } else {
             self.note(format!("Scanner haul: {got}x {}!", def(d).name));

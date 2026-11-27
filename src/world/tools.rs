@@ -54,7 +54,7 @@ impl Game {
         if let Some(d) = self.w.p.equip.filter(|&d| is_gear(d)) {
             return self.use_gear(d);
         }
-        if self.me.scene == Scene::Frontier {
+        if matches!(self.me.scene, Scene::Frontier | Scene::Planet(_)) {
             return self.note("Hollowbrook tools aren't much use out here.");
         }
         if self.swimming() {

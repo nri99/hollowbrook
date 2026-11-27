@@ -217,6 +217,7 @@ pub(super) fn hud(g: &Game, now: NaiveDateTime, dbg: Option<&str>) {
         Ui::Play => {}
         Ui::Bounty(sel) => bounty_menu(g, *sel, sw),
         Ui::Forge(sel) => forge_menu(g, *sel, sw),
+        Ui::Cantina(sel) => cantina_menu(g, *sel, sw),
         Ui::ShipYard(sel) => shipyard_menu(g, *sel, sw),
         Ui::Nav(sel) => nav_menu(g, *sel, sw),
         Ui::Invitation => {

@@ -295,6 +295,11 @@ pub struct Profile {
     /// Ship upgrades: [thrusters, hyperdrive, hull, scanner], each 0..=SHIP_UP_MAX.
     #[serde(default)]
     pub ship_up: [u8; 4],
+    /// Mandalorian Beskar ingots & forged gear bits (1 jetpack, 2 whistling darts, 4 clan signet).
+    #[serde(default)]
+    pub beskar: u32,
+    #[serde(default)]
+    pub mando: u8,
     /// Resources gathered on other planets: (day, planet, spot).
     #[serde(default)]
     pub samples: Vec<(i64, u8, u8)>,
@@ -381,6 +386,8 @@ impl Profile {
             armor: 0,
             pal: false,
             ship_up: [0; 4],
+            beskar: 0,
+            mando: 0,
             samples: vec![],
             stories: vec![],
             id,
@@ -546,6 +553,8 @@ pub enum Scene {
     Planet(u8),
     /// Inside your ship, parked on planet k (0 Dustreach). Fly from the pilot's seat.
     Cockpit(u8),
+    /// Inside Dustreach's Longhouse cantina.
+    Cantina,
 }
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
 pub enum Pose {
@@ -622,6 +631,9 @@ pub enum Tg {
     Local(usize),
     Fugitive(usize),
     FGate,
+    Cantina,
+    CantinaExit,
+    CantinaBroker,
 }
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum Ui {
@@ -655,6 +667,7 @@ pub enum Ui {
     Bounty(usize),
     Forge(usize),
     ShipYard(usize),
+    Cantina(usize),
     Nav(usize),
     Title(usize),
     Help,
@@ -801,6 +814,14 @@ pub fn fcenter(f: &Furn) -> Vec2 {
     vec2((a.0 + b.0 + 1) as f32 / 2., (a.1 + b.1 + 1) as f32 / 2.)
 }
 
+/// Space encounter object in orbit: `kind` 0 = salvage pod, 1 = pirate interceptor.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct SpaceObj {
+    pub pos: Vec2,
+    pub vel: Vec2,
+    pub kind: u8,
+}
+
 /// Runtime state of one local player (persisted only through its Profile).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Player {
@@ -852,6 +873,17 @@ pub struct Player {
     /// the woods door.
     #[serde(default)]
     pub ship_at: u8,
+    /// Jetpack burst time left, cooldown, companion chirp cooldown, space objects and laser bolts.
+    #[serde(default)]
+    pub jet: f32,
+    #[serde(default)]
+    pub jet_cd: f32,
+    #[serde(default)]
+    pub pal_cd: f32,
+    #[serde(default)]
+    pub space_objs: Vec<SpaceObj>,
+    #[serde(default)]
+    pub space_bolts: Vec<Bolt>,
 }
 impl Player {
     pub fn new(id: usize, pos: Vec2) -> Player {
@@ -886,6 +918,11 @@ impl Player {
             standoff: 0.,
             flight: None,
             ship_at: 0,
+            jet: 0.,
+            jet_cd: 0.,
+            pal_cd: 0.,
+            space_objs: vec![],
+            space_bolts: vec![],
         }
     }
 }
@@ -1096,7 +1133,7 @@ impl Game {
             Scene::Town => self.me.pos,
             Scene::Room(b) => door_stand(b),
             Scene::Islet => dock_stand(),
-            Scene::Frontier | Scene::Planet(_) | Scene::Cockpit(_) => self.me.pos,
+            Scene::Frontier | Scene::Planet(_) | Scene::Cockpit(_) | Scene::Cantina => self.me.pos,
         };
         self.w.p.pos = [pos.x, pos.y];
         self.activate(0);
@@ -1159,6 +1196,9 @@ impl Game {
             if p.ship_up.iter().any(|&lv| lv > SHIP_UP_MAX) {
                 bad.push(format!("{who}: invalid ship upgrade level {:?}", p.ship_up))
             }
+            if p.mando > 0b111 {
+                bad.push(format!("{who}: invalid mando gear {}", p.mando))
+            }
             uids.extend(p.inv.iter().chain(p.storage.iter()).map(|s| s.uid).filter(|&u| u != 0));
             uids.extend(p.room.iter().chain(p.stories.iter().flatten()).map(|f| f.uid));
         }
@@ -1187,7 +1227,7 @@ impl Game {
                 Scene::Town => pl.pos,
                 Scene::Room(b) => door_stand(b),
                 Scene::Islet => dock_stand(),
-                Scene::Frontier | Scene::Planet(_) | Scene::Cockpit(_) => pl.pos,
+                Scene::Frontier | Scene::Planet(_) | Scene::Cockpit(_) | Scene::Cantina => pl.pos,
             };
             pr.pos = [p.x, p.y];
         }

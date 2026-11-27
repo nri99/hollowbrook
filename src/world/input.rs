@@ -138,8 +138,17 @@ impl Game {
                 self.use_tool()
             }
         }
-        if inp.p(Tab) || inp.p(Q) {
+        if inp.p(Tab) {
             self.cycle_tool()
+        } else if inp.p(Q) {
+            if (self.w.p.mando & 1 != 0) && matches!(self.me.scene, Scene::Frontier | Scene::Planet(_)) {
+                self.jetpack_dash();
+            } else {
+                self.cycle_tool();
+            }
+        }
+        if inp.p(R) && self.me.placing.is_none() && matches!(self.me.scene, Scene::Frontier | Scene::Planet(_)) {
+            self.whistling_darts();
         }
         if inp.p(I) {
             self.me.ui = Ui::Inv(0)
@@ -598,13 +607,38 @@ impl Game {
                 }
             }
             Ui::Forge(s) => {
-                let s = mv(s, ARMOR.len() + 1);
+                let n = ARMOR.len() + MANDO_FORGE.len();
+                let s = mv(s, n + 1);
                 self.me.ui = Ui::Forge(s);
-                if esc || (ok && s == ARMOR.len()) {
+                if esc || (ok && s == n) {
                     self.me.ui = Ui::Play
                 } else if ok {
                     if let Err(e) = self.forge(s) {
                         self.note(e)
+                    }
+                }
+            }
+            Ui::Cantina(s) => {
+                let s = mv(s, 4);
+                self.me.ui = Ui::Cantina(s);
+                if esc || (ok && s == 3) {
+                    self.me.ui = Ui::Play
+                } else if ok {
+                    if s < 2 {
+                        match self.take_offworld_bounty(s as u8 + 1) {
+                            Ok(m) => {
+                                self.note(m);
+                                self.me.ui = Ui::Play
+                            }
+                            Err(e) => self.note(e),
+                        }
+                    } else if self.w.p.money < 300 {
+                        self.note("Need 300 coins for Beskar ore.")
+                    } else {
+                        self.w.p.money -= 300;
+                        self.w.p.beskar += 1;
+                        self.snd.push(Snd::Coin);
+                        self.note("Bought 1 Beskar ore from the booth.")
                     }
                 }
             }

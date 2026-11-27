@@ -440,6 +440,7 @@ impl Game {
                 Scene::Frontier => f_walk(&self.fmap, x, z),
                 Scene::Planet(k) => p_walk(k, x, z),
                 Scene::Cockpit(_) => !ck_block(x, z),
+                Scene::Cantina => !ct_block(x, z),
             }
         })
     }
@@ -490,7 +491,8 @@ impl Game {
         } else {
             3.0
         }) * dt
-            * if self.me.riding && self.me.scene == Scene::Frontier { 1.9 } else { 1. };
+            * if self.me.riding && self.me.scene == Scene::Frontier { 1.9 } else { 1. }
+            * if self.me.jet > 0. && matches!(self.me.scene, Scene::Frontier | Scene::Planet(_)) { 2.4 } else { 1. };
         let p0 = self.ppos();
         let mut p = p0;
         let nx = p + vec2(d.x * s, 0.);
@@ -537,7 +539,7 @@ impl Game {
                 SAND => SAND,
                 c => c,
             },
-            Scene::Room(_) | Scene::Cockpit(_) => return Snd::StepFloor,
+            Scene::Room(_) | Scene::Cockpit(_) | Scene::Cantina => return Snd::StepFloor,
         };
         if self.w.built.iter().any(|b| b.kind == PK_BRIDGE && ptiles(b.kind, b.x, b.z).contains(&t)) {
             return Snd::StepWood;
@@ -579,15 +581,26 @@ impl Game {
                 self.me.face = vec2(0., 1.);
                 self.me.cam = self.me.ipos
             }
+            Scene::Cantina => {
+                self.me.ipos = vec2(3.0, 3.8);
+                self.me.face = vec2(0., -1.);
+                self.me.cam = self.me.ipos
+            }
             Scene::Frontier => {
-                // off the ship's ramp when stepping out of it, otherwise at the gate from Hollowbrook
+                // off the ship's ramp when stepping out of it, outside the cantina, or at the gate
                 let from_ship = matches!(self.me.scene, Scene::Cockpit(_));
+                let from_cantina = self.me.scene == Scene::Cantina;
                 if self.me.scene == Scene::Town {
                     self.me.ship_at = 0; // your ship flies itself home to its Dustreach pad
                 }
-                self.me.ipos =
-                    if from_ship { ramp_of(0, pad_of(self.me.id)) + vec2(0., 0.6) } else { vec2(F_SPAWN.0, F_SPAWN.1) };
-                self.me.face = if from_ship { vec2(0., 1.) } else { vec2(0., -1.) };
+                self.me.ipos = if from_ship {
+                    ramp_of(0, pad_of(self.me.id)) + vec2(0., 0.6)
+                } else if from_cantina {
+                    vec2(F_CANTINA.0, F_CANTINA.1 + 0.7)
+                } else {
+                    vec2(F_SPAWN.0, F_SPAWN.1)
+                };
+                self.me.face = if from_ship || from_cantina { vec2(0., 1.) } else { vec2(0., -1.) };
                 self.me.cam = self.me.ipos
             }
             Scene::Islet => {
